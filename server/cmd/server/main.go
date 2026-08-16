@@ -6,9 +6,14 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	// ローカル開発用。.envが無い場合（Cloud Run等）はエラーを無視して
+	// プラットフォームが注入した環境変数をそのまま使う。
+	_ = godotenv.Load()
+
 	router := gin.Default()
 
 	router.GET("/healthz", func(c *gin.Context) {

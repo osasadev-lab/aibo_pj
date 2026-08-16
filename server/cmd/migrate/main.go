@@ -7,6 +7,7 @@ import (
 	"os"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/joho/godotenv"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	entsql "entgo.io/ent/dialect/sql"
@@ -15,6 +16,9 @@ import (
 // entのスキーマを対象DBに適用する（テーブル作成／不足しているカラム・
 // インデックスの追加）。実行方法: go run ./cmd/migrate
 func main() {
+	// ローカル開発用。.envが無い場合（CI等）はエラーを無視する。
+	_ = godotenv.Load()
+
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		log.Fatal("DATABASE_URL is not set")
