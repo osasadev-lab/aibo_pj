@@ -6,8 +6,13 @@ Asana的なUIを持つ、チーム/組織向けタスク管理サービス。設
 
 ```
 server/   Go (Gin) + ent。REST API。Cloud Runにデプロイ
-web/      Next.js（App Router）。Cloudflare Pagesにデプロイ
+web/      Next.js（App Router）。Cloudflare Workersにデプロイ（@opennextjs/cloudflare使用）
 ```
+
+spec.mdでは「Cloudflare Pages」としているが、Next.js 16はPages向けの旧アダプタ
+（`@cloudflare/next-on-pages`）が未対応のため、Cloudflareが現在推奨している
+Workers向けアダプタ（`@opennextjs/cloudflare`）に切り替えている（デプロイ先は
+Pagesダッシュボードではなく Workersダッシュボードになる）。
 
 ## 現在の状態（M0：開発基盤構築）
 
@@ -17,7 +22,7 @@ web/      Next.js（App Router）。Cloudflare Pagesにデプロイ
 - [x] Next.jsの最小ページ
 - [x] Dockerfile（server、Cloud Run向け）
 - [x] CI（lint/test/build）のGitHub Actionsワークフロー
-- [ ] 実際のCloud Run / Cloudflare Pagesへのデプロイ（デプロイワークフローは用意済み、実行は手動）
+- [ ] 実際のCloud Run / Cloudflare Workersへのデプロイ（デプロイワークフローは用意済み、実行は手動）
 
 ## セットアップ
 
@@ -49,9 +54,15 @@ npm run dev   # http://localhost:3000
 
 ## デプロイ
 
-`.github/workflows/deploy-server.yml`（Cloud Run）、`.github/workflows/deploy-web.yml`（Cloudflare Pages）はどちらも `workflow_dispatch`（手動トリガー）のみで、事前にリポジトリのSecretsを設定してから実行する。詳細は各ワークフローファイル冒頭のコメントを参照。
+`.github/workflows/deploy-server.yml`（Cloud Run）、`.github/workflows/deploy-web.yml`（Cloudflare Workers）はどちらも `workflow_dispatch`（手動トリガー）のみで、事前にリポジトリのSecretsを設定してから実行する。詳細は各ワークフローファイル冒頭のコメントを参照。
 
-`deploy-web.yml` は現状 `next build` の出力をそのまま使う形になっており、Cloudflare Pages向けのアダプタ（`@opennextjs/cloudflare` 等）はまだ組み込んでいない。実デプロイ前に対応が必要（ワークフロー内のTODOコメント参照）。
+web/ をローカルでCloudflare向けにビルド・プレビューする場合：
+
+```sh
+cd web
+npm run preview   # ビルド + wranglerローカルプレビュー
+npm run deploy    # ビルド + Cloudflare Workersへ実デプロイ
+```
 
 ## 次のマイルストーン
 

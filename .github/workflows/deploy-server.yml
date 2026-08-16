@@ -2,8 +2,16 @@
 # 実行前に以下のリポジトリSecretsを設定しておくこと:
 #   GCP_PROJECT_ID   - デプロイ先のGCPプロジェクト
 #   GCP_REGION       - 例: asia-northeast1
-#   GCP_SA_KEY       - Cloud Run Admin + Storage Admin権限を持つサービスアカウントのJSONキー
+#   GCP_SA_KEY       - Cloud Run Admin + Artifact Registry Writer + Service Account User権限を持つサービスアカウントのJSONキー
 #   CLOUD_RUN_SERVICE - Cloud Runのサービス名（例: aibo-server）
+#   DATABASE_URL     - SupabaseのPostgres接続文字列（server/.env.example参照）
+#
+# 事前にArtifact Registryのリポジトリ(aibo)を作成しておくこと:
+#   gcloud artifacts repositories create aibo --repository-format=docker --location=<GCP_REGION>
+#
+# DATABASE_URLは簡易的にGitHub Secrets→Cloud Runの環境変数として渡している。
+# より強固にしたい場合はGoogle Secret Managerに移行し、
+# deploy-cloudrun@v2の`secrets:`入力で参照する方式に切り替えること。
 name: Deploy server to Cloud Run
 
 on:
@@ -36,3 +44,5 @@ jobs:
           service: ${{ secrets.CLOUD_RUN_SERVICE }}
           region: ${{ secrets.GCP_REGION }}
           image: ${{ env.IMAGE }}
+          env_vars: |
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
