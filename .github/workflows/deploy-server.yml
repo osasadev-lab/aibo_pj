@@ -1,0 +1,38 @@
+# Manual deploy of server/ to Cloud Run.
+# Required repo secrets before running:
+#   GCP_PROJECT_ID   - target GCP project
+#   GCP_REGION       - e.g. asia-northeast1
+#   GCP_SA_KEY       - JSON key for a service account with Cloud Run Admin + Storage Admin
+#   CLOUD_RUN_SERVICE - Cloud Run service name (e.g. aibo-server)
+name: Deploy server to Cloud Run
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+          IMAGE="${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/aibo/server:${{ github.sha }}"
+          docker build -t "$IMAGE" ./server
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: ${{ secrets.CLOUD_RUN_SERVICE }}
+          region: ${{ secrets.GCP_REGION }}
+          image: ${{ env.IMAGE }}

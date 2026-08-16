@@ -1,0 +1,36 @@
+# Manual deploy of web/ to Cloudflare Pages.
+# Required repo secrets before running:
+#   CLOUDFLARE_API_TOKEN  - Pages:Edit permission
+#   CLOUDFLARE_ACCOUNT_ID
+#   CLOUDFLARE_PAGES_PROJECT - Pages project name (e.g. aibo-web)
+#
+# TODO before first real run: a plain `next build` output is not directly
+# deployable to Pages. Add the Cloudflare Next.js adapter
+# (@opennextjs/cloudflare, or @cloudflare/next-on-pages) to web/, point the
+# build step at its output directory, and update `directory:` below to match.
+name: Deploy web to Cloudflare Pages
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CLOUDFLARE_PAGES_PROJECT }}
+          directory: web/.next

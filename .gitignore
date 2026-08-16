@@ -1,0 +1,23 @@
+# Secrets
+.env
+.env.*
+!.env.example
+認証情報.txt
+
+# Go (server/)
+server/tmp/
+server/*.exe
+server/*.test
+
+# Node / Next.js (web/)
+web/node_modules/
+web/.next/
+web/out/
+web/.turbo/
+web/next-env.d.ts
+web/*.tsbuildinfo
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
