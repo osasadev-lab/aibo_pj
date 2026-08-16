@@ -17,7 +17,7 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 ## 現在の状態（M0：開発基盤構築）
 
 - [x] monorepo構成（server/, web/）
-- [x] Go + Ginの最小サーバー（`/healthz`, `/api/v1/ping`）
+- [x] Go + Ginの最小サーバー（`/health`, `/api/v1/ping`）
 - [x] entスキーマ定義（db-schema.md準拠、全18テーブル）＋マイグレーション実行コマンド
 - [x] Next.jsの最小ページ
 - [x] Dockerfile（server、Cloud Run向け）

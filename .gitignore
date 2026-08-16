@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 認証情報.txt
+deploy/*-key.json
 
 # Go (server/)
 server/tmp/

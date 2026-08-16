@@ -16,7 +16,10 @@ func main() {
 
 	router := gin.Default()
 
-	router.GET("/healthz", func(c *gin.Context) {
+	// 注意: "/healthz" はCloud Run側（Googleフロントエンド層）の予約パスと
+	// 衝突し、コンテナに届く前に404を返すことを実機検証で確認したため、
+	// 別のパスを使う。
+	router.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
