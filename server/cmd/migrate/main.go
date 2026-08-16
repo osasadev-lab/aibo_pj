@@ -12,8 +12,8 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 )
 
-// Applies the ent schema to the configured database (create tables / add
-// missing columns and indexes). Run with: go run ./cmd/migrate
+// entのスキーマを対象DBに適用する（テーブル作成／不足しているカラム・
+// インデックスの追加）。実行方法: go run ./cmd/migrate
 func main() {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
@@ -28,8 +28,8 @@ func main() {
 
 	ctx := context.Background()
 
-	// pgvector is reserved for phase 2 (task embeddings); enabling it now
-	// per spec.md 9章 so the extension is ready ahead of time.
+	// pgvectorはフェーズ2（タスクの埋め込み保存）で使用する。
+	// spec.md 9章の方針に従い、今のうちに拡張を有効化しておく。
 	if _, err := db.ExecContext(ctx, `CREATE EXTENSION IF NOT EXISTS vector`); err != nil {
 		log.Fatalf("failed enabling pgvector extension: %v", err)
 	}

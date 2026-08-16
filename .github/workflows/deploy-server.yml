@@ -1,9 +1,9 @@
-# Manual deploy of server/ to Cloud Run.
-# Required repo secrets before running:
-#   GCP_PROJECT_ID   - target GCP project
-#   GCP_REGION       - e.g. asia-northeast1
-#   GCP_SA_KEY       - JSON key for a service account with Cloud Run Admin + Storage Admin
-#   CLOUD_RUN_SERVICE - Cloud Run service name (e.g. aibo-server)
+# server/ をCloud Runへ手動デプロイするワークフロー。
+# 実行前に以下のリポジトリSecretsを設定しておくこと:
+#   GCP_PROJECT_ID   - デプロイ先のGCPプロジェクト
+#   GCP_REGION       - 例: asia-northeast1
+#   GCP_SA_KEY       - Cloud Run Admin + Storage Admin権限を持つサービスアカウントのJSONキー
+#   CLOUD_RUN_SERVICE - Cloud Runのサービス名（例: aibo-server）
 name: Deploy server to Cloud Run
 
 on:

@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// BaseMixin adds a UUID primary key plus created_at/updated_at timestamps
-// to every schema that embeds it, matching the convention in db-schema.md.
+// BaseMixin は db-schema.md の規約（UUID主キー + created_at/updated_at）を
+// 埋め込み先の全スキーマに付与する。
 type BaseMixin struct {
 	mixin.Schema
 }

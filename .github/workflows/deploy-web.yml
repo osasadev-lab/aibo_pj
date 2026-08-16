@@ -1,13 +1,13 @@
-# Manual deploy of web/ to Cloudflare Pages.
-# Required repo secrets before running:
-#   CLOUDFLARE_API_TOKEN  - Pages:Edit permission
+# web/ をCloudflare Pagesへ手動デプロイするワークフロー。
+# 実行前に以下のリポジトリSecretsを設定しておくこと:
+#   CLOUDFLARE_API_TOKEN  - Pages:Edit権限
 #   CLOUDFLARE_ACCOUNT_ID
-#   CLOUDFLARE_PAGES_PROJECT - Pages project name (e.g. aibo-web)
+#   CLOUDFLARE_PAGES_PROJECT - Pagesのプロジェクト名（例: aibo-web）
 #
-# TODO before first real run: a plain `next build` output is not directly
-# deployable to Pages. Add the Cloudflare Next.js adapter
-# (@opennextjs/cloudflare, or @cloudflare/next-on-pages) to web/, point the
-# build step at its output directory, and update `directory:` below to match.
+# TODO（初回実デプロイ前に対応）: 素の`next build`の出力はそのままでは
+# Pagesにデプロイできない。Cloudflare向けのNext.jsアダプタ
+# （@opennextjs/cloudflare もしくは @cloudflare/next-on-pages）をweb/に導入し、
+# ビルドステップの出力先を合わせた上で、下記`directory:`も変更すること。
 name: Deploy web to Cloudflare Pages
 
 on:

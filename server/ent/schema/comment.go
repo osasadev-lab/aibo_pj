@@ -8,8 +8,8 @@ import (
 )
 
 // Comment holds the schema definition for the Comment entity.
-// Written only via the Go API; realtime fan-out to clients is handled by
-// Supabase Realtime subscribing directly to this table (see api-spec.md).
+// 書き込みはGo API経由のみ。クライアントへのリアルタイム反映は
+// Supabase Realtimeがこのテーブルを直接購読することで行う（api-spec.md参照）。
 type Comment struct {
 	ent.Schema
 }

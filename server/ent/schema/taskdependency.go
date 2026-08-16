@@ -9,9 +9,9 @@ import (
 )
 
 // TaskDependency holds the schema definition for the TaskDependency entity.
-// "task" is the successor, "depends_on" is the predecessor that must be
-// completed first. Self-loop prevention and cycle detection are enforced
-// in the application layer per db-schema.md.
+// "task"は後続タスク（successor）、"depends_on"は先に完了させる必要がある
+// 先行タスク（predecessor）。自己参照の禁止・循環依存チェックは
+// db-schema.md記載の通りアプリケーション層で行う。
 type TaskDependency struct {
 	ent.Schema
 }

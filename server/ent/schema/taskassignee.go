@@ -9,9 +9,9 @@ import (
 )
 
 // TaskAssignee holds the schema definition for the TaskAssignee entity.
-// db-schema.md models this table with a composite primary key
-// (task_id, user_id); ent has no native composite-PK support, so we keep
-// the generated UUID id as PK and enforce the pair's uniqueness via index.
+// db-schema.mdでは複合主キー(task_id, user_id)としているが、entは複合主キーを
+// ネイティブサポートしないため、生成されるUUIDのidをPKとし、
+// (task_id, user_id)の一意性はユニークインデックスで担保する。
 type TaskAssignee struct {
 	ent.Schema
 }

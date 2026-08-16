@@ -9,8 +9,7 @@ import (
 )
 
 // ActivityLog holds the schema definition for the ActivityLog entity.
-// Serves as the data source for the phase-2 AI progress-summary features
-// (spec.md 9章).
+// フェーズ2のAI進捗サマリー機能（spec.md 9章）のデータソースとなる。
 type ActivityLog struct {
 	ent.Schema
 }
