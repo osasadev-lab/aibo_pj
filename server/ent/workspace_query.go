@@ -19,6 +19,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -34,6 +35,7 @@ type WorkspaceQuery struct {
 	withTasks        *TaskQuery
 	withTags         *TagQuery
 	withActivityLogs *ActivityLogQuery
+	withInvitations  *WorkspaceInvitationQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -173,6 +175,28 @@ func (_q *WorkspaceQuery) QueryActivityLogs() *ActivityLogQuery {
 			sqlgraph.From(workspace.Table, workspace.FieldID, selector),
 			sqlgraph.To(activitylog.Table, activitylog.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, true, workspace.ActivityLogsTable, workspace.ActivityLogsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryInvitations chains the current query on the "invitations" edge.
+func (_q *WorkspaceQuery) QueryInvitations() *WorkspaceInvitationQuery {
+	query := (&WorkspaceInvitationClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(workspace.Table, workspace.FieldID, selector),
+			sqlgraph.To(workspaceinvitation.Table, workspaceinvitation.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, workspace.InvitationsTable, workspace.InvitationsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -377,6 +401,7 @@ func (_q *WorkspaceQuery) Clone() *WorkspaceQuery {
 		withTasks:        _q.withTasks.Clone(),
 		withTags:         _q.withTags.Clone(),
 		withActivityLogs: _q.withActivityLogs.Clone(),
+		withInvitations:  _q.withInvitations.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -435,6 +460,17 @@ func (_q *WorkspaceQuery) WithActivityLogs(opts ...func(*ActivityLogQuery)) *Wor
 		opt(query)
 	}
 	_q.withActivityLogs = query
+	return _q
+}
+
+// WithInvitations tells the query-builder to eager-load the nodes that are connected to
+// the "invitations" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *WorkspaceQuery) WithInvitations(opts ...func(*WorkspaceInvitationQuery)) *WorkspaceQuery {
+	query := (&WorkspaceInvitationClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withInvitations = query
 	return _q
 }
 
@@ -516,12 +552,13 @@ func (_q *WorkspaceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Wo
 	var (
 		nodes       = []*Workspace{}
 		_spec       = _q.querySpec()
-		loadedTypes = [5]bool{
+		loadedTypes = [6]bool{
 			_q.withMembers != nil,
 			_q.withProjects != nil,
 			_q.withTasks != nil,
 			_q.withTags != nil,
 			_q.withActivityLogs != nil,
+			_q.withInvitations != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -574,6 +611,13 @@ func (_q *WorkspaceQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Wo
 		if err := _q.loadActivityLogs(ctx, query, nodes,
 			func(n *Workspace) { n.Edges.ActivityLogs = []*ActivityLog{} },
 			func(n *Workspace, e *ActivityLog) { n.Edges.ActivityLogs = append(n.Edges.ActivityLogs, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withInvitations; query != nil {
+		if err := _q.loadInvitations(ctx, query, nodes,
+			func(n *Workspace) { n.Edges.Invitations = []*WorkspaceInvitation{} },
+			func(n *Workspace, e *WorkspaceInvitation) { n.Edges.Invitations = append(n.Edges.Invitations, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -715,6 +759,36 @@ func (_q *WorkspaceQuery) loadActivityLogs(ctx context.Context, query *ActivityL
 	}
 	query.Where(predicate.ActivityLog(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(workspace.ActivityLogsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.WorkspaceID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "workspace_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *WorkspaceQuery) loadInvitations(ctx context.Context, query *WorkspaceInvitationQuery, nodes []*Workspace, init func(*Workspace), assign func(*Workspace, *WorkspaceInvitation)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Workspace)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(workspaceinvitation.FieldWorkspaceID)
+	}
+	query.Where(predicate.WorkspaceInvitation(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(workspace.InvitationsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

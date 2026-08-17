@@ -24,6 +24,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -327,6 +328,21 @@ func (_u *UserUpdate) AddNotifications(v ...*Notification) *UserUpdate {
 	return _u.AddNotificationIDs(ids...)
 }
 
+// AddSentInvitationIDs adds the "sent_invitations" edge to the WorkspaceInvitation entity by IDs.
+func (_u *UserUpdate) AddSentInvitationIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.AddSentInvitationIDs(ids...)
+	return _u
+}
+
+// AddSentInvitations adds the "sent_invitations" edges to the WorkspaceInvitation entity.
+func (_u *UserUpdate) AddSentInvitations(v ...*WorkspaceInvitation) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSentInvitationIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -561,6 +577,27 @@ func (_u *UserUpdate) RemoveNotifications(v ...*Notification) *UserUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveNotificationIDs(ids...)
+}
+
+// ClearSentInvitations clears all "sent_invitations" edges to the WorkspaceInvitation entity.
+func (_u *UserUpdate) ClearSentInvitations() *UserUpdate {
+	_u.mutation.ClearSentInvitations()
+	return _u
+}
+
+// RemoveSentInvitationIDs removes the "sent_invitations" edge to WorkspaceInvitation entities by IDs.
+func (_u *UserUpdate) RemoveSentInvitationIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.RemoveSentInvitationIDs(ids...)
+	return _u
+}
+
+// RemoveSentInvitations removes "sent_invitations" edges to WorkspaceInvitation entities.
+func (_u *UserUpdate) RemoveSentInvitations(v ...*WorkspaceInvitation) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSentInvitationIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1164,6 +1201,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.SentInvitationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.SentInvitationsTable,
+			Columns: []string{user.SentInvitationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSentInvitationsIDs(); len(nodes) > 0 && !_u.mutation.SentInvitationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.SentInvitationsTable,
+			Columns: []string{user.SentInvitationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SentInvitationsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.SentInvitationsTable,
+			Columns: []string{user.SentInvitationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1471,6 +1553,21 @@ func (_u *UserUpdateOne) AddNotifications(v ...*Notification) *UserUpdateOne {
 	return _u.AddNotificationIDs(ids...)
 }
 
+// AddSentInvitationIDs adds the "sent_invitations" edge to the WorkspaceInvitation entity by IDs.
+func (_u *UserUpdateOne) AddSentInvitationIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.AddSentInvitationIDs(ids...)
+	return _u
+}
+
+// AddSentInvitations adds the "sent_invitations" edges to the WorkspaceInvitation entity.
+func (_u *UserUpdateOne) AddSentInvitations(v ...*WorkspaceInvitation) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddSentInvitationIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -1705,6 +1802,27 @@ func (_u *UserUpdateOne) RemoveNotifications(v ...*Notification) *UserUpdateOne 
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveNotificationIDs(ids...)
+}
+
+// ClearSentInvitations clears all "sent_invitations" edges to the WorkspaceInvitation entity.
+func (_u *UserUpdateOne) ClearSentInvitations() *UserUpdateOne {
+	_u.mutation.ClearSentInvitations()
+	return _u
+}
+
+// RemoveSentInvitationIDs removes the "sent_invitations" edge to WorkspaceInvitation entities by IDs.
+func (_u *UserUpdateOne) RemoveSentInvitationIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.RemoveSentInvitationIDs(ids...)
+	return _u
+}
+
+// RemoveSentInvitations removes "sent_invitations" edges to WorkspaceInvitation entities.
+func (_u *UserUpdateOne) RemoveSentInvitations(v ...*WorkspaceInvitation) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveSentInvitationIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -2331,6 +2449,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(notification.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.SentInvitationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.SentInvitationsTable,
+			Columns: []string{user.SentInvitationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedSentInvitationsIDs(); len(nodes) > 0 && !_u.mutation.SentInvitationsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.SentInvitationsTable,
+			Columns: []string{user.SentInvitationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.SentInvitationsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.SentInvitationsTable,
+			Columns: []string{user.SentInvitationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

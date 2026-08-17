@@ -24,6 +24,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -430,6 +431,29 @@ func init() {
 	workspaceDescID := workspaceMixinFields0[0].Descriptor()
 	// workspace.DefaultID holds the default value on creation for the id field.
 	workspace.DefaultID = workspaceDescID.Default.(func() uuid.UUID)
+	workspaceinvitationMixin := schema.WorkspaceInvitation{}.Mixin()
+	workspaceinvitationMixinFields0 := workspaceinvitationMixin[0].Fields()
+	_ = workspaceinvitationMixinFields0
+	workspaceinvitationFields := schema.WorkspaceInvitation{}.Fields()
+	_ = workspaceinvitationFields
+	// workspaceinvitationDescCreatedAt is the schema descriptor for created_at field.
+	workspaceinvitationDescCreatedAt := workspaceinvitationMixinFields0[1].Descriptor()
+	// workspaceinvitation.DefaultCreatedAt holds the default value on creation for the created_at field.
+	workspaceinvitation.DefaultCreatedAt = workspaceinvitationDescCreatedAt.Default.(func() time.Time)
+	// workspaceinvitationDescUpdatedAt is the schema descriptor for updated_at field.
+	workspaceinvitationDescUpdatedAt := workspaceinvitationMixinFields0[2].Descriptor()
+	// workspaceinvitation.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	workspaceinvitation.DefaultUpdatedAt = workspaceinvitationDescUpdatedAt.Default.(func() time.Time)
+	// workspaceinvitation.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	workspaceinvitation.UpdateDefaultUpdatedAt = workspaceinvitationDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// workspaceinvitationDescEmail is the schema descriptor for email field.
+	workspaceinvitationDescEmail := workspaceinvitationFields[1].Descriptor()
+	// workspaceinvitation.EmailValidator is a validator for the "email" field. It is called by the builders before save.
+	workspaceinvitation.EmailValidator = workspaceinvitationDescEmail.Validators[0].(func(string) error)
+	// workspaceinvitationDescID is the schema descriptor for id field.
+	workspaceinvitationDescID := workspaceinvitationMixinFields0[0].Descriptor()
+	// workspaceinvitation.DefaultID holds the default value on creation for the id field.
+	workspaceinvitation.DefaultID = workspaceinvitationDescID.Default.(func() uuid.UUID)
 	workspacememberMixin := schema.WorkspaceMember{}.Mixin()
 	workspacememberMixinFields0 := workspacememberMixin[0].Fields()
 	_ = workspacememberMixinFields0

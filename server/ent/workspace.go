@@ -42,9 +42,11 @@ type WorkspaceEdges struct {
 	Tags []*Tag `json:"tags,omitempty"`
 	// ActivityLogs holds the value of the activity_logs edge.
 	ActivityLogs []*ActivityLog `json:"activity_logs,omitempty"`
+	// Invitations holds the value of the invitations edge.
+	Invitations []*WorkspaceInvitation `json:"invitations,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [5]bool
+	loadedTypes [6]bool
 }
 
 // MembersOrErr returns the Members value or an error if the edge
@@ -90,6 +92,15 @@ func (e WorkspaceEdges) ActivityLogsOrErr() ([]*ActivityLog, error) {
 		return e.ActivityLogs, nil
 	}
 	return nil, &NotLoadedError{edge: "activity_logs"}
+}
+
+// InvitationsOrErr returns the Invitations value or an error if the edge
+// was not loaded in eager-loading.
+func (e WorkspaceEdges) InvitationsOrErr() ([]*WorkspaceInvitation, error) {
+	if e.loadedTypes[5] {
+		return e.Invitations, nil
+	}
+	return nil, &NotLoadedError{edge: "invitations"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -178,6 +189,11 @@ func (_m *Workspace) QueryTags() *TagQuery {
 // QueryActivityLogs queries the "activity_logs" edge of the Workspace entity.
 func (_m *Workspace) QueryActivityLogs() *ActivityLogQuery {
 	return NewWorkspaceClient(_m.config).QueryActivityLogs(_m)
+}
+
+// QueryInvitations queries the "invitations" edge of the Workspace entity.
+func (_m *Workspace) QueryInvitations() *WorkspaceInvitationQuery {
+	return NewWorkspaceClient(_m.config).QueryInvitations(_m)
 }
 
 // Update returns a builder for updating this Workspace.

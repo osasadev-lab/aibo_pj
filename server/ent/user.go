@@ -66,9 +66,11 @@ type UserEdges struct {
 	ActivityLogs []*ActivityLog `json:"activity_logs,omitempty"`
 	// Notifications holds the value of the notifications edge.
 	Notifications []*Notification `json:"notifications,omitempty"`
+	// SentInvitations holds the value of the sent_invitations edge.
+	SentInvitations []*WorkspaceInvitation `json:"sent_invitations,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [11]bool
+	loadedTypes [12]bool
 }
 
 // WorkspaceMembersOrErr returns the WorkspaceMembers value or an error if the edge
@@ -168,6 +170,15 @@ func (e UserEdges) NotificationsOrErr() ([]*Notification, error) {
 		return e.Notifications, nil
 	}
 	return nil, &NotLoadedError{edge: "notifications"}
+}
+
+// SentInvitationsOrErr returns the SentInvitations value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) SentInvitationsOrErr() ([]*WorkspaceInvitation, error) {
+	if e.loadedTypes[11] {
+		return e.SentInvitations, nil
+	}
+	return nil, &NotLoadedError{edge: "sent_invitations"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -327,6 +338,11 @@ func (_m *User) QueryActivityLogs() *ActivityLogQuery {
 // QueryNotifications queries the "notifications" edge of the User entity.
 func (_m *User) QueryNotifications() *NotificationQuery {
 	return NewUserClient(_m.config).QueryNotifications(_m)
+}
+
+// QuerySentInvitations queries the "sent_invitations" edge of the User entity.
+func (_m *User) QuerySentInvitations() *WorkspaceInvitationQuery {
+	return NewUserClient(_m.config).QuerySentInvitations(_m)
 }
 
 // Update returns a builder for updating this User.

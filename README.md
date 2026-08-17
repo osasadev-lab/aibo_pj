@@ -14,7 +14,9 @@ spec.mdでは「Cloudflare Pages」としているが、Next.js 16はPages向け
 Workers向けアダプタ（`@opennextjs/cloudflare`）に切り替えている（デプロイ先は
 Pagesダッシュボードではなく Workersダッシュボードになる）。
 
-## 現在の状態（M0：開発基盤構築）
+## 現在の状態
+
+### M0：開発基盤構築
 
 - [x] monorepo構成（server/, web/）
 - [x] Go + Ginの最小サーバー（`/health`, `/api/v1/ping`）
@@ -22,7 +24,15 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - [x] Next.jsの最小ページ
 - [x] Dockerfile（server、Cloud Run向け）
 - [x] CI（lint/test/build）のGitHub Actionsワークフロー
-- [ ] 実際のCloud Run / Cloudflare Workersへのデプロイ（デプロイワークフローは用意済み、実行は手動）
+- [x] 実際のCloud Run / Cloudflare Workersへのデプロイ検証（現在はコスト都合で一時停止中。詳細は`docs/aibo/deploy-guide.md`参照）
+
+### M1：認証・ワークスペース
+
+- [x] Google OAuth（Authorization Code Flow）＋JWTセッション発行
+- [x] `RequireAuth` / `RequireWorkspaceMember` / `RequireOwner` ミドルウェア
+- [x] ワークスペース作成、メンバー招待・一覧・ロール変更・削除（Owner保護ルール含む）
+- [x] フロント：ログイン画面、ワークスペース作成/切り替えUI、メンバー一覧画面
+- 実装詳細・設計判断は`docs/aibo/m1-implementation-notes.md`参照
 
 ## セットアップ
 
@@ -36,10 +46,14 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 
 ```sh
 cd server
-cp .env.example .env   # DATABASE_URL を実際の接続文字列に書き換える
+cp .env.example .env   # DATABASE_URL・JWT_SECRET・GOOGLE_OAUTH_*・FRONTEND_URL を設定する
 go run ./cmd/migrate   # entスキーマをDBに適用（テーブル作成 + pgvector拡張の有効化）
 go run ./cmd/server    # http://localhost:8080
 ```
+
+Googleログインを試すには、GCPコンソールでOAuth 2.0 WebクライアントIDを作成し、
+`GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` に設定する必要がある
+（承認済みリダイレクトURIに`GOOGLE_OAUTH_REDIRECT_URL`と同じ値を登録すること）。
 
 ent スキーマを変更したら `go generate ./ent` でコード再生成してから `go run ./cmd/migrate` を実行する。
 
@@ -66,4 +80,4 @@ npm run deploy    # ビルド + Cloudflare Workersへ実デプロイ
 
 ## 次のマイルストーン
 
-M1（認証・ワークスペース）以降は `docs/aibo/execution-plan.md` を参照。
+M2（プロジェクト／タスクのコアCRUD）以降は `docs/aibo/execution-plan.md` を参照。

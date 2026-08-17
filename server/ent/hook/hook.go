@@ -213,6 +213,18 @@ func (f WorkspaceFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, e
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkspaceMutation", m)
 }
 
+// The WorkspaceInvitationFunc type is an adapter to allow the use of ordinary
+// function as WorkspaceInvitation mutator.
+type WorkspaceInvitationFunc func(context.Context, *ent.WorkspaceInvitationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f WorkspaceInvitationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.WorkspaceInvitationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.WorkspaceInvitationMutation", m)
+}
+
 // The WorkspaceMemberFunc type is an adapter to allow the use of ordinary
 // function as WorkspaceMember mutator.
 type WorkspaceMemberFunc func(context.Context, *ent.WorkspaceMemberMutation) (ent.Value, error)

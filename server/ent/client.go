@@ -33,6 +33,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -75,6 +76,8 @@ type Client struct {
 	User *UserClient
 	// Workspace is the client for interacting with the Workspace builders.
 	Workspace *WorkspaceClient
+	// WorkspaceInvitation is the client for interacting with the WorkspaceInvitation builders.
+	WorkspaceInvitation *WorkspaceInvitationClient
 	// WorkspaceMember is the client for interacting with the WorkspaceMember builders.
 	WorkspaceMember *WorkspaceMemberClient
 }
@@ -105,6 +108,7 @@ func (c *Client) init() {
 	c.TaskTag = NewTaskTagClient(c.config)
 	c.User = NewUserClient(c.config)
 	c.Workspace = NewWorkspaceClient(c.config)
+	c.WorkspaceInvitation = NewWorkspaceInvitationClient(c.config)
 	c.WorkspaceMember = NewWorkspaceMemberClient(c.config)
 }
 
@@ -215,6 +219,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		TaskTag:             NewTaskTagClient(cfg),
 		User:                NewUserClient(cfg),
 		Workspace:           NewWorkspaceClient(cfg),
+		WorkspaceInvitation: NewWorkspaceInvitationClient(cfg),
 		WorkspaceMember:     NewWorkspaceMemberClient(cfg),
 	}, nil
 }
@@ -252,6 +257,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		TaskTag:             NewTaskTagClient(cfg),
 		User:                NewUserClient(cfg),
 		Workspace:           NewWorkspaceClient(cfg),
+		WorkspaceInvitation: NewWorkspaceInvitationClient(cfg),
 		WorkspaceMember:     NewWorkspaceMemberClient(cfg),
 	}, nil
 }
@@ -285,7 +291,7 @@ func (c *Client) Use(hooks ...Hook) {
 		c.ActivityLog, c.Attachment, c.Comment, c.CommentMention, c.Notification,
 		c.Project, c.ProjectMember, c.ProjectStatusColumn, c.Section, c.Tag, c.Task,
 		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskTag, c.User,
-		c.Workspace, c.WorkspaceMember,
+		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Use(hooks...)
 	}
@@ -298,7 +304,7 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.ActivityLog, c.Attachment, c.Comment, c.CommentMention, c.Notification,
 		c.Project, c.ProjectMember, c.ProjectStatusColumn, c.Section, c.Tag, c.Task,
 		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskTag, c.User,
-		c.Workspace, c.WorkspaceMember,
+		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -341,6 +347,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.User.mutate(ctx, m)
 	case *WorkspaceMutation:
 		return c.Workspace.mutate(ctx, m)
+	case *WorkspaceInvitationMutation:
+		return c.WorkspaceInvitation.mutate(ctx, m)
 	case *WorkspaceMemberMutation:
 		return c.WorkspaceMember.mutate(ctx, m)
 	default:
@@ -3395,6 +3403,22 @@ func (c *UserClient) QueryNotifications(_m *User) *NotificationQuery {
 	return query
 }
 
+// QuerySentInvitations queries the sent_invitations edge of a User.
+func (c *UserClient) QuerySentInvitations(_m *User) *WorkspaceInvitationQuery {
+	query := (&WorkspaceInvitationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(workspaceinvitation.Table, workspaceinvitation.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.SentInvitationsTable, user.SentInvitationsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -3608,6 +3632,22 @@ func (c *WorkspaceClient) QueryActivityLogs(_m *Workspace) *ActivityLogQuery {
 	return query
 }
 
+// QueryInvitations queries the invitations edge of a Workspace.
+func (c *WorkspaceClient) QueryInvitations(_m *Workspace) *WorkspaceInvitationQuery {
+	query := (&WorkspaceInvitationClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(workspace.Table, workspace.FieldID, id),
+			sqlgraph.To(workspaceinvitation.Table, workspaceinvitation.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, workspace.InvitationsTable, workspace.InvitationsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *WorkspaceClient) Hooks() []Hook {
 	return c.hooks.Workspace
@@ -3630,6 +3670,171 @@ func (c *WorkspaceClient) mutate(ctx context.Context, m *WorkspaceMutation) (Val
 		return (&WorkspaceDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Workspace mutation op: %q", m.Op())
+	}
+}
+
+// WorkspaceInvitationClient is a client for the WorkspaceInvitation schema.
+type WorkspaceInvitationClient struct {
+	config
+}
+
+// NewWorkspaceInvitationClient returns a client for the WorkspaceInvitation from the given config.
+func NewWorkspaceInvitationClient(c config) *WorkspaceInvitationClient {
+	return &WorkspaceInvitationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `workspaceinvitation.Hooks(f(g(h())))`.
+func (c *WorkspaceInvitationClient) Use(hooks ...Hook) {
+	c.hooks.WorkspaceInvitation = append(c.hooks.WorkspaceInvitation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `workspaceinvitation.Intercept(f(g(h())))`.
+func (c *WorkspaceInvitationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.WorkspaceInvitation = append(c.inters.WorkspaceInvitation, interceptors...)
+}
+
+// Create returns a builder for creating a WorkspaceInvitation entity.
+func (c *WorkspaceInvitationClient) Create() *WorkspaceInvitationCreate {
+	mutation := newWorkspaceInvitationMutation(c.config, OpCreate)
+	return &WorkspaceInvitationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of WorkspaceInvitation entities.
+func (c *WorkspaceInvitationClient) CreateBulk(builders ...*WorkspaceInvitationCreate) *WorkspaceInvitationCreateBulk {
+	return &WorkspaceInvitationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *WorkspaceInvitationClient) MapCreateBulk(slice any, setFunc func(*WorkspaceInvitationCreate, int)) *WorkspaceInvitationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &WorkspaceInvitationCreateBulk{err: fmt.Errorf("calling to WorkspaceInvitationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*WorkspaceInvitationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &WorkspaceInvitationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for WorkspaceInvitation.
+func (c *WorkspaceInvitationClient) Update() *WorkspaceInvitationUpdate {
+	mutation := newWorkspaceInvitationMutation(c.config, OpUpdate)
+	return &WorkspaceInvitationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *WorkspaceInvitationClient) UpdateOne(_m *WorkspaceInvitation) *WorkspaceInvitationUpdateOne {
+	mutation := newWorkspaceInvitationMutation(c.config, OpUpdateOne, withWorkspaceInvitation(_m))
+	return &WorkspaceInvitationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *WorkspaceInvitationClient) UpdateOneID(id uuid.UUID) *WorkspaceInvitationUpdateOne {
+	mutation := newWorkspaceInvitationMutation(c.config, OpUpdateOne, withWorkspaceInvitationID(id))
+	return &WorkspaceInvitationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for WorkspaceInvitation.
+func (c *WorkspaceInvitationClient) Delete() *WorkspaceInvitationDelete {
+	mutation := newWorkspaceInvitationMutation(c.config, OpDelete)
+	return &WorkspaceInvitationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *WorkspaceInvitationClient) DeleteOne(_m *WorkspaceInvitation) *WorkspaceInvitationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *WorkspaceInvitationClient) DeleteOneID(id uuid.UUID) *WorkspaceInvitationDeleteOne {
+	builder := c.Delete().Where(workspaceinvitation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &WorkspaceInvitationDeleteOne{builder}
+}
+
+// Query returns a query builder for WorkspaceInvitation.
+func (c *WorkspaceInvitationClient) Query() *WorkspaceInvitationQuery {
+	return &WorkspaceInvitationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeWorkspaceInvitation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a WorkspaceInvitation entity by its id.
+func (c *WorkspaceInvitationClient) Get(ctx context.Context, id uuid.UUID) (*WorkspaceInvitation, error) {
+	return c.Query().Where(workspaceinvitation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *WorkspaceInvitationClient) GetX(ctx context.Context, id uuid.UUID) *WorkspaceInvitation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryWorkspace queries the workspace edge of a WorkspaceInvitation.
+func (c *WorkspaceInvitationClient) QueryWorkspace(_m *WorkspaceInvitation) *WorkspaceQuery {
+	query := (&WorkspaceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(workspaceinvitation.Table, workspaceinvitation.FieldID, id),
+			sqlgraph.To(workspace.Table, workspace.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, workspaceinvitation.WorkspaceTable, workspaceinvitation.WorkspaceColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryInviter queries the inviter edge of a WorkspaceInvitation.
+func (c *WorkspaceInvitationClient) QueryInviter(_m *WorkspaceInvitation) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(workspaceinvitation.Table, workspaceinvitation.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, workspaceinvitation.InviterTable, workspaceinvitation.InviterColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *WorkspaceInvitationClient) Hooks() []Hook {
+	return c.hooks.WorkspaceInvitation
+}
+
+// Interceptors returns the client interceptors.
+func (c *WorkspaceInvitationClient) Interceptors() []Interceptor {
+	return c.inters.WorkspaceInvitation
+}
+
+func (c *WorkspaceInvitationClient) mutate(ctx context.Context, m *WorkspaceInvitationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&WorkspaceInvitationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&WorkspaceInvitationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&WorkspaceInvitationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&WorkspaceInvitationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown WorkspaceInvitation mutation op: %q", m.Op())
 	}
 }
 
@@ -3804,12 +4009,12 @@ type (
 		ActivityLog, Attachment, Comment, CommentMention, Notification, Project,
 		ProjectMember, ProjectStatusColumn, Section, Tag, Task, TaskAssignee,
 		TaskCalendarEvent, TaskDependency, TaskTag, User, Workspace,
-		WorkspaceMember []ent.Hook
+		WorkspaceInvitation, WorkspaceMember []ent.Hook
 	}
 	inters struct {
 		ActivityLog, Attachment, Comment, CommentMention, Notification, Project,
 		ProjectMember, ProjectStatusColumn, Section, Tag, Task, TaskAssignee,
 		TaskCalendarEvent, TaskDependency, TaskTag, User, Workspace,
-		WorkspaceMember []ent.Interceptor
+		WorkspaceInvitation, WorkspaceMember []ent.Interceptor
 	}
 )

@@ -16,6 +16,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -147,6 +148,21 @@ func (_c *WorkspaceCreate) AddActivityLogs(v ...*ActivityLog) *WorkspaceCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddActivityLogIDs(ids...)
+}
+
+// AddInvitationIDs adds the "invitations" edge to the WorkspaceInvitation entity by IDs.
+func (_c *WorkspaceCreate) AddInvitationIDs(ids ...uuid.UUID) *WorkspaceCreate {
+	_c.mutation.AddInvitationIDs(ids...)
+	return _c
+}
+
+// AddInvitations adds the "invitations" edges to the WorkspaceInvitation entity.
+func (_c *WorkspaceCreate) AddInvitations(v ...*WorkspaceInvitation) *WorkspaceCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddInvitationIDs(ids...)
 }
 
 // Mutation returns the WorkspaceMutation object of the builder.
@@ -334,6 +350,22 @@ func (_c *WorkspaceCreate) createSpec() (*Workspace, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(activitylog.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.InvitationsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.InvitationsTable,
+			Columns: []string{workspace.InvitationsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

@@ -56,5 +56,6 @@ func (User) Edges() []ent.Edge {
 		edge.From("attachments", Attachment.Type).Ref("uploader"),
 		edge.From("activity_logs", ActivityLog.Type).Ref("actor"),
 		edge.From("notifications", Notification.Type).Ref("user"),
+		edge.From("sent_invitations", WorkspaceInvitation.Type).Ref("inviter"),
 	}
 }

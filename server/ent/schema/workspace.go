@@ -30,5 +30,6 @@ func (Workspace) Edges() []ent.Edge {
 		edge.From("tasks", Task.Type).Ref("workspace"),
 		edge.From("tags", Tag.Type).Ref("workspace"),
 		edge.From("activity_logs", ActivityLog.Type).Ref("workspace"),
+		edge.From("invitations", WorkspaceInvitation.Type).Ref("workspace"),
 	}
 }

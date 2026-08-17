@@ -580,6 +580,42 @@ var (
 		Columns:    WorkspacesColumns,
 		PrimaryKey: []*schema.Column{WorkspacesColumns[0]},
 	}
+	// WorkspaceInvitationsColumns holds the columns for the "workspace_invitations" table.
+	WorkspaceInvitationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "email", Type: field.TypeString},
+		{Name: "workspace_id", Type: field.TypeUUID},
+		{Name: "invited_by", Type: field.TypeUUID},
+	}
+	// WorkspaceInvitationsTable holds the schema information for the "workspace_invitations" table.
+	WorkspaceInvitationsTable = &schema.Table{
+		Name:       "workspace_invitations",
+		Columns:    WorkspaceInvitationsColumns,
+		PrimaryKey: []*schema.Column{WorkspaceInvitationsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "workspace_invitations_workspaces_workspace",
+				Columns:    []*schema.Column{WorkspaceInvitationsColumns[4]},
+				RefColumns: []*schema.Column{WorkspacesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "workspace_invitations_users_inviter",
+				Columns:    []*schema.Column{WorkspaceInvitationsColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "workspaceinvitation_workspace_id_email",
+				Unique:  true,
+				Columns: []*schema.Column{WorkspaceInvitationsColumns[4], WorkspaceInvitationsColumns[3]},
+			},
+		},
+	}
 	// WorkspaceMembersColumns holds the columns for the "workspace_members" table.
 	WorkspaceMembersColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID, Unique: true},
@@ -635,6 +671,7 @@ var (
 		TaskTagsTable,
 		UsersTable,
 		WorkspacesTable,
+		WorkspaceInvitationsTable,
 		WorkspaceMembersTable,
 	}
 )
@@ -672,6 +709,8 @@ func init() {
 	TaskDependenciesTable.ForeignKeys[1].RefTable = TasksTable
 	TaskTagsTable.ForeignKeys[0].RefTable = TasksTable
 	TaskTagsTable.ForeignKeys[1].RefTable = TagsTable
+	WorkspaceInvitationsTable.ForeignKeys[0].RefTable = WorkspacesTable
+	WorkspaceInvitationsTable.ForeignKeys[1].RefTable = UsersTable
 	WorkspaceMembersTable.ForeignKeys[0].RefTable = WorkspacesTable
 	WorkspaceMembersTable.ForeignKeys[1].RefTable = UsersTable
 }

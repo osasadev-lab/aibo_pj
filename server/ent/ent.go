@@ -29,6 +29,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -107,6 +108,7 @@ func checkColumn(t, c string) error {
 			tasktag.Table:             tasktag.ValidColumn,
 			user.Table:                user.ValidColumn,
 			workspace.Table:           workspace.ValidColumn,
+			workspaceinvitation.Table: workspaceinvitation.ValidColumn,
 			workspacemember.Table:     workspacemember.ValidColumn,
 		})
 	})

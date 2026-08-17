@@ -31,6 +31,8 @@ const (
 	EdgeTags = "tags"
 	// EdgeActivityLogs holds the string denoting the activity_logs edge name in mutations.
 	EdgeActivityLogs = "activity_logs"
+	// EdgeInvitations holds the string denoting the invitations edge name in mutations.
+	EdgeInvitations = "invitations"
 	// Table holds the table name of the workspace in the database.
 	Table = "workspaces"
 	// MembersTable is the table that holds the members relation/edge.
@@ -68,6 +70,13 @@ const (
 	ActivityLogsInverseTable = "activity_logs"
 	// ActivityLogsColumn is the table column denoting the activity_logs relation/edge.
 	ActivityLogsColumn = "workspace_id"
+	// InvitationsTable is the table that holds the invitations relation/edge.
+	InvitationsTable = "workspace_invitations"
+	// InvitationsInverseTable is the table name for the WorkspaceInvitation entity.
+	// It exists in this package in order to avoid circular dependency with the "workspaceinvitation" package.
+	InvitationsInverseTable = "workspace_invitations"
+	// InvitationsColumn is the table column denoting the invitations relation/edge.
+	InvitationsColumn = "workspace_id"
 )
 
 // Columns holds all SQL columns for workspace fields.
@@ -193,6 +202,20 @@ func ByActivityLogs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newActivityLogsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByInvitationsCount orders the results by invitations count.
+func ByInvitationsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newInvitationsStep(), opts...)
+	}
+}
+
+// ByInvitations orders the results by invitations terms.
+func ByInvitations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newInvitationsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newMembersStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -226,5 +249,12 @@ func newActivityLogsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ActivityLogsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, ActivityLogsTable, ActivityLogsColumn),
+	)
+}
+func newInvitationsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(InvitationsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, InvitationsTable, InvitationsColumn),
 	)
 }

@@ -25,6 +25,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -46,6 +47,7 @@ type UserQuery struct {
 	withAttachments      *AttachmentQuery
 	withActivityLogs     *ActivityLogQuery
 	withNotifications    *NotificationQuery
+	withSentInvitations  *WorkspaceInvitationQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -324,6 +326,28 @@ func (_q *UserQuery) QueryNotifications() *NotificationQuery {
 	return query
 }
 
+// QuerySentInvitations chains the current query on the "sent_invitations" edge.
+func (_q *UserQuery) QuerySentInvitations() *WorkspaceInvitationQuery {
+	query := (&WorkspaceInvitationClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(workspaceinvitation.Table, workspaceinvitation.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.SentInvitationsTable, user.SentInvitationsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -527,6 +551,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withAttachments:      _q.withAttachments.Clone(),
 		withActivityLogs:     _q.withActivityLogs.Clone(),
 		withNotifications:    _q.withNotifications.Clone(),
+		withSentInvitations:  _q.withSentInvitations.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -654,6 +679,17 @@ func (_q *UserQuery) WithNotifications(opts ...func(*NotificationQuery)) *UserQu
 	return _q
 }
 
+// WithSentInvitations tells the query-builder to eager-load the nodes that are connected to
+// the "sent_invitations" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithSentInvitations(opts ...func(*WorkspaceInvitationQuery)) *UserQuery {
+	query := (&WorkspaceInvitationClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withSentInvitations = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -732,7 +768,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [11]bool{
+		loadedTypes = [12]bool{
 			_q.withWorkspaceMembers != nil,
 			_q.withProjectMembers != nil,
 			_q.withCreatedProjects != nil,
@@ -744,6 +780,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withAttachments != nil,
 			_q.withActivityLogs != nil,
 			_q.withNotifications != nil,
+			_q.withSentInvitations != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -838,6 +875,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadNotifications(ctx, query, nodes,
 			func(n *User) { n.Edges.Notifications = []*Notification{} },
 			func(n *User, e *Notification) { n.Edges.Notifications = append(n.Edges.Notifications, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withSentInvitations; query != nil {
+		if err := _q.loadSentInvitations(ctx, query, nodes,
+			func(n *User) { n.Edges.SentInvitations = []*WorkspaceInvitation{} },
+			func(n *User, e *WorkspaceInvitation) { n.Edges.SentInvitations = append(n.Edges.SentInvitations, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1169,6 +1213,36 @@ func (_q *UserQuery) loadNotifications(ctx context.Context, query *NotificationQ
 		node, ok := nodeids[fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadSentInvitations(ctx context.Context, query *WorkspaceInvitationQuery, nodes []*User, init func(*User), assign func(*User, *WorkspaceInvitation)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(workspaceinvitation.FieldInvitedBy)
+	}
+	query.Where(predicate.WorkspaceInvitation(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.SentInvitationsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.InvitedBy
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "invited_by" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}
