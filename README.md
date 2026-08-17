@@ -34,6 +34,16 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - [x] フロント：ログイン画面、ワークスペース作成/切り替えUI、メンバー一覧画面
 - 実装詳細・設計判断は`docs/aibo/m1-implementation-notes.md`参照
 
+### M2：プロジェクト／タスクのコアCRUD
+
+- [x] プロジェクトCRUD（公開設定public/private、参画メンバー必須、既定4ステータス列の自動生成、列のカスタム編集・最大5列）
+- [x] タスクCRUD（単体タスク・プロジェクト所属タスク両方、担当者複数アサイン、タグ、優先度、期限）
+- [x] サブタスク作成（1階層制限）
+- [x] `RequireProjectAccess` / `RequireTaskAccess` ミドルウェア
+- [x] フロント：プロジェクト一覧/作成、プロジェクト詳細（列・タスク・子タスク管理）
+- タスク依存関係はM4に先送り（execution-plan.md M4に明記されているため）
+- 実装詳細・設計判断は`docs/aibo/m2-implementation-plan.md`参照
+
 ## セットアップ
 
 ### 前提
@@ -80,4 +90,4 @@ npm run deploy    # ビルド + Cloudflare Workersへ実デプロイ
 
 ## 次のマイルストーン
 
-M2（プロジェクト／タスクのコアCRUD）以降は `docs/aibo/execution-plan.md` を参照。
+M3（カンバン）以降は `docs/aibo/execution-plan.md` を参照。

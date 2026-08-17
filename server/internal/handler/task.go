@@ -1,0 +1,720 @@
+package handler
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+
+	"github.com/osasadev-lab/aibo_pj/server/ent"
+	"github.com/osasadev-lab/aibo_pj/server/ent/project"
+	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
+	"github.com/osasadev-lab/aibo_pj/server/ent/section"
+	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
+	"github.com/osasadev-lab/aibo_pj/server/ent/task"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
+	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
+	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+)
+
+const dateLayout = "2006-01-02"
+
+var errInvalidIDs = errors.New("one or more ids are invalid")
+
+// TaskHandler は /tasks, /workspaces/:workspace_id/tasks 配下を扱う。
+type TaskHandler struct {
+	client *ent.Client
+}
+
+func NewTaskHandler(client *ent.Client) *TaskHandler {
+	return &TaskHandler{client: client}
+}
+
+func taskJSON(t *ent.Task) gin.H {
+	return gin.H{
+		"id":               t.ID,
+		"workspace_id":     t.WorkspaceID,
+		"project_id":       t.ProjectID,
+		"section_id":       t.SectionID,
+		"status":           t.Status,
+		"status_column_id": t.StatusColumnID,
+		"parent_task_id":   t.ParentTaskID,
+		"title":            t.Title,
+		"description":      t.Description,
+		"priority":         t.Priority,
+		"start_date":       formatDate(t.StartDate),
+		"due_date":         formatDate(t.DueDate),
+		"created_by":       t.CreatedBy,
+	}
+}
+
+func formatDate(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	s := t.Format(dateLayout)
+	return &s
+}
+
+// Search は GET /workspaces/:workspace_id/tasks。
+// 可視性フィルタ（単体タスクはworkspace全員、publicプロジェクトは全員、
+// privateプロジェクトは参画メンバーのみ）を必ず適用する。
+func (h *TaskHandler) Search(c *gin.Context) {
+	m := middleware.CurrentMembership(c)
+	ctx := c.Request.Context()
+
+	query := h.client.Task.Query().Where(
+		task.WorkspaceIDEQ(m.WorkspaceID),
+		task.Or(
+			task.ProjectIDIsNil(),
+			task.HasProjectWith(project.VisibilityEQ(project.VisibilityPublic)),
+			task.HasProjectWith(project.HasMembersWith(projectmember.UserIDEQ(m.UserID))),
+		),
+	)
+
+	if v := c.Query("project_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project_id"})
+			return
+		}
+		query = query.Where(task.ProjectIDEQ(id))
+	}
+	if v := c.Query("assignee_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignee_id"})
+			return
+		}
+		query = query.Where(task.HasAssigneesWith(taskassignee.UserIDEQ(id)))
+	}
+	if v := c.Query("status"); v != "" {
+		query = query.Where(task.StatusEQ(task.Status(v)))
+	}
+	if v := c.Query("status_column_id"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid status_column_id"})
+			return
+		}
+		query = query.Where(task.StatusColumnIDEQ(id))
+	}
+	if v := c.Query("due_before"); v != "" {
+		d, err := time.Parse(dateLayout, v)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_before"})
+			return
+		}
+		query = query.Where(task.DueDateLT(d))
+	}
+
+	tasks, err := query.All(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search tasks"})
+		return
+	}
+
+	out := make([]gin.H, 0, len(tasks))
+	for _, t := range tasks {
+		out = append(out, taskJSON(t))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+type createTaskRequest struct {
+	Title          string      `json:"title" binding:"required"`
+	Description    *string     `json:"description"`
+	ProjectID      *uuid.UUID  `json:"project_id"`
+	SectionID      *uuid.UUID  `json:"section_id"`
+	Status         *string     `json:"status" binding:"omitempty,oneof=not_started in_progress done on_hold"`
+	StatusColumnID *uuid.UUID  `json:"status_column_id"`
+	Priority       *string     `json:"priority" binding:"omitempty,oneof=low medium high"`
+	StartDate      *string     `json:"start_date"`
+	DueDate        *string     `json:"due_date"`
+	AssigneeIDs    []uuid.UUID `json:"assignee_ids"`
+	TagIDs         []uuid.UUID `json:"tag_ids"`
+}
+
+// Create は POST /workspaces/:workspace_id/tasks。project_id未指定なら単体タスク。
+func (h *TaskHandler) Create(c *gin.Context) {
+	m := middleware.CurrentMembership(c)
+	u := middleware.CurrentUser(c)
+
+	var req createTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	var proj *ent.Project
+	if req.ProjectID != nil {
+		p, err := h.client.Project.Get(ctx, *req.ProjectID)
+		if err != nil || p.WorkspaceID != m.WorkspaceID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "project not found in this workspace"})
+			return
+		}
+		if err := middleware.CheckProjectVisibility(ctx, h.client, p, u.ID); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "not a project member"})
+			return
+		}
+		proj = p
+
+		if req.SectionID != nil {
+			ok, err := h.client.Section.Query().
+				Where(section.IDEQ(*req.SectionID), section.ProjectIDEQ(proj.ID)).
+				Exist(ctx)
+			if err != nil || !ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "section not found in this project"})
+				return
+			}
+		}
+	} else if req.SectionID != nil || req.StatusColumnID != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "section_id/status_column_id require project_id"})
+		return
+	}
+
+	startDate, err := parseOptionalDate(req.StartDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date"})
+		return
+	}
+	dueDate, err := parseOptionalDate(req.DueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_date"})
+		return
+	}
+
+	assigneeIDs, err := h.validWorkspaceUserIDs(ctx, m.WorkspaceID, req.AssigneeIDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "assignee_ids must all be workspace members"})
+		return
+	}
+	tagIDs, err := h.validWorkspaceTagIDs(ctx, m.WorkspaceID, req.TagIDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must all belong to this workspace"})
+		return
+	}
+
+	var created *ent.Task
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		builder := tx.Task.Create().
+			SetWorkspaceID(m.WorkspaceID).
+			SetTitle(req.Title).
+			SetCreatedBy(u.ID)
+		if req.Description != nil {
+			builder = builder.SetDescription(*req.Description)
+		}
+		if req.Priority != nil {
+			builder = builder.SetPriority(task.Priority(*req.Priority))
+		}
+		if startDate != nil {
+			builder = builder.SetStartDate(*startDate)
+		}
+		if dueDate != nil {
+			builder = builder.SetDueDate(*dueDate)
+		}
+		if req.SectionID != nil {
+			builder = builder.SetSectionID(*req.SectionID)
+		}
+
+		if proj != nil {
+			builder = builder.SetProjectID(proj.ID)
+			statusColumnID, status, err := resolveStatusColumn(ctx, tx.Client(), proj.ID, req.StatusColumnID, req.Status)
+			if err != nil {
+				return err
+			}
+			if statusColumnID != nil {
+				builder = builder.SetStatusColumnID(*statusColumnID)
+			}
+			builder = builder.SetStatus(status)
+		} else if req.Status != nil {
+			builder = builder.SetStatus(task.Status(*req.Status))
+		}
+
+		t, err := builder.Save(ctx)
+		if err != nil {
+			return err
+		}
+
+		if len(assigneeIDs) > 0 {
+			builders := make([]*ent.TaskAssigneeCreate, 0, len(assigneeIDs))
+			for _, uid := range assigneeIDs {
+				builders = append(builders, tx.TaskAssignee.Create().SetTaskID(t.ID).SetUserID(uid))
+			}
+			if _, err := tx.TaskAssignee.CreateBulk(builders...).Save(ctx); err != nil {
+				return err
+			}
+		}
+		if len(tagIDs) > 0 {
+			builders := make([]*ent.TaskTagCreate, 0, len(tagIDs))
+			for _, tid := range tagIDs {
+				builders = append(builders, tx.TaskTag.Create().SetTaskID(t.ID).SetTagID(tid))
+			}
+			if _, err := tx.TaskTag.CreateBulk(builders...).Save(ctx); err != nil {
+				return err
+			}
+		}
+
+		created = t
+		return nil
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create task"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, taskJSON(created))
+}
+
+// Get は GET /tasks/:task_id。RequireTaskAccessで可視性確認済み。
+func (h *TaskHandler) Get(c *gin.Context) {
+	c.JSON(http.StatusOK, taskJSON(middleware.CurrentTask(c)))
+}
+
+type updateTaskRequest struct {
+	Title          *string    `json:"title"`
+	Description    *string    `json:"description"`
+	Status         *string    `json:"status" binding:"omitempty,oneof=not_started in_progress done on_hold"`
+	StatusColumnID *uuid.UUID `json:"status_column_id"`
+	Priority       *string    `json:"priority" binding:"omitempty,oneof=low medium high"`
+	StartDate      *string    `json:"start_date"`
+	DueDate        *string    `json:"due_date"`
+}
+
+// Update は PATCH /tasks/:task_id。
+// カンバンD&Dはstatus_column_idを、マイタスクD&Dはstatusを送る想定で、
+// サーバー側でもう一方を自動同期する（db-schema.md）。両方指定時はstatus_column_id優先。
+func (h *TaskHandler) Update(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+
+	var req updateTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	startDate, err := parseOptionalDate(req.StartDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date"})
+		return
+	}
+	dueDate, err := parseOptionalDate(req.DueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_date"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	builder := h.client.Task.UpdateOneID(t.ID)
+
+	if req.Title != nil {
+		builder = builder.SetTitle(*req.Title)
+	}
+	if req.Description != nil {
+		builder = builder.SetDescription(*req.Description)
+	}
+	if req.Priority != nil {
+		builder = builder.SetPriority(task.Priority(*req.Priority))
+	}
+	if startDate != nil {
+		builder = builder.SetStartDate(*startDate)
+	}
+	if dueDate != nil {
+		builder = builder.SetDueDate(*dueDate)
+	}
+
+	switch {
+	case req.StatusColumnID != nil:
+		col, err := h.client.ProjectStatusColumn.Get(ctx, *req.StatusColumnID)
+		if err != nil || t.ProjectID == nil || col.ProjectID != *t.ProjectID {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "status_column_id must belong to this task's project"})
+			return
+		}
+		builder = builder.SetStatusColumnID(col.ID).SetStatus(task.Status(col.MapsToStatus))
+	case req.Status != nil:
+		if t.ProjectID != nil {
+			col, err := h.client.ProjectStatusColumn.Query().
+				Where(
+					projectstatuscolumn.ProjectIDEQ(*t.ProjectID),
+					projectstatuscolumn.MapsToStatusEQ(projectstatuscolumn.MapsToStatus(*req.Status)),
+				).
+				Order(projectstatuscolumn.ByPosition()).
+				First(ctx)
+			if err == nil {
+				builder = builder.SetStatusColumnID(col.ID)
+			} else {
+				builder = builder.ClearStatusColumnID()
+			}
+		}
+		builder = builder.SetStatus(task.Status(*req.Status))
+	}
+
+	updated, err := builder.Save(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update task"})
+		return
+	}
+	c.JSON(http.StatusOK, taskJSON(updated))
+}
+
+// Delete は DELETE /tasks/:task_id。子タスクも道連れに削除する。
+// entのschemaにカスケード削除指定が無いため、関連テーブルを手動で削除する。
+func (h *TaskHandler) Delete(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+	ctx := c.Request.Context()
+
+	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
+		childIDs, err := tx.Task.Query().Where(task.ParentTaskIDEQ(t.ID)).IDs(ctx)
+		if err != nil {
+			return err
+		}
+		ids := append(childIDs, t.ID)
+
+		if _, err := tx.TaskDependency.Delete().
+			Where(taskdependency.Or(
+				taskdependency.TaskIDIn(ids...),
+				taskdependency.DependsOnTaskIDIn(ids...),
+			)).
+			Exec(ctx); err != nil {
+			return err
+		}
+		if _, err := tx.TaskTag.Delete().Where(tasktag.TaskIDIn(ids...)).Exec(ctx); err != nil {
+			return err
+		}
+		if _, err := tx.TaskAssignee.Delete().Where(taskassignee.TaskIDIn(ids...)).Exec(ctx); err != nil {
+			return err
+		}
+		_, err = tx.Task.Delete().Where(task.IDIn(ids...)).Exec(ctx)
+		return err
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete task"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type createSubtaskRequest struct {
+	Title       string      `json:"title" binding:"required"`
+	Description *string     `json:"description"`
+	Priority    *string     `json:"priority" binding:"omitempty,oneof=low medium high"`
+	StartDate   *string     `json:"start_date"`
+	DueDate     *string     `json:"due_date"`
+	AssigneeIDs []uuid.UUID `json:"assignee_ids"`
+	TagIDs      []uuid.UUID `json:"tag_ids"`
+}
+
+// CreateSubtask は POST /tasks/:task_id/subtasks。親タスク画面からの
+// 「＋子タスクを追加」用。孫タスク作成はエラー。project_id/section_idは親から継承する。
+func (h *TaskHandler) CreateSubtask(c *gin.Context) {
+	parent := middleware.CurrentTask(c)
+	u := middleware.CurrentUser(c)
+
+	if parent.ParentTaskID != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create a subtask of a subtask"})
+		return
+	}
+
+	var req createSubtaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	startDate, err := parseOptionalDate(req.StartDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date"})
+		return
+	}
+	dueDate, err := parseOptionalDate(req.DueDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_date"})
+		return
+	}
+
+	assigneeIDs, err := h.validWorkspaceUserIDs(ctx, parent.WorkspaceID, req.AssigneeIDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "assignee_ids must all be workspace members"})
+		return
+	}
+	tagIDs, err := h.validWorkspaceTagIDs(ctx, parent.WorkspaceID, req.TagIDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must all belong to this workspace"})
+		return
+	}
+
+	var created *ent.Task
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		builder := tx.Task.Create().
+			SetWorkspaceID(parent.WorkspaceID).
+			SetParentTaskID(parent.ID).
+			SetTitle(req.Title).
+			SetCreatedBy(u.ID)
+		if req.Description != nil {
+			builder = builder.SetDescription(*req.Description)
+		}
+		if req.Priority != nil {
+			builder = builder.SetPriority(task.Priority(*req.Priority))
+		}
+		if startDate != nil {
+			builder = builder.SetStartDate(*startDate)
+		}
+		if dueDate != nil {
+			builder = builder.SetDueDate(*dueDate)
+		}
+		if parent.ProjectID != nil {
+			builder = builder.SetProjectID(*parent.ProjectID)
+			if parent.SectionID != nil {
+				builder = builder.SetSectionID(*parent.SectionID)
+			}
+			statusColumnID, status, err := resolveStatusColumn(ctx, tx.Client(), *parent.ProjectID, nil, nil)
+			if err != nil {
+				return err
+			}
+			if statusColumnID != nil {
+				builder = builder.SetStatusColumnID(*statusColumnID)
+			}
+			builder = builder.SetStatus(status)
+		}
+
+		t, err := builder.Save(ctx)
+		if err != nil {
+			return err
+		}
+
+		if len(assigneeIDs) > 0 {
+			builders := make([]*ent.TaskAssigneeCreate, 0, len(assigneeIDs))
+			for _, uid := range assigneeIDs {
+				builders = append(builders, tx.TaskAssignee.Create().SetTaskID(t.ID).SetUserID(uid))
+			}
+			if _, err := tx.TaskAssignee.CreateBulk(builders...).Save(ctx); err != nil {
+				return err
+			}
+		}
+		if len(tagIDs) > 0 {
+			builders := make([]*ent.TaskTagCreate, 0, len(tagIDs))
+			for _, tid := range tagIDs {
+				builders = append(builders, tx.TaskTag.Create().SetTaskID(t.ID).SetTagID(tid))
+			}
+			if _, err := tx.TaskTag.CreateBulk(builders...).Save(ctx); err != nil {
+				return err
+			}
+		}
+
+		created = t
+		return nil
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create subtask"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, taskJSON(created))
+}
+
+// ListSubtasks は GET /tasks/:task_id/subtasks。
+func (h *TaskHandler) ListSubtasks(c *gin.Context) {
+	parent := middleware.CurrentTask(c)
+
+	children, err := h.client.Task.Query().
+		Where(task.ParentTaskIDEQ(parent.ID)).
+		All(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list subtasks"})
+		return
+	}
+
+	out := make([]gin.H, 0, len(children))
+	for _, ch := range children {
+		out = append(out, taskJSON(ch))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+type putAssigneesRequest struct {
+	UserIDs []uuid.UUID `json:"user_ids" binding:"required"`
+}
+
+// PutAssignees は PUT /tasks/:task_id/assignees。担当者を入れ替える。
+func (h *TaskHandler) PutAssignees(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+
+	var req putAssigneesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_ids is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	ids, err := h.validWorkspaceUserIDs(ctx, t.WorkspaceID, req.UserIDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user_ids must all be workspace members"})
+		return
+	}
+
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		if _, err := tx.TaskAssignee.Delete().Where(taskassignee.TaskIDEQ(t.ID)).Exec(ctx); err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		builders := make([]*ent.TaskAssigneeCreate, 0, len(ids))
+		for _, uid := range ids {
+			builders = append(builders, tx.TaskAssignee.Create().SetTaskID(t.ID).SetUserID(uid))
+		}
+		_, err := tx.TaskAssignee.CreateBulk(builders...).Save(ctx)
+		return err
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update assignees"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type putTagsRequest struct {
+	TagIDs []uuid.UUID `json:"tag_ids" binding:"required"`
+}
+
+// PutTags は PUT /tasks/:task_id/tags。タグを入れ替える。
+func (h *TaskHandler) PutTags(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+
+	var req putTagsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	ids, err := h.validWorkspaceTagIDs(ctx, t.WorkspaceID, req.TagIDs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must all belong to this workspace"})
+		return
+	}
+
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		if _, err := tx.TaskTag.Delete().Where(tasktag.TaskIDEQ(t.ID)).Exec(ctx); err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		builders := make([]*ent.TaskTagCreate, 0, len(ids))
+		for _, tid := range ids {
+			builders = append(builders, tx.TaskTag.Create().SetTaskID(t.ID).SetTagID(tid))
+		}
+		_, err := tx.TaskTag.CreateBulk(builders...).Save(ctx)
+		return err
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tags"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// --- helpers ---
+
+func parseOptionalDate(s *string) (*time.Time, error) {
+	if s == nil {
+		return nil, nil
+	}
+	d, err := time.Parse(dateLayout, *s)
+	if err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+func (h *TaskHandler) validWorkspaceUserIDs(ctx context.Context, workspaceID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	deduped := dedupUUIDs(ids)
+	count, err := h.client.WorkspaceMember.Query().
+		Where(workspacemember.WorkspaceIDEQ(workspaceID), workspacemember.UserIDIn(deduped...)).
+		Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if count != len(deduped) {
+		return nil, errInvalidIDs
+	}
+	return deduped, nil
+}
+
+func (h *TaskHandler) validWorkspaceTagIDs(ctx context.Context, workspaceID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	deduped := dedupUUIDs(ids)
+	count, err := h.client.Tag.Query().
+		Where(tag.WorkspaceIDEQ(workspaceID), tag.IDIn(deduped...)).
+		Count(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if count != len(deduped) {
+		return nil, errInvalidIDs
+	}
+	return deduped, nil
+}
+
+func dedupUUIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := map[uuid.UUID]struct{}{}
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+// resolveStatusColumn は指定されたstatus_column_id/statusから
+// (status_column_id, status)を決定する。両方nilなら、そのプロジェクトの
+// not_started列（position最小）をデフォルトにする。
+func resolveStatusColumn(ctx context.Context, client *ent.Client, projectID uuid.UUID, statusColumnID *uuid.UUID, status *string) (*uuid.UUID, task.Status, error) {
+	if statusColumnID != nil {
+		col, err := client.ProjectStatusColumn.Get(ctx, *statusColumnID)
+		if err != nil || col.ProjectID != projectID {
+			return nil, "", errInvalidIDs
+		}
+		id := col.ID
+		return &id, task.Status(col.MapsToStatus), nil
+	}
+
+	var mapsTo projectstatuscolumn.MapsToStatus
+	if status != nil {
+		mapsTo = projectstatuscolumn.MapsToStatus(*status)
+	} else {
+		mapsTo = projectstatuscolumn.MapsToStatusNotStarted
+	}
+
+	col, err := client.ProjectStatusColumn.Query().
+		Where(
+			projectstatuscolumn.ProjectIDEQ(projectID),
+			projectstatuscolumn.MapsToStatusEQ(mapsTo),
+		).
+		Order(projectstatuscolumn.ByPosition()).
+		First(ctx)
+	if err != nil {
+		return nil, task.Status(mapsTo), nil
+	}
+	id := col.ID
+	return &id, task.Status(mapsTo), nil
+}

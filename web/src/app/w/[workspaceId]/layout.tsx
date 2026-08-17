@@ -45,6 +45,12 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
             ワークスペース切替
           </Link>
           <span className="font-medium">{workspace?.name ?? "..."}</span>
+          <Link href={`/w/${params.workspaceId}/projects`} className="text-sm text-zinc-500 hover:underline">
+            プロジェクト
+          </Link>
+          <Link href={`/w/${params.workspaceId}/members`} className="text-sm text-zinc-500 hover:underline">
+            メンバー
+          </Link>
         </div>
         <div className="flex items-center gap-3 text-sm text-zinc-500">
           <span>{user.name}</span>

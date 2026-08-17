@@ -49,10 +49,14 @@ func main() {
 	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.FrontendURL, cookieSecure)
 	workspaceHandler := handler.NewWorkspaceHandler(client)
 	memberHandler := handler.NewMemberHandler(client)
+	projectHandler := handler.NewProjectHandler(client)
+	taskHandler := handler.NewTaskHandler(client)
 
 	requireAuth := middleware.RequireAuth(client, cfg.JWTSecret)
 	requireWorkspaceMember := middleware.RequireWorkspaceMember(client)
 	requireOwner := middleware.RequireOwner()
+	requireProjectAccess := middleware.RequireProjectAccess(client)
+	requireTaskAccess := middleware.RequireTaskAccess(client)
 
 	api := router.Group("/api/v1")
 	{
@@ -85,6 +89,46 @@ func main() {
 				withMember.POST("/members/invite", requireOwner, memberHandler.Invite)
 				withMember.PATCH("/members/:member_id", requireOwner, memberHandler.ChangeRole)
 				withMember.DELETE("/members/:member_id", memberHandler.Remove)
+
+				withMember.GET("/projects", projectHandler.List)
+				withMember.POST("/projects", projectHandler.Create)
+				withMember.GET("/tasks", taskHandler.Search)
+				withMember.POST("/tasks", taskHandler.Create)
+			}
+		}
+
+		// プロジェクト系エンドポイント（:workspace_idを含まないパス）
+		projects := api.Group("/projects", requireAuth)
+		{
+			withProject := projects.Group("/:project_id", requireProjectAccess)
+			{
+				withProject.GET("", projectHandler.Get)
+				withProject.PATCH("", projectHandler.Update)
+				withProject.DELETE("", middleware.RequireProjectOwnerOrCreator(), projectHandler.Delete)
+
+				withProject.GET("/members", projectHandler.ListMembers)
+				withProject.PUT("/members", projectHandler.PutMembers)
+
+				withProject.GET("/status-columns", projectHandler.ListStatusColumns)
+				withProject.POST("/status-columns", projectHandler.CreateStatusColumn)
+				withProject.PATCH("/status-columns/:column_id", projectHandler.UpdateStatusColumn)
+				withProject.DELETE("/status-columns/:column_id", projectHandler.DeleteStatusColumn)
+			}
+		}
+
+		// タスク系エンドポイント（:workspace_idを含まないパス）
+		tasks := api.Group("/tasks", requireAuth)
+		{
+			withTask := tasks.Group("/:task_id", requireTaskAccess)
+			{
+				withTask.GET("", taskHandler.Get)
+				withTask.PATCH("", taskHandler.Update)
+				withTask.DELETE("", taskHandler.Delete)
+
+				withTask.POST("/subtasks", taskHandler.CreateSubtask)
+				withTask.GET("/subtasks", taskHandler.ListSubtasks)
+				withTask.PUT("/assignees", taskHandler.PutAssignees)
+				withTask.PUT("/tags", taskHandler.PutTags)
 			}
 		}
 	}
