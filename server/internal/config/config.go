@@ -14,6 +14,7 @@ type Config struct {
 	GoogleOAuthClientSecret string
 	GoogleOAuthRedirectURL  string
 	FrontendURL             string
+	SupabaseJWTSecret       string
 }
 
 // Load は環境変数からConfigを組み立てる。必須項目が欠けていればプロセスを終了する。
@@ -26,6 +27,7 @@ func Load() Config {
 		GoogleOAuthClientSecret: mustEnv("GOOGLE_OAUTH_CLIENT_SECRET"),
 		GoogleOAuthRedirectURL:  mustEnv("GOOGLE_OAUTH_REDIRECT_URL"),
 		FrontendURL:             mustEnv("FRONTEND_URL"),
+		SupabaseJWTSecret:       mustEnv("SUPABASE_JWT_SECRET"),
 	}
 	return cfg
 }

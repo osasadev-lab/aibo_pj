@@ -22,7 +22,7 @@ function CallbackInner() {
   }, [searchParams, setToken, router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center text-zinc-500">
+    <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
       ログイン処理中...
     </div>
   );

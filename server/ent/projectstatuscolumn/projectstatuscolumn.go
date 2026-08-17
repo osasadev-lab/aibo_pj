@@ -28,6 +28,8 @@ const (
 	FieldPosition = "position"
 	// FieldMapsToStatus holds the string denoting the maps_to_status field in the database.
 	FieldMapsToStatus = "maps_to_status"
+	// FieldIsDefault holds the string denoting the is_default field in the database.
+	FieldIsDefault = "is_default"
 	// EdgeProject holds the string denoting the project edge name in mutations.
 	EdgeProject = "project"
 	// EdgeTasks holds the string denoting the tasks edge name in mutations.
@@ -59,6 +61,7 @@ var Columns = []string{
 	FieldName,
 	FieldPosition,
 	FieldMapsToStatus,
+	FieldIsDefault,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -80,6 +83,8 @@ var (
 	UpdateDefaultUpdatedAt func() time.Time
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultIsDefault holds the default value on creation for the "is_default" field.
+	DefaultIsDefault bool
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -145,6 +150,11 @@ func ByPosition(opts ...sql.OrderTermOption) OrderOption {
 // ByMapsToStatus orders the results by the maps_to_status field.
 func ByMapsToStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldMapsToStatus, opts...).ToFunc()
+}
+
+// ByIsDefault orders the results by the is_default field.
+func ByIsDefault(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIsDefault, opts...).ToFunc()
 }
 
 // ByProjectField orders the results by project field.

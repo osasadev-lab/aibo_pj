@@ -75,6 +75,20 @@ func (_c *ProjectStatusColumnCreate) SetMapsToStatus(v projectstatuscolumn.MapsT
 	return _c
 }
 
+// SetIsDefault sets the "is_default" field.
+func (_c *ProjectStatusColumnCreate) SetIsDefault(v bool) *ProjectStatusColumnCreate {
+	_c.mutation.SetIsDefault(v)
+	return _c
+}
+
+// SetNillableIsDefault sets the "is_default" field if the given value is not nil.
+func (_c *ProjectStatusColumnCreate) SetNillableIsDefault(v *bool) *ProjectStatusColumnCreate {
+	if v != nil {
+		_c.SetIsDefault(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *ProjectStatusColumnCreate) SetID(v uuid.UUID) *ProjectStatusColumnCreate {
 	_c.mutation.SetID(v)
@@ -152,6 +166,10 @@ func (_c *ProjectStatusColumnCreate) defaults() {
 		v := projectstatuscolumn.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.IsDefault(); !ok {
+		v := projectstatuscolumn.DefaultIsDefault
+		_c.mutation.SetIsDefault(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := projectstatuscolumn.DefaultID()
 		_c.mutation.SetID(v)
@@ -187,6 +205,9 @@ func (_c *ProjectStatusColumnCreate) check() error {
 		if err := projectstatuscolumn.MapsToStatusValidator(v); err != nil {
 			return &ValidationError{Name: "maps_to_status", err: fmt.Errorf(`ent: validator failed for field "ProjectStatusColumn.maps_to_status": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.IsDefault(); !ok {
+		return &ValidationError{Name: "is_default", err: errors.New(`ent: missing required field "ProjectStatusColumn.is_default"`)}
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "ProjectStatusColumn.project"`)}
@@ -245,6 +266,10 @@ func (_c *ProjectStatusColumnCreate) createSpec() (*ProjectStatusColumn, *sqlgra
 	if value, ok := _c.mutation.MapsToStatus(); ok {
 		_spec.SetField(projectstatuscolumn.FieldMapsToStatus, field.TypeEnum, value)
 		_node.MapsToStatus = value
+	}
+	if value, ok := _c.mutation.IsDefault(); ok {
+		_spec.SetField(projectstatuscolumn.FieldIsDefault, field.TypeBool, value)
+		_node.IsDefault = value
 	}
 	if nodes := _c.mutation.ProjectIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

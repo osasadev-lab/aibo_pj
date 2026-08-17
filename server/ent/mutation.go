@@ -5640,6 +5640,7 @@ type ProjectStatusColumnMutation struct {
 	position       *int
 	addposition    *int
 	maps_to_status *projectstatuscolumn.MapsToStatus
+	is_default     *bool
 	clearedFields  map[string]struct{}
 	project        *uuid.UUID
 	clearedproject bool
@@ -5991,6 +5992,42 @@ func (m *ProjectStatusColumnMutation) ResetMapsToStatus() {
 	m.maps_to_status = nil
 }
 
+// SetIsDefault sets the "is_default" field.
+func (m *ProjectStatusColumnMutation) SetIsDefault(b bool) {
+	m.is_default = &b
+}
+
+// IsDefault returns the value of the "is_default" field in the mutation.
+func (m *ProjectStatusColumnMutation) IsDefault() (r bool, exists bool) {
+	v := m.is_default
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsDefault returns the old "is_default" field's value of the ProjectStatusColumn entity.
+// If the ProjectStatusColumn object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProjectStatusColumnMutation) OldIsDefault(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsDefault is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsDefault requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsDefault: %w", err)
+	}
+	return oldValue.IsDefault, nil
+}
+
+// ResetIsDefault resets all changes to the "is_default" field.
+func (m *ProjectStatusColumnMutation) ResetIsDefault() {
+	m.is_default = nil
+}
+
 // ClearProject clears the "project" edge to the Project entity.
 func (m *ProjectStatusColumnMutation) ClearProject() {
 	m.clearedproject = true
@@ -6106,7 +6143,7 @@ func (m *ProjectStatusColumnMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProjectStatusColumnMutation) Fields() []string {
-	fields := make([]string, 0, 6)
+	fields := make([]string, 0, 7)
 	if m.created_at != nil {
 		fields = append(fields, projectstatuscolumn.FieldCreatedAt)
 	}
@@ -6124,6 +6161,9 @@ func (m *ProjectStatusColumnMutation) Fields() []string {
 	}
 	if m.maps_to_status != nil {
 		fields = append(fields, projectstatuscolumn.FieldMapsToStatus)
+	}
+	if m.is_default != nil {
+		fields = append(fields, projectstatuscolumn.FieldIsDefault)
 	}
 	return fields
 }
@@ -6145,6 +6185,8 @@ func (m *ProjectStatusColumnMutation) Field(name string) (ent.Value, bool) {
 		return m.Position()
 	case projectstatuscolumn.FieldMapsToStatus:
 		return m.MapsToStatus()
+	case projectstatuscolumn.FieldIsDefault:
+		return m.IsDefault()
 	}
 	return nil, false
 }
@@ -6166,6 +6208,8 @@ func (m *ProjectStatusColumnMutation) OldField(ctx context.Context, name string)
 		return m.OldPosition(ctx)
 	case projectstatuscolumn.FieldMapsToStatus:
 		return m.OldMapsToStatus(ctx)
+	case projectstatuscolumn.FieldIsDefault:
+		return m.OldIsDefault(ctx)
 	}
 	return nil, fmt.Errorf("unknown ProjectStatusColumn field %s", name)
 }
@@ -6216,6 +6260,13 @@ func (m *ProjectStatusColumnMutation) SetField(name string, value ent.Value) err
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetMapsToStatus(v)
+		return nil
+	case projectstatuscolumn.FieldIsDefault:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsDefault(v)
 		return nil
 	}
 	return fmt.Errorf("unknown ProjectStatusColumn field %s", name)
@@ -6298,6 +6349,9 @@ func (m *ProjectStatusColumnMutation) ResetField(name string) error {
 		return nil
 	case projectstatuscolumn.FieldMapsToStatus:
 		m.ResetMapsToStatus()
+		return nil
+	case projectstatuscolumn.FieldIsDefault:
+		m.ResetIsDefault()
 		return nil
 	}
 	return fmt.Errorf("unknown ProjectStatusColumn field %s", name)

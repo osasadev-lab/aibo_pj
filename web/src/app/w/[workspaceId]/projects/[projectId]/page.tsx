@@ -1,10 +1,20 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { Calendar, Check, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import clsx from "clsx";
 
 import { apiFetch, ApiError } from "@/lib/apiClient";
+import { useAuth } from "@/lib/auth/useAuth";
 import MemberPicker from "@/components/MemberPicker";
+import KanbanBoard from "@/components/kanban/KanbanBoard";
+import TaskDetailPanel from "@/components/TaskDetailPanel";
+import Button from "@/components/ui/Button";
+import IconButton from "@/components/ui/IconButton";
+import Badge from "@/components/ui/Badge";
+import Avatar from "@/components/ui/Avatar";
+import { Input, Select } from "@/components/ui/fields";
 
 type Project = {
   id: string;
@@ -12,6 +22,19 @@ type Project = {
   name: string;
   description: string | null;
   visibility: "public" | "private";
+  created_by: string;
+};
+
+type Workspace = {
+  id: string;
+  role: "owner" | "member";
+};
+
+type Member = {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
 };
 
 type StatusColumn = {
@@ -19,16 +42,19 @@ type StatusColumn = {
   name: string;
   position: number;
   maps_to_status: "not_started" | "in_progress" | "done" | "on_hold";
+  is_default: boolean;
 };
 
 type Task = {
   id: string;
   parent_task_id: string | null;
   status_column_id: string | null;
+  status: "not_started" | "in_progress" | "done" | "on_hold";
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high" | null;
   due_date: string | null;
+  assignee_ids?: string[];
 };
 
 const MAPS_TO_STATUS_OPTIONS = [
@@ -38,19 +64,36 @@ const MAPS_TO_STATUS_OPTIONS = [
   { value: "on_hold", label: "保留" },
 ] as const;
 
+const PRIORITY_DOT: Record<string, string> = {
+  low: "bg-zinc-400",
+  medium: "bg-amber-500",
+  high: "bg-red-500",
+};
+
 export default function ProjectDetailPage() {
   const params = useParams<{ workspaceId: string; projectId: string }>();
   const { workspaceId, projectId } = params;
+  const { user } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const openTaskId = searchParams.get("task");
 
   const [project, setProject] = useState<Project | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
   const [columns, setColumns] = useState<StatusColumn[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [addingToColumn, setAddingToColumn] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newColumnName, setNewColumnName] = useState("");
+  // 既定4列（未対応/着手中/対応済/保留）で共通ステータスは出揃うため、カスタム列を
+  // 追加する場合の対応づけ先に「最も多いケース」は無い。プルダウン自体は必須
+  // （内部的にどの共通ステータスに属するかを決める値のため省略できない）。
   const [newColumnMapsTo, setNewColumnMapsTo] = useState<string>("not_started");
+  const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
+  const [editingColumnName, setEditingColumnName] = useState("");
   const [editingMembers, setEditingMembers] = useState(false);
   const [memberIds, setMemberIds] = useState<string[]>([]);
 
@@ -59,6 +102,8 @@ export default function ProjectDetailPage() {
     apiFetch<Project>(`/projects/${projectId}`)
       .then(setProject)
       .catch(() => setError("プロジェクトの取得に失敗しました（参画メンバーでない可能性があります）"));
+    apiFetch<Workspace>(`/workspaces/${workspaceId}`).then(setWorkspace).catch(() => {});
+    apiFetch<Member[]>(`/workspaces/${workspaceId}/members`).then(setMembers).catch(() => {});
     apiFetch<StatusColumn[]>(`/projects/${projectId}/status-columns`).then(setColumns);
     apiFetch<Task[]>(`/workspaces/${workspaceId}/tasks?project_id=${projectId}`).then(setTasks);
   }, [projectId, workspaceId]);
@@ -66,6 +111,21 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const nameFor = (userId: string) => members.find((m) => m.user_id === userId)?.name ?? "?";
+
+  function openTask(id: string) {
+    const p = new URLSearchParams(searchParams);
+    p.set("task", id);
+    router.replace(`${pathname}?${p.toString()}`);
+  }
+
+  function closeTaskPanel() {
+    const p = new URLSearchParams(searchParams);
+    p.delete("task");
+    const qs = p.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  }
 
   async function handleAddTask(columnId: string) {
     if (!newTaskTitle.trim()) return;
@@ -82,36 +142,29 @@ export default function ProjectDetailPage() {
     }
   }
 
-  async function handleUpdateTask(taskId: string, patch: Record<string, unknown>) {
+  // D&Dでの列移動は、サーバー往復を待たずに即座にローカル状態を更新する
+  // （楽観的更新）。PATCHはバックグラウンドで行い、失敗時のみ再取得して巻き戻す。
+  // status_column_idだけでなくstatusも移動先列のmaps_to_statusに合わせて更新する
+  // （サーバー側のUpdateハンドラと同じ同期ロジック）。ここでstatusを更新しないと、
+  // 「対応済にする」ボタンの表示条件（status!=="done"）などstatusを見ているUIが
+  // 列移動後も古いstatusのまま取り残される。
+  async function handleDrop(taskId: string, columnId: string) {
+    const targetColumn = columns.find((c) => c.id === columnId);
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? { ...t, status_column_id: columnId, status: targetColumn?.maps_to_status ?? t.status }
+          : t,
+      ),
+    );
     try {
-      await apiFetch(`/tasks/${taskId}`, { method: "PATCH", body: JSON.stringify(patch) });
-      load();
-    } catch {
-      setError("タスクの更新に失敗しました");
-    }
-  }
-
-  async function handleDeleteTask(taskId: string) {
-    if (!window.confirm("このタスクを削除しますか？（子タスクも削除されます）")) return;
-    try {
-      await apiFetch(`/tasks/${taskId}`, { method: "DELETE" });
-      setExpandedTaskId(null);
-      load();
-    } catch {
-      setError("タスクの削除に失敗しました");
-    }
-  }
-
-  async function handleAddSubtask(parentId: string, title: string) {
-    if (!title.trim()) return;
-    try {
-      await apiFetch(`/tasks/${parentId}/subtasks`, {
-        method: "POST",
-        body: JSON.stringify({ title: title.trim() }),
+      await apiFetch(`/tasks/${taskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status_column_id: columnId }),
       });
-      load();
     } catch {
-      setError("子タスクの作成に失敗しました");
+      setError("タスクの移動に失敗しました");
+      load();
     }
   }
 
@@ -131,6 +184,45 @@ export default function ProjectDetailPage() {
       } else {
         setError("列の作成に失敗しました");
       }
+    }
+  }
+
+  // 列のD&D並び替え。カードD&Dと同様に楽観的更新し、バックグラウンドで
+  // 各列のpositionをPATCHで永続化する（失敗時のみ再取得して巻き戻す）。
+  async function handleReorderColumns(orderedIds: string[]) {
+    setColumns((prev) => {
+      const byId = new Map(prev.map((c) => [c.id, c]));
+      return orderedIds.map((id, i) => ({ ...byId.get(id)!, position: i }));
+    });
+    try {
+      await Promise.all(
+        orderedIds.map((id, i) =>
+          apiFetch(`/projects/${projectId}/status-columns/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify({ position: i }),
+          }),
+        ),
+      );
+    } catch {
+      setError("列の並び替えに失敗しました");
+      load();
+    }
+  }
+
+  // 列名の変更。既定列（未対応/着手中/対応済）は名前も固定表示のまま変更不可とし、
+  // カスタム列（is_default=false）のみ編集可能にする（削除制限と同じ線引き）。
+  async function handleRenameColumn(columnId: string) {
+    const name = editingColumnName.trim();
+    if (!name) return;
+    try {
+      await apiFetch(`/projects/${projectId}/status-columns/${columnId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      });
+      setEditingColumnId(null);
+      load();
+    } catch {
+      setError("列名の変更に失敗しました");
     }
   }
 
@@ -168,241 +260,210 @@ export default function ProjectDetailPage() {
   }
 
   if (!project) {
-    return <div className="px-4 py-10 text-sm text-zinc-500">{error ?? "読み込み中..."}</div>;
+    return <div className="px-6 py-10 text-sm text-muted-foreground">{error ?? "読み込み中..."}</div>;
   }
 
   const topLevelTasks = tasks.filter((t) => !t.parent_task_id);
-  const subtasksOf = (taskId: string) => tasks.filter((t) => t.parent_task_id === taskId);
+  // 参画メンバー編集はプロジェクト作成者 or workspace Owner限定（server側と同じ判定）。
+  const canEditMembers = !!user && (user.id === project.created_by || workspace?.role === "owner");
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10">
-      <header>
-        <h1 className="text-xl font-semibold">{project.name}</h1>
-        {project.description && <p className="text-sm text-zinc-500">{project.description}</p>}
-        <p className="text-xs text-zinc-500">{project.visibility === "private" ? "Private" : "Public"}</p>
+    <div className="flex max-w-full flex-col gap-6 px-6 py-8 lg:px-10">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{project.name}</h1>
+          {project.description && <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge tone={project.visibility === "private" ? "amber" : "green"}>
+            {project.visibility === "private" ? "Private" : "Public"}
+          </Badge>
+          {canEditMembers && (
+            <Button size="sm" variant="secondary" onClick={() => setEditingMembers((v) => !v)}>
+              <Users className="h-3.5 w-3.5" />
+              参画メンバー
+            </Button>
+          )}
+        </div>
       </header>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      <section>
-        <button onClick={() => setEditingMembers((v) => !v)} className="text-sm underline">
-          参画メンバーを編集
-        </button>
-        {editingMembers && (
-          <div className="mt-2 flex flex-col gap-2">
-            <MemberPicker workspaceId={workspaceId} selected={memberIds} onChange={setMemberIds} />
-            <button
-              onClick={handleSaveMembers}
-              className="self-start rounded-md bg-black px-3 py-1.5 text-sm text-white dark:bg-white dark:text-black"
-            >
-              保存
-            </button>
-          </div>
+      {canEditMembers && editingMembers && (
+        <section className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+          <MemberPicker workspaceId={workspaceId} selected={memberIds} onChange={setMemberIds} />
+          <Button variant="primary" size="sm" className="self-start" onClick={handleSaveMembers}>
+            保存
+          </Button>
+        </section>
+      )}
+
+      <KanbanBoard
+        columns={columns.map((c) => ({ id: c.id, label: c.name }))}
+        itemsByColumn={Object.fromEntries(
+          columns.map((c) => [c.id, topLevelTasks.filter((t) => t.status_column_id === c.id)]),
         )}
-      </section>
-
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {columns.map((col) => (
-          <div key={col.id} className="flex w-64 shrink-0 flex-col gap-2 rounded-md border border-zinc-200 p-3 dark:border-zinc-800">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">{col.name}</span>
-              <button onClick={() => handleDeleteColumn(col.id)} className="text-xs text-red-600 hover:underline">
-                削除
-              </button>
-            </div>
-
-            <ul className="flex flex-col gap-2">
-              {topLevelTasks
-                .filter((t) => t.status_column_id === col.id)
-                .map((t) => (
-                  <li key={t.id} className="rounded-md border border-zinc-200 p-2 text-sm dark:border-zinc-700">
-                    <button className="text-left font-medium" onClick={() => setExpandedTaskId(expandedTaskId === t.id ? null : t.id)}>
-                      {t.title}
-                    </button>
-
-                    {expandedTaskId === t.id && (
-                      <TaskEditor
-                        task={t}
-                        subtasks={subtasksOf(t.id)}
-                        onUpdate={(patch) => handleUpdateTask(t.id, patch)}
-                        onDelete={() => handleDeleteTask(t.id)}
-                        onAddSubtask={(title) => handleAddSubtask(t.id, title)}
-                        onDeleteSubtask={handleDeleteTask}
-                      />
-                    )}
-                  </li>
-                ))}
-            </ul>
-
-            {addingToColumn === col.id ? (
+        getItemId={(t) => t.id}
+        onDrop={handleDrop}
+        onReorderColumns={handleReorderColumns}
+        renderColumnLabel={(columnId, label) => {
+          const col = columns.find((c) => c.id === columnId);
+          if (editingColumnId === columnId) {
+            return (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  handleAddTask(col.id);
+                  handleRenameColumn(columnId);
                 }}
-                className="flex flex-col gap-1"
+                className="flex flex-1 items-center gap-1"
               >
-                <input
+                <Input
                   autoFocus
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  placeholder="タスク名"
-                  className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+                  value={editingColumnName}
+                  onChange={(e) => setEditingColumnName(e.target.value)}
+                  className="h-7 px-2 py-0 text-xs"
                 />
-                <div className="flex gap-1">
-                  <button type="submit" className="rounded-md bg-black px-2 py-1 text-xs text-white dark:bg-white dark:text-black">
-                    追加
-                  </button>
-                  <button type="button" onClick={() => setAddingToColumn(null)} className="text-xs text-zinc-500">
-                    キャンセル
-                  </button>
-                </div>
+                <IconButton size="sm" type="submit" title="保存">
+                  <Check className="h-3.5 w-3.5" />
+                </IconButton>
+                <IconButton size="sm" type="button" title="取消" onClick={() => setEditingColumnId(null)}>
+                  <X className="h-3.5 w-3.5" />
+                </IconButton>
               </form>
-            ) : (
-              <button
-                onClick={() => {
-                  setAddingToColumn(col.id);
-                  setNewTaskTitle("");
-                }}
-                className="text-left text-xs text-zinc-500 hover:underline"
-              >
-                ＋タスク追加
-              </button>
-            )}
-          </div>
-        ))}
-
-        <form onSubmit={handleAddColumn} className="flex w-64 shrink-0 flex-col gap-2 rounded-md border border-dashed border-zinc-300 p-3 dark:border-zinc-700">
-          <input
-            value={newColumnName}
-            onChange={(e) => setNewColumnName(e.target.value)}
-            placeholder="新しい列名"
-            className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-          <select
-            value={newColumnMapsTo}
-            onChange={(e) => setNewColumnMapsTo(e.target.value)}
-            className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          >
-            {MAPS_TO_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="rounded-md bg-black px-2 py-1 text-xs text-white dark:bg-white dark:text-black">
-            列を追加
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function TaskEditor({
-  task,
-  subtasks,
-  onUpdate,
-  onDelete,
-  onAddSubtask,
-  onDeleteSubtask,
-}: {
-  task: Task;
-  subtasks: Task[];
-  onUpdate: (patch: Record<string, unknown>) => void;
-  onDelete: () => void;
-  onAddSubtask: (title: string) => void;
-  onDeleteSubtask: (id: string) => void;
-}) {
-  const [title, setTitle] = useState(task.title);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [priority, setPriority] = useState(task.priority ?? "");
-  const [dueDate, setDueDate] = useState(task.due_date ?? "");
-  const [subtaskTitle, setSubtaskTitle] = useState("");
-
-  return (
-    <div className="mt-2 flex flex-col gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-700">
-      <input
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-      />
-      <textarea
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        placeholder="説明"
-        rows={2}
-        className="rounded-md border border-zinc-300 px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-      />
-      <div className="flex gap-2">
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value)}
-          className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-        >
-          <option value="">優先度なし</option>
-          <option value="low">低</option>
-          <option value="medium">中</option>
-          <option value="high">高</option>
-        </select>
-        <input
-          type="date"
-          value={dueDate}
-          onChange={(e) => setDueDate(e.target.value)}
-          className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-        />
-      </div>
-      <div className="flex gap-2">
-        <button
-          onClick={() =>
-            onUpdate({
-              title,
-              description: description || null,
-              priority: priority || null,
-              due_date: dueDate || null,
-            })
+            );
           }
-          className="rounded-md bg-black px-2 py-1 text-xs text-white dark:bg-white dark:text-black"
-        >
-          保存
-        </button>
-        <button onClick={onDelete} className="text-xs text-red-600 hover:underline">
-          削除
-        </button>
-      </div>
-
-      {!task.parent_task_id && (
-        <div className="mt-2 flex flex-col gap-1 border-t border-zinc-200 pt-2 dark:border-zinc-700">
-          <p className="text-xs font-medium text-zinc-500">子タスク</p>
-          <ul className="flex flex-col gap-1">
-            {subtasks.map((st) => (
-              <li key={st.id} className="flex items-center justify-between text-xs">
-                <span>{st.title}</span>
-                <button onClick={() => onDeleteSubtask(st.id)} className="text-red-600 hover:underline">
-                  削除
-                </button>
-              </li>
-            ))}
-          </ul>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              onAddSubtask(subtaskTitle);
-              setSubtaskTitle("");
-            }}
-            className="flex gap-1"
-          >
-            <input
-              value={subtaskTitle}
-              onChange={(e) => setSubtaskTitle(e.target.value)}
-              placeholder="子タスク名"
-              className="flex-1 rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-            />
-            <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs dark:border-zinc-700">
-              ＋子タスクを追加
+          if (col && !col.is_default) {
+            return (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingColumnId(columnId);
+                  setEditingColumnName(label);
+                }}
+                title="クリックして列名を編集"
+                className="group flex flex-1 items-center gap-1.5 text-left text-sm font-semibold text-foreground"
+              >
+                {label}
+                <Pencil className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+              </button>
+            );
+          }
+          return <span className="flex-1 text-sm font-semibold text-foreground">{label}</span>;
+        }}
+        renderColumnHeaderExtra={(columnId) => {
+          const col = columns.find((c) => c.id === columnId);
+          const count = topLevelTasks.filter((t) => t.status_column_id === columnId).length;
+          return (
+            <div className="flex items-center gap-1">
+              <span className="rounded-full bg-surface px-1.5 py-0.5 text-xs text-muted-foreground">{count}</span>
+              {col && !col.is_default && (
+                <IconButton size="sm" title="列を削除" onClick={() => handleDeleteColumn(columnId)}>
+                  <Trash2 className="h-3.5 w-3.5 hover:text-red-600" />
+                </IconButton>
+              )}
+            </div>
+          );
+        }}
+        renderCard={(t) => (
+          <button type="button" onClick={() => openTask(t.id)} className="flex w-full flex-col items-start gap-2 text-left">
+            <div className="flex w-full items-start justify-between gap-2">
+              <span className="text-sm font-medium text-foreground">{t.title}</span>
+              {t.priority && (
+                <span className={clsx("mt-1.5 h-2 w-2 shrink-0 rounded-full", PRIORITY_DOT[t.priority])} />
+              )}
+            </div>
+            {(t.due_date || (t.assignee_ids && t.assignee_ids.length > 0)) && (
+              <div className="flex w-full items-center justify-between gap-2">
+                {t.due_date ? (
+                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3" />
+                    {t.due_date}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                {t.assignee_ids && t.assignee_ids.length > 0 && (
+                  <div className="flex -space-x-1.5">
+                    {t.assignee_ids.slice(0, 3).map((id) => (
+                      <Avatar key={id} size="sm" name={nameFor(id)} seed={id} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </button>
+        )}
+        renderColumnFooter={(columnId) =>
+          addingToColumn === columnId ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAddTask(columnId);
+              }}
+              className="flex flex-col gap-1.5"
+            >
+              <Input
+                autoFocus
+                value={newTaskTitle}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                placeholder="タスク名"
+                className="py-1.5 text-sm"
+              />
+              <div className="flex gap-1.5">
+                <Button type="submit" variant="primary" size="sm">
+                  追加
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setAddingToColumn(null)}>
+                  キャンセル
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <button
+              onClick={() => {
+                setAddingToColumn(columnId);
+                setNewTaskTitle("");
+              }}
+              className="flex items-center gap-1 rounded-lg px-1 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              タスク追加
             </button>
+          )
+        }
+        trailingColumn={
+          <form
+            onSubmit={handleAddColumn}
+            className="flex w-72 shrink-0 flex-col gap-2 rounded-xl border border-dashed border-border p-3"
+          >
+            <Input
+              value={newColumnName}
+              onChange={(e) => setNewColumnName(e.target.value)}
+              placeholder="新しい列名"
+            />
+            <Select value={newColumnMapsTo} onChange={(e) => setNewColumnMapsTo(e.target.value)}>
+              {MAPS_TO_STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+            <Button type="submit" variant="primary" size="sm">
+              <Plus className="h-3.5 w-3.5" />
+              列を追加
+            </Button>
           </form>
-        </div>
+        }
+      />
+
+      {openTaskId && (
+        <TaskDetailPanel
+          key={openTaskId}
+          taskId={openTaskId}
+          workspaceId={workspaceId}
+          onClose={closeTaskPanel}
+          onChanged={load}
+        />
       )}
     </div>
   );

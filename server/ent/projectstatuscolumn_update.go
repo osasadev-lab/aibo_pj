@@ -100,6 +100,20 @@ func (_u *ProjectStatusColumnUpdate) SetNillableMapsToStatus(v *projectstatuscol
 	return _u
 }
 
+// SetIsDefault sets the "is_default" field.
+func (_u *ProjectStatusColumnUpdate) SetIsDefault(v bool) *ProjectStatusColumnUpdate {
+	_u.mutation.SetIsDefault(v)
+	return _u
+}
+
+// SetNillableIsDefault sets the "is_default" field if the given value is not nil.
+func (_u *ProjectStatusColumnUpdate) SetNillableIsDefault(v *bool) *ProjectStatusColumnUpdate {
+	if v != nil {
+		_u.SetIsDefault(*v)
+	}
+	return _u
+}
+
 // SetProject sets the "project" edge to the Project entity.
 func (_u *ProjectStatusColumnUpdate) SetProject(v *Project) *ProjectStatusColumnUpdate {
 	return _u.SetProjectID(v.ID)
@@ -232,6 +246,9 @@ func (_u *ProjectStatusColumnUpdate) sqlSave(ctx context.Context) (_node int, er
 	}
 	if value, ok := _u.mutation.MapsToStatus(); ok {
 		_spec.SetField(projectstatuscolumn.FieldMapsToStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.IsDefault(); ok {
+		_spec.SetField(projectstatuscolumn.FieldIsDefault, field.TypeBool, value)
 	}
 	if _u.mutation.ProjectCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -392,6 +409,20 @@ func (_u *ProjectStatusColumnUpdateOne) SetMapsToStatus(v projectstatuscolumn.Ma
 func (_u *ProjectStatusColumnUpdateOne) SetNillableMapsToStatus(v *projectstatuscolumn.MapsToStatus) *ProjectStatusColumnUpdateOne {
 	if v != nil {
 		_u.SetMapsToStatus(*v)
+	}
+	return _u
+}
+
+// SetIsDefault sets the "is_default" field.
+func (_u *ProjectStatusColumnUpdateOne) SetIsDefault(v bool) *ProjectStatusColumnUpdateOne {
+	_u.mutation.SetIsDefault(v)
+	return _u
+}
+
+// SetNillableIsDefault sets the "is_default" field if the given value is not nil.
+func (_u *ProjectStatusColumnUpdateOne) SetNillableIsDefault(v *bool) *ProjectStatusColumnUpdateOne {
+	if v != nil {
+		_u.SetIsDefault(*v)
 	}
 	return _u
 }
@@ -558,6 +589,9 @@ func (_u *ProjectStatusColumnUpdateOne) sqlSave(ctx context.Context) (_node *Pro
 	}
 	if value, ok := _u.mutation.MapsToStatus(); ok {
 		_spec.SetField(projectstatuscolumn.FieldMapsToStatus, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.IsDefault(); ok {
+		_spec.SetField(projectstatuscolumn.FieldIsDefault, field.TypeBool, value)
 	}
 	if _u.mutation.ProjectCleared() {
 		edge := &sqlgraph.EdgeSpec{

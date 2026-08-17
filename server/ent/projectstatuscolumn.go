@@ -31,6 +31,8 @@ type ProjectStatusColumn struct {
 	Position int `json:"position,omitempty"`
 	// MapsToStatus holds the value of the "maps_to_status" field.
 	MapsToStatus projectstatuscolumn.MapsToStatus `json:"maps_to_status,omitempty"`
+	// IsDefault holds the value of the "is_default" field.
+	IsDefault bool `json:"is_default,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ProjectStatusColumnQuery when eager-loading is set.
 	Edges        ProjectStatusColumnEdges `json:"edges"`
@@ -73,6 +75,8 @@ func (*ProjectStatusColumn) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case projectstatuscolumn.FieldIsDefault:
+			values[i] = new(sql.NullBool)
 		case projectstatuscolumn.FieldPosition:
 			values[i] = new(sql.NullInt64)
 		case projectstatuscolumn.FieldName, projectstatuscolumn.FieldMapsToStatus:
@@ -138,6 +142,12 @@ func (_m *ProjectStatusColumn) assignValues(columns []string, values []any) erro
 			} else if value.Valid {
 				_m.MapsToStatus = projectstatuscolumn.MapsToStatus(value.String)
 			}
+		case projectstatuscolumn.FieldIsDefault:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field is_default", values[i])
+			} else if value.Valid {
+				_m.IsDefault = value.Bool
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -201,6 +211,9 @@ func (_m *ProjectStatusColumn) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("maps_to_status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.MapsToStatus))
+	builder.WriteString(", ")
+	builder.WriteString("is_default=")
+	builder.WriteString(fmt.Sprintf("%v", _m.IsDefault))
 	builder.WriteByte(')')
 	return builder.String()
 }

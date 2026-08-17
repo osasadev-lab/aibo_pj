@@ -212,6 +212,10 @@ func init() {
 	projectstatuscolumnDescName := projectstatuscolumnFields[1].Descriptor()
 	// projectstatuscolumn.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	projectstatuscolumn.NameValidator = projectstatuscolumnDescName.Validators[0].(func(string) error)
+	// projectstatuscolumnDescIsDefault is the schema descriptor for is_default field.
+	projectstatuscolumnDescIsDefault := projectstatuscolumnFields[4].Descriptor()
+	// projectstatuscolumn.DefaultIsDefault holds the default value on creation for the is_default field.
+	projectstatuscolumn.DefaultIsDefault = projectstatuscolumnDescIsDefault.Default.(bool)
 	// projectstatuscolumnDescID is the schema descriptor for id field.
 	projectstatuscolumnDescID := projectstatuscolumnMixinFields0[0].Descriptor()
 	// projectstatuscolumn.DefaultID holds the default value on creation for the id field.

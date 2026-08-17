@@ -81,6 +81,11 @@ func Position(v int) predicate.ProjectStatusColumn {
 	return predicate.ProjectStatusColumn(sql.FieldEQ(FieldPosition, v))
 }
 
+// IsDefault applies equality check predicate on the "is_default" field. It's identical to IsDefaultEQ.
+func IsDefault(v bool) predicate.ProjectStatusColumn {
+	return predicate.ProjectStatusColumn(sql.FieldEQ(FieldIsDefault, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.ProjectStatusColumn {
 	return predicate.ProjectStatusColumn(sql.FieldEQ(FieldCreatedAt, v))
@@ -304,6 +309,16 @@ func MapsToStatusIn(vs ...MapsToStatus) predicate.ProjectStatusColumn {
 // MapsToStatusNotIn applies the NotIn predicate on the "maps_to_status" field.
 func MapsToStatusNotIn(vs ...MapsToStatus) predicate.ProjectStatusColumn {
 	return predicate.ProjectStatusColumn(sql.FieldNotIn(FieldMapsToStatus, vs...))
+}
+
+// IsDefaultEQ applies the EQ predicate on the "is_default" field.
+func IsDefaultEQ(v bool) predicate.ProjectStatusColumn {
+	return predicate.ProjectStatusColumn(sql.FieldEQ(FieldIsDefault, v))
+}
+
+// IsDefaultNEQ applies the NEQ predicate on the "is_default" field.
+func IsDefaultNEQ(v bool) predicate.ProjectStatusColumn {
+	return predicate.ProjectStatusColumn(sql.FieldNEQ(FieldIsDefault, v))
 }
 
 // HasProject applies the HasEdge predicate on the "project" edge.

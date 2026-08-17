@@ -32,7 +32,7 @@ func main() {
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{cfg.FrontendURL},
-		AllowMethods: []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"},
+		AllowMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders: []string{"Authorization", "Content-Type"},
 	}))
 
@@ -46,11 +46,13 @@ func main() {
 	// ローカルのhttp開発ではSecure Cookie（state用）を付けない。
 	cookieSecure := strings.HasPrefix(cfg.GoogleOAuthRedirectURL, "https://")
 
-	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.FrontendURL, cookieSecure)
+	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure)
 	workspaceHandler := handler.NewWorkspaceHandler(client)
 	memberHandler := handler.NewMemberHandler(client)
 	projectHandler := handler.NewProjectHandler(client)
 	taskHandler := handler.NewTaskHandler(client)
+	commentHandler := handler.NewCommentHandler(client)
+	notificationHandler := handler.NewNotificationHandler(client)
 
 	requireAuth := middleware.RequireAuth(client, cfg.JWTSecret)
 	requireWorkspaceMember := middleware.RequireWorkspaceMember(client)
@@ -94,6 +96,7 @@ func main() {
 				withMember.POST("/projects", projectHandler.Create)
 				withMember.GET("/tasks", taskHandler.Search)
 				withMember.POST("/tasks", taskHandler.Create)
+				withMember.GET("/my-tasks", taskHandler.MyTasks)
 			}
 		}
 
@@ -107,7 +110,7 @@ func main() {
 				withProject.DELETE("", middleware.RequireProjectOwnerOrCreator(), projectHandler.Delete)
 
 				withProject.GET("/members", projectHandler.ListMembers)
-				withProject.PUT("/members", projectHandler.PutMembers)
+				withProject.PUT("/members", middleware.RequireProjectOwnerOrCreator(), projectHandler.PutMembers)
 
 				withProject.GET("/status-columns", projectHandler.ListStatusColumns)
 				withProject.POST("/status-columns", projectHandler.CreateStatusColumn)
@@ -129,7 +132,24 @@ func main() {
 				withTask.GET("/subtasks", taskHandler.ListSubtasks)
 				withTask.PUT("/assignees", taskHandler.PutAssignees)
 				withTask.PUT("/tags", taskHandler.PutTags)
+
+				withTask.GET("/mentionable-members", commentHandler.MentionableMembers)
+				withTask.POST("/comments", commentHandler.CreateComment)
+				withTask.GET("/comments", commentHandler.ListComments)
 			}
+		}
+
+		// 自分自身に関するエンドポイント
+		me := api.Group("/me", requireAuth)
+		{
+			me.GET("/supabase-token", authHandler.SupabaseToken)
+		}
+
+		// 通知系エンドポイント
+		notifications := api.Group("/notifications", requireAuth)
+		{
+			notifications.GET("", notificationHandler.List)
+			notifications.PATCH("/:notification_id/read", notificationHandler.MarkRead)
 		}
 	}
 

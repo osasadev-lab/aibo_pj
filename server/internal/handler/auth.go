@@ -17,22 +17,24 @@ import (
 
 // AuthHandler は /auth 配下のエンドポイントを扱う。
 type AuthHandler struct {
-	client       *ent.Client
-	oauthConfig  *oauth2.Config
-	jwtSecret    string
-	frontendURL  string
-	cookieSecure bool
+	client            *ent.Client
+	oauthConfig       *oauth2.Config
+	jwtSecret         string
+	supabaseJWTSecret string
+	frontendURL       string
+	cookieSecure      bool
 }
 
 // NewAuthHandler はAuthHandlerを構築する。cookieSecureは本番(HTTPS)ではtrue、
 // ローカルのhttp開発ではfalseを渡す。
-func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, frontendURL string, cookieSecure bool) *AuthHandler {
+func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, supabaseJWTSecret, frontendURL string, cookieSecure bool) *AuthHandler {
 	return &AuthHandler{
-		client:       client,
-		oauthConfig:  internalauth.NewGoogleOAuthConfig(clientID, clientSecret, redirectURL),
-		jwtSecret:    jwtSecret,
-		frontendURL:  frontendURL,
-		cookieSecure: cookieSecure,
+		client:            client,
+		oauthConfig:       internalauth.NewGoogleOAuthConfig(clientID, clientSecret, redirectURL),
+		jwtSecret:         jwtSecret,
+		supabaseJWTSecret: supabaseJWTSecret,
+		frontendURL:       frontendURL,
+		cookieSecure:      cookieSecure,
 	}
 }
 
@@ -159,4 +161,16 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"name":       u.Name,
 		"avatar_url": u.AvatarURL,
 	})
+}
+
+// SupabaseToken は GET /me/supabase-token。Supabase Realtimeのチャンネル認証用に、
+// このアプリのセッションJWTとは別の鍵（SUPABASE_JWT_SECRET）で署名した短命JWTを発行する。
+func (h *AuthHandler) SupabaseToken(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	token, err := internalauth.IssueSupabaseToken(h.supabaseJWTSecret, u.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to issue supabase token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": token})
 }

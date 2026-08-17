@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { ChevronRight, FolderPlus, Globe, Lock } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth/useAuth";
 import MemberPicker from "@/components/MemberPicker";
+import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import { Input, Textarea } from "@/components/ui/fields";
 
 type Project = {
   id: string;
@@ -72,79 +76,86 @@ export default function ProjectsPage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-10">
-      <h1 className="text-xl font-semibold">プロジェクト</h1>
+    <div className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-8">
+      <h1 className="text-2xl font-semibold tracking-tight text-foreground">プロジェクト</h1>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
       {loading ? (
-        <p className="text-sm text-zinc-500">読み込み中...</p>
+        <p className="text-sm text-muted-foreground">読み込み中...</p>
       ) : projects.length === 0 ? (
-        <p className="text-sm text-zinc-500">プロジェクトはまだありません。</p>
+        <p className="text-sm text-muted-foreground">プロジェクトはまだありません。</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {projects.map((p) => (
             <li key={p.id}>
               <Link
                 href={`/w/${workspaceId}/projects/${p.id}`}
-                className="flex items-center justify-between rounded-md border border-zinc-200 px-4 py-3 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3.5 transition-colors hover:border-indigo-300 hover:bg-surface-muted dark:hover:border-indigo-500/50"
               >
-                <span>{p.name}</span>
-                <span className="text-xs text-zinc-500">{p.visibility === "private" ? "Private" : "Public"}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium text-foreground">{p.name}</span>
+                  {p.description && (
+                    <span className="block truncate text-xs text-muted-foreground">{p.description}</span>
+                  )}
+                </span>
+                <Badge tone={p.visibility === "private" ? "amber" : "green"}>
+                  {p.visibility === "private" ? (
+                    <Lock className="h-3 w-3" />
+                  ) : (
+                    <Globe className="h-3 w-3" />
+                  )}
+                  {p.visibility === "private" ? "Private" : "Public"}
+                </Badge>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </li>
           ))}
         </ul>
       )}
 
-      <section>
-        <h2 className="mb-2 text-sm font-medium text-zinc-600 dark:text-zinc-400">新規プロジェクト作成</h2>
+      <section className="rounded-xl border border-border bg-surface p-4">
+        <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-foreground">
+          <FolderPlus className="h-4 w-4" />
+          新規プロジェクト作成
+        </h2>
         <form onSubmit={handleCreate} className="flex flex-col gap-3">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="プロジェクト名"
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
-          />
-          <textarea
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="プロジェクト名" />
+          <Textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="説明（任意）"
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
             rows={2}
           />
-          <div className="flex items-center gap-4 text-sm">
-            <label className="flex items-center gap-1">
+          <div className="flex items-center gap-4 text-sm text-foreground">
+            <label className="flex items-center gap-1.5">
               <input
                 type="radio"
                 checked={visibility === "public"}
                 onChange={() => setVisibility("public")}
+                className="accent-indigo-600"
               />
               Public（ワークスペース全員が閲覧可）
             </label>
-            <label className="flex items-center gap-1">
+            <label className="flex items-center gap-1.5">
               <input
                 type="radio"
                 checked={visibility === "private"}
                 onChange={() => setVisibility("private")}
+                className="accent-indigo-600"
               />
               Private（参画メンバーのみ）
             </label>
           </div>
           <div>
-            <p className="mb-1 text-sm text-zinc-600 dark:text-zinc-400">参画メンバー</p>
+            <p className="mb-1.5 text-sm text-muted-foreground">参画メンバー</p>
             {workspaceId && (
               <MemberPicker workspaceId={workspaceId} selected={memberIds} onChange={setMemberIds} />
             )}
           </div>
-          <button
-            type="submit"
-            disabled={creating}
-            className="self-start rounded-md bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-white dark:text-black"
-          >
+          <Button type="submit" variant="primary" disabled={creating} className="self-start">
             作成
-          </button>
+          </Button>
         </form>
       </section>
     </div>

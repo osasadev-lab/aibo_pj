@@ -258,6 +258,7 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "position", Type: field.TypeInt},
 		{Name: "maps_to_status", Type: field.TypeEnum, Enums: []string{"not_started", "in_progress", "done", "on_hold"}},
+		{Name: "is_default", Type: field.TypeBool, Default: false},
 		{Name: "project_id", Type: field.TypeUUID},
 	}
 	// ProjectStatusColumnsTable holds the schema information for the "project_status_columns" table.
@@ -268,7 +269,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "project_status_columns_projects_project",
-				Columns:    []*schema.Column{ProjectStatusColumnsColumns[6]},
+				Columns:    []*schema.Column{ProjectStatusColumnsColumns[7]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},

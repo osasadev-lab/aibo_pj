@@ -44,6 +44,14 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - タスク依存関係はM4に先送り（execution-plan.md M4に明記されているため）
 - 実装詳細・設計判断は`docs/aibo/m2-implementation-plan.md`参照
 
+### M3：カンバン
+
+- [x] プロジェクトKanban・マイタスクのドラッグ&ドロップUI（`@dnd-kit`。status⇄status_column_idの同期ロジック自体はM2実装済み）
+- [x] コメント（リアルタイムチャット）：Supabase Realtime + 自作JWTブリッジ（`GET /me/supabase-token`）で実装。RLSポリシーで閲覧権限をSupabase側でも強制
+- [x] ActivityLog記録（Task/ProjectのCRUD、担当者・タグ変更、コメント作成。M1のworkspace/member操作は対象外）
+- [x] `@`メンション・通知（メンション時に`notifications`作成、`/notifications`画面で確認・既読化）
+- 実装詳細・設計判断・スモークテスト結果は`docs/aibo/m3-implementation-plan.md`参照
+
 ## セットアップ
 
 ### 前提
@@ -56,7 +64,7 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 
 ```sh
 cd server
-cp .env.example .env   # DATABASE_URL・JWT_SECRET・GOOGLE_OAUTH_*・FRONTEND_URL を設定する
+cp .env.example .env   # DATABASE_URL・JWT_SECRET・GOOGLE_OAUTH_*・FRONTEND_URL・SUPABASE_JWT_SECRET を設定する
 go run ./cmd/migrate   # entスキーマをDBに適用（テーブル作成 + pgvector拡張の有効化）
 go run ./cmd/server    # http://localhost:8080
 ```
@@ -65,13 +73,17 @@ Googleログインを試すには、GCPコンソールでOAuth 2.0 Webクライ�
 `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET` に設定する必要がある
 （承認済みリダイレクトURIに`GOOGLE_OAUTH_REDIRECT_URL`と同じ値を登録すること）。
 
+コメントのリアルタイム反映（M3）を試すには、Supabaseダッシュボード → Settings → JWT Keys →
+「Legacy JWT Secret」を`SUPABASE_JWT_SECRET`に設定する必要がある（このアプリ自身の
+`JWT_SECRET`とは別物。詳細は`docs/aibo/m3-implementation-plan.md`参照）。
+
 ent スキーマを変更したら `go generate ./ent` でコード再生成してから `go run ./cmd/migrate` を実行する。
 
 ### web/
 
 ```sh
 cd web
-cp .env.example .env.local
+cp .env.example .env.local   # NEXT_PUBLIC_SUPABASE_ANON_KEY はSupabaseダッシュボード Settings > API Keys の Publishable key を設定する
 npm install
 npm run dev   # http://localhost:3000
 ```
@@ -90,4 +102,4 @@ npm run deploy    # ビルド + Cloudflare Workersへ実デプロイ
 
 ## 次のマイルストーン
 
-M3（カンバン）以降は `docs/aibo/execution-plan.md` を参照。
+M4（依存関係・タグ・添付ファイル）以降は `docs/aibo/execution-plan.md` を参照。

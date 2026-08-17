@@ -7,6 +7,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
+	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
+	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
@@ -16,6 +19,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
+	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 )
 
@@ -29,6 +33,7 @@ func NewProjectHandler(client *ent.Client) *ProjectHandler {
 }
 
 // defaultStatusColumns はプロジェクト作成時に自動投入する既定4列（db-schema.md）。
+// いずれも is_default=true として作成され、UIから削除できない（ユーザー確認済み）。
 var defaultStatusColumns = []struct {
 	name         string
 	mapsToStatus projectstatuscolumn.MapsToStatus
@@ -153,9 +158,15 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 				SetProjectID(p.ID).
 				SetName(col.name).
 				SetPosition(i).
-				SetMapsToStatus(col.mapsToStatus))
+				SetMapsToStatus(col.mapsToStatus).
+				SetIsDefault(true))
 		}
 		if _, err := tx.ProjectStatusColumn.CreateBulk(columnBuilders...).Save(ctx); err != nil {
+			return err
+		}
+
+		if err := activity.Record(ctx, tx, m.WorkspaceID, nil, &p.ID, m.UserID, "project.created",
+			map[string]any{"name": p.Name, "visibility": string(p.Visibility)}); err != nil {
 			return err
 		}
 
@@ -185,6 +196,7 @@ type updateProjectRequest struct {
 // （api-spec.mdに権限制限の明記が無いための仮定）。
 func (h *ProjectHandler) Update(c *gin.Context) {
 	p := middleware.CurrentProject(c)
+	u := middleware.CurrentUser(c)
 
 	var req updateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -192,18 +204,31 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 		return
 	}
 
-	builder := h.client.Project.UpdateOneID(p.ID)
-	if req.Name != nil {
-		builder = builder.SetName(*req.Name)
-	}
-	if req.Description != nil {
-		builder = builder.SetDescription(*req.Description)
-	}
-	if req.Visibility != nil {
-		builder = builder.SetVisibility(project.Visibility(*req.Visibility))
-	}
+	ctx := c.Request.Context()
+	var updated *ent.Project
+	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
+		builder := tx.Project.UpdateOneID(p.ID)
+		changes := map[string]any{}
+		if req.Name != nil {
+			builder = builder.SetName(*req.Name)
+			changes["name"] = *req.Name
+		}
+		if req.Description != nil {
+			builder = builder.SetDescription(*req.Description)
+			changes["description"] = *req.Description
+		}
+		if req.Visibility != nil {
+			builder = builder.SetVisibility(project.Visibility(*req.Visibility))
+			changes["visibility"] = *req.Visibility
+		}
 
-	updated, err := builder.Save(c.Request.Context())
+		var err error
+		updated, err = builder.Save(ctx)
+		if err != nil {
+			return err
+		}
+		return activity.Record(ctx, tx, p.WorkspaceID, nil, &p.ID, u.ID, "project.updated", changes)
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update project"})
 		return
@@ -213,8 +238,11 @@ func (h *ProjectHandler) Update(c *gin.Context) {
 
 // Delete は DELETE /projects/:project_id。RequireProjectOwnerOrCreator限定。
 // entのschemaにカスケード削除指定が無いため、関連テーブルを手動で正しい順に削除する。
+// comments/activity_logsもtask_id・project_idを参照しているため、task.go Deleteと
+// 同様に先に削除しておかないと外部キー制約違反になる。
 func (h *ProjectHandler) Delete(c *gin.Context) {
 	p := middleware.CurrentProject(c)
+	u := middleware.CurrentUser(c)
 	ctx := c.Request.Context()
 
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
@@ -240,6 +268,26 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 			if _, err := tx.TaskAssignee.Delete().Where(taskassignee.TaskIDIn(taskIDs...)).Exec(ctx); err != nil {
 				return err
 			}
+			if _, err := tx.CommentMention.Delete().
+				Where(commentmention.HasCommentWith(comment.TaskIDIn(taskIDs...))).
+				Exec(ctx); err != nil {
+				return err
+			}
+			if _, err := tx.Comment.Delete().Where(comment.TaskIDIn(taskIDs...)).Exec(ctx); err != nil {
+				return err
+			}
+		}
+		// activity_logsはtask_id経由（このプロジェクトのタスク）とproject_id経由
+		// （project.created/updated等）の両方で参照され得るため両方消す。
+		if _, err := tx.ActivityLog.Delete().
+			Where(activitylog.Or(
+				activitylog.TaskIDIn(taskIDs...),
+				activitylog.ProjectIDEQ(p.ID),
+			)).
+			Exec(ctx); err != nil {
+			return err
+		}
+		if len(taskIDs) > 0 {
 			if _, err := tx.Task.Delete().Where(task.IDIn(taskIDs...)).Exec(ctx); err != nil {
 				return err
 			}
@@ -252,6 +300,12 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 			return err
 		}
 		if _, err := tx.ProjectMember.Delete().Where(projectmember.ProjectIDEQ(p.ID)).Exec(ctx); err != nil {
+			return err
+		}
+		// project.deleted自体は削除対象のproject_idを参照できない（削除後に外部キー
+		// 違反になる）ため、project_idを付けずpayloadにだけ残す。
+		if err := activity.Record(ctx, tx, p.WorkspaceID, nil, nil, u.ID, "project.deleted",
+			map[string]any{"name": p.Name, "project_id": p.ID}); err != nil {
 			return err
 		}
 		return tx.Project.DeleteOneID(p.ID).Exec(ctx)
@@ -357,6 +411,7 @@ func statusColumnJSON(col *ent.ProjectStatusColumn) gin.H {
 		"name":           col.Name,
 		"position":       col.Position,
 		"maps_to_status": col.MapsToStatus,
+		"is_default":     col.IsDefault,
 	}
 }
 
@@ -493,6 +548,11 @@ func (h *ProjectHandler) DeleteStatusColumn(c *gin.Context) {
 		Only(ctx)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "status column not found"})
+		return
+	}
+
+	if col.IsDefault {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "default_column_not_deletable"})
 		return
 	}
 

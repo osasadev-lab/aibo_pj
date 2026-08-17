@@ -24,6 +24,8 @@ func (ProjectStatusColumn) Fields() []ent.Field {
 		field.Int("position"),
 		field.Enum("maps_to_status").
 			Values("not_started", "in_progress", "done", "on_hold"),
+		// プロジェクト作成時に自動投入される既定4列かどうか。既定列はUIから削除できない。
+		field.Bool("is_default").Default(false),
 	}
 }
 

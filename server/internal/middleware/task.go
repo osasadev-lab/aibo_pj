@@ -1,12 +1,16 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
+	"github.com/osasadev-lab/aibo_pj/server/ent/project"
+	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 )
 
@@ -32,7 +36,7 @@ func RequireTaskAccess(client *ent.Client) gin.HandlerFunc {
 
 		ctx := c.Request.Context()
 
-		t, err := client.Task.Get(ctx, taskID)
+		t, err := client.Task.Query().Where(task.IDEQ(taskID)).WithAssignees().Only(ctx)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return
@@ -75,4 +79,50 @@ func CurrentTask(c *gin.Context) *ent.Task {
 	}
 	t, _ := v.(*ent.Task)
 	return t
+}
+
+// TaskVisibleUserIDs はそのタスクを閲覧できるユーザーIDの集合を返す
+// （単体タスク・publicプロジェクトはworkspace全員、privateプロジェクトは
+// project_membersのみ）。mentionable-members APIとコメント作成時の
+// mentioned_user_idsバリデーションで共有する。
+func TaskVisibleUserIDs(ctx context.Context, client *ent.Client, t *ent.Task) ([]uuid.UUID, error) {
+	if t.ProjectID == nil {
+		return workspaceMemberUserIDs(ctx, client, t.WorkspaceID)
+	}
+	p, err := client.Project.Get(ctx, *t.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if p.Visibility == project.VisibilityPublic {
+		return workspaceMemberUserIDs(ctx, client, p.WorkspaceID)
+	}
+	return projectMemberUserIDs(ctx, client, p.ID)
+}
+
+func workspaceMemberUserIDs(ctx context.Context, client *ent.Client, workspaceID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := client.WorkspaceMember.Query().
+		Where(workspacemember.WorkspaceIDEQ(workspaceID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.UserID)
+	}
+	return ids, nil
+}
+
+func projectMemberUserIDs(ctx context.Context, client *ent.Client, projectID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := client.ProjectMember.Query().
+		Where(projectmember.ProjectIDEQ(projectID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.UserID)
+	}
+	return ids, nil
 }
