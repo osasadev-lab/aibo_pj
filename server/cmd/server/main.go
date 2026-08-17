@@ -56,10 +56,12 @@ func main() {
 
 	api := router.Group("/api/v1")
 	{
+		// 簡易疎通確認用。Cloud Runのヘルスチェックではなく、アプリケーションの疎通確認用。
 		api.GET("/ping", func(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"message": "pong"})
 		})
 
+		// 認証系エンドポイント
 		authGroup := api.Group("/auth")
 		{
 			authGroup.GET("/google/login", authHandler.GoogleLogin)
@@ -68,6 +70,7 @@ func main() {
 			authGroup.GET("/me", requireAuth, authHandler.Me)
 		}
 
+		// ワークスペース系エンドポイント
 		workspaces := api.Group("/workspaces", requireAuth)
 		{
 			workspaces.GET("", workspaceHandler.List)
