@@ -2,6 +2,9 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"main": ".open-next/worker.js",
 	"name": "aibo-web",
+	// 一時停止中: workers.devサブドメインのルーティングを無効化（スクリプト自体は残す）
+	// 再開時は true に戻して `npx wrangler deploy` を実行
+	"workers_dev": false,
 	"compatibility_date": "2026-08-16",
 	"compatibility_flags": [
 		"nodejs_compat",

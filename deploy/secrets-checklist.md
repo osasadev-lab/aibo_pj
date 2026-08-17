@@ -6,7 +6,7 @@
 
 | Secret名 | 値 | 備考 |
 |---|---|---|
-| `GCP_PROJECT_ID` | `cocode-505303` | |
+| `GCP_PROJECT_ID` | `aibo-505714` | |
 | `GCP_REGION` | `asia-northeast1` | |
 | `GCP_SA_KEY` | サービスアカウントのJSONキー全体 | `gcp-setup.sh`で作成 |
 | `CLOUD_RUN_SERVICE` | `aibo-server` | |

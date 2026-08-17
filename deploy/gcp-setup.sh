@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-PROJECT_ID="cocode-505303"
+PROJECT_ID="aibo-505714"
 REGION="asia-northeast1"
 REPO_NAME="aibo"
 SA_NAME="aibo-deployer"
