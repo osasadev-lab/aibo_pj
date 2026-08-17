@@ -1,8 +1,12 @@
 # server/ をCloud Runへ手動デプロイするワークフロー。
+# 認証はWorkload Identity Federation（鍵ファイル不使用）。
+# aibo-505714側の組織ポリシー(iam.disableServiceAccountKeyCreation)によりサービスアカウントの
+# JSONキー発行が禁止されているため、鍵レスのOIDC認証に切り替えている
+# （Pool/Provider/IAMバインディングの作成手順はdeploy/gcp-setup.sh参照）。
+#
 # 実行前に以下のリポジトリSecretsを設定しておくこと:
 #   GCP_PROJECT_ID   - デプロイ先のGCPプロジェクト
 #   GCP_REGION       - 例: asia-northeast1
-#   GCP_SA_KEY       - Cloud Run Admin + Artifact Registry Writer + Service Account User権限を持つサービスアカウントのJSONキー
 #   CLOUD_RUN_SERVICE - Cloud Runのサービス名（例: aibo-server）
 #   DATABASE_URL     - SupabaseのPostgres接続文字列（server/.env.example参照）
 #
@@ -17,6 +21,10 @@ name: Deploy server to Cloud Run
 on:
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -26,7 +34,8 @@ jobs:
       - id: auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: projects/494998752926/locations/global/workloadIdentityPools/github-pool/providers/github-provider
+          service_account: aibo-deployer@aibo-505714.iam.gserviceaccount.com
 
       - uses: google-github-actions/setup-gcloud@v2
 

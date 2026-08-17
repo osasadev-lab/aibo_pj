@@ -4,11 +4,14 @@
 
 ## Cloud Run（`deploy-server.yml`）
 
+認証はWorkload Identity Federation（鍵レス）。`GCP_SA_KEY`のようなSecretは不要
+（`workload_identity_provider` / `service_account`はワークフローYAML内に直書き。
+機密情報ではないため）。セットアップ手順は`gcp-setup.sh`参照。
+
 | Secret名 | 値 | 備考 |
 |---|---|---|
 | `GCP_PROJECT_ID` | `aibo-505714` | |
 | `GCP_REGION` | `asia-northeast1` | |
-| `GCP_SA_KEY` | サービスアカウントのJSONキー全体 | `gcp-setup.sh`で作成 |
 | `CLOUD_RUN_SERVICE` | `aibo-server` | |
 | `DATABASE_URL` | Supabase接続文字列 | `server/.env.example`参照。パスワードは`認証情報.txt`のDBPASS |
 
