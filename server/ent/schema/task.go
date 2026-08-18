@@ -77,6 +77,7 @@ func (Task) Edges() []ent.Edge {
 		edge.From("tags", TaskTag.Type).Ref("task"),
 		edge.From("comments", Comment.Type).Ref("task"),
 		edge.From("attachments", Attachment.Type).Ref("task"),
+		edge.From("mentions", TaskMention.Type).Ref("task"),
 	}
 }
 

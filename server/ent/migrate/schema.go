@@ -220,6 +220,7 @@ var (
 		{Name: "id", Type: field.TypeUUID, Unique: true},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "role", Type: field.TypeEnum, Enums: []string{"manager", "staff"}, Default: "staff"},
 		{Name: "project_id", Type: field.TypeUUID},
 		{Name: "user_id", Type: field.TypeUUID},
 	}
@@ -231,13 +232,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "project_members_projects_project",
-				Columns:    []*schema.Column{ProjectMembersColumns[3]},
+				Columns:    []*schema.Column{ProjectMembersColumns[4]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "project_members_users_user",
-				Columns:    []*schema.Column{ProjectMembersColumns[4]},
+				Columns:    []*schema.Column{ProjectMembersColumns[5]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -246,7 +247,7 @@ var (
 			{
 				Name:    "projectmember_project_id_user_id",
 				Unique:  true,
-				Columns: []*schema.Column{ProjectMembersColumns[3], ProjectMembersColumns[4]},
+				Columns: []*schema.Column{ProjectMembersColumns[4], ProjectMembersColumns[5]},
 			},
 		},
 	}
@@ -514,6 +515,41 @@ var (
 			},
 		},
 	}
+	// TaskMentionsColumns holds the columns for the "task_mentions" table.
+	TaskMentionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "task_id", Type: field.TypeUUID},
+		{Name: "mentioned_user_id", Type: field.TypeUUID},
+	}
+	// TaskMentionsTable holds the schema information for the "task_mentions" table.
+	TaskMentionsTable = &schema.Table{
+		Name:       "task_mentions",
+		Columns:    TaskMentionsColumns,
+		PrimaryKey: []*schema.Column{TaskMentionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "task_mentions_tasks_task",
+				Columns:    []*schema.Column{TaskMentionsColumns[3]},
+				RefColumns: []*schema.Column{TasksColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "task_mentions_users_mentioned_user",
+				Columns:    []*schema.Column{TaskMentionsColumns[4]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "taskmention_task_id_mentioned_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{TaskMentionsColumns[3], TaskMentionsColumns[4]},
+			},
+		},
+	}
 	// TaskTagsColumns holds the columns for the "task_tags" table.
 	TaskTagsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID, Unique: true},
@@ -669,6 +705,7 @@ var (
 		TaskAssigneesTable,
 		TaskCalendarEventsTable,
 		TaskDependenciesTable,
+		TaskMentionsTable,
 		TaskTagsTable,
 		UsersTable,
 		WorkspacesTable,
@@ -708,6 +745,8 @@ func init() {
 	TaskCalendarEventsTable.ForeignKeys[1].RefTable = UsersTable
 	TaskDependenciesTable.ForeignKeys[0].RefTable = TasksTable
 	TaskDependenciesTable.ForeignKeys[1].RefTable = TasksTable
+	TaskMentionsTable.ForeignKeys[0].RefTable = TasksTable
+	TaskMentionsTable.ForeignKeys[1].RefTable = UsersTable
 	TaskTagsTable.ForeignKeys[0].RefTable = TasksTable
 	TaskTagsTable.ForeignKeys[1].RefTable = TagsTable
 	WorkspaceInvitationsTable.ForeignKeys[0].RefTable = WorkspacesTable

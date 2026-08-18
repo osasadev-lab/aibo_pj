@@ -27,6 +27,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -57,6 +58,7 @@ const (
 	TypeTaskAssignee        = "TaskAssignee"
 	TypeTaskCalendarEvent   = "TaskCalendarEvent"
 	TypeTaskDependency      = "TaskDependency"
+	TypeTaskMention         = "TaskMention"
 	TypeTaskTag             = "TaskTag"
 	TypeUser                = "User"
 	TypeWorkspace           = "Workspace"
@@ -5042,6 +5044,7 @@ type ProjectMemberMutation struct {
 	id             *uuid.UUID
 	created_at     *time.Time
 	updated_at     *time.Time
+	role           *projectmember.Role
 	clearedFields  map[string]struct{}
 	project        *uuid.UUID
 	clearedproject bool
@@ -5300,6 +5303,42 @@ func (m *ProjectMemberMutation) ResetUserID() {
 	m.user = nil
 }
 
+// SetRole sets the "role" field.
+func (m *ProjectMemberMutation) SetRole(pr projectmember.Role) {
+	m.role = &pr
+}
+
+// Role returns the value of the "role" field in the mutation.
+func (m *ProjectMemberMutation) Role() (r projectmember.Role, exists bool) {
+	v := m.role
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRole returns the old "role" field's value of the ProjectMember entity.
+// If the ProjectMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ProjectMemberMutation) OldRole(ctx context.Context) (v projectmember.Role, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRole is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRole requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRole: %w", err)
+	}
+	return oldValue.Role, nil
+}
+
+// ResetRole resets all changes to the "role" field.
+func (m *ProjectMemberMutation) ResetRole() {
+	m.role = nil
+}
+
 // ClearProject clears the "project" edge to the Project entity.
 func (m *ProjectMemberMutation) ClearProject() {
 	m.clearedproject = true
@@ -5388,7 +5427,7 @@ func (m *ProjectMemberMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *ProjectMemberMutation) Fields() []string {
-	fields := make([]string, 0, 4)
+	fields := make([]string, 0, 5)
 	if m.created_at != nil {
 		fields = append(fields, projectmember.FieldCreatedAt)
 	}
@@ -5400,6 +5439,9 @@ func (m *ProjectMemberMutation) Fields() []string {
 	}
 	if m.user != nil {
 		fields = append(fields, projectmember.FieldUserID)
+	}
+	if m.role != nil {
+		fields = append(fields, projectmember.FieldRole)
 	}
 	return fields
 }
@@ -5417,6 +5459,8 @@ func (m *ProjectMemberMutation) Field(name string) (ent.Value, bool) {
 		return m.ProjectID()
 	case projectmember.FieldUserID:
 		return m.UserID()
+	case projectmember.FieldRole:
+		return m.Role()
 	}
 	return nil, false
 }
@@ -5434,6 +5478,8 @@ func (m *ProjectMemberMutation) OldField(ctx context.Context, name string) (ent.
 		return m.OldProjectID(ctx)
 	case projectmember.FieldUserID:
 		return m.OldUserID(ctx)
+	case projectmember.FieldRole:
+		return m.OldRole(ctx)
 	}
 	return nil, fmt.Errorf("unknown ProjectMember field %s", name)
 }
@@ -5470,6 +5516,13 @@ func (m *ProjectMemberMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUserID(v)
+		return nil
+	case projectmember.FieldRole:
+		v, ok := value.(projectmember.Role)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRole(v)
 		return nil
 	}
 	return fmt.Errorf("unknown ProjectMember field %s", name)
@@ -5531,6 +5584,9 @@ func (m *ProjectMemberMutation) ResetField(name string) error {
 		return nil
 	case projectmember.FieldUserID:
 		m.ResetUserID()
+		return nil
+	case projectmember.FieldRole:
+		m.ResetRole()
 		return nil
 	}
 	return fmt.Errorf("unknown ProjectMember field %s", name)
@@ -7920,6 +7976,9 @@ type TaskMutation struct {
 	attachments            map[uuid.UUID]struct{}
 	removedattachments     map[uuid.UUID]struct{}
 	clearedattachments     bool
+	mentions               map[uuid.UUID]struct{}
+	removedmentions        map[uuid.UUID]struct{}
+	clearedmentions        bool
 	done                   bool
 	oldValue               func(context.Context) (*Task, error)
 	predicates             []predicate.Task
@@ -9257,6 +9316,60 @@ func (m *TaskMutation) ResetAttachments() {
 	m.removedattachments = nil
 }
 
+// AddMentionIDs adds the "mentions" edge to the TaskMention entity by ids.
+func (m *TaskMutation) AddMentionIDs(ids ...uuid.UUID) {
+	if m.mentions == nil {
+		m.mentions = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		m.mentions[ids[i]] = struct{}{}
+	}
+}
+
+// ClearMentions clears the "mentions" edge to the TaskMention entity.
+func (m *TaskMutation) ClearMentions() {
+	m.clearedmentions = true
+}
+
+// MentionsCleared reports if the "mentions" edge to the TaskMention entity was cleared.
+func (m *TaskMutation) MentionsCleared() bool {
+	return m.clearedmentions
+}
+
+// RemoveMentionIDs removes the "mentions" edge to the TaskMention entity by IDs.
+func (m *TaskMutation) RemoveMentionIDs(ids ...uuid.UUID) {
+	if m.removedmentions == nil {
+		m.removedmentions = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		delete(m.mentions, ids[i])
+		m.removedmentions[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedMentions returns the removed IDs of the "mentions" edge to the TaskMention entity.
+func (m *TaskMutation) RemovedMentionsIDs() (ids []uuid.UUID) {
+	for id := range m.removedmentions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// MentionsIDs returns the "mentions" edge IDs in the mutation.
+func (m *TaskMutation) MentionsIDs() (ids []uuid.UUID) {
+	for id := range m.mentions {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetMentions resets all changes to the "mentions" edge.
+func (m *TaskMutation) ResetMentions() {
+	m.mentions = nil
+	m.clearedmentions = false
+	m.removedmentions = nil
+}
+
 // Where appends a list predicates to the TaskMutation builder.
 func (m *TaskMutation) Where(ps ...predicate.Task) {
 	m.predicates = append(m.predicates, ps...)
@@ -9662,7 +9775,7 @@ func (m *TaskMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TaskMutation) AddedEdges() []string {
-	edges := make([]string, 0, 14)
+	edges := make([]string, 0, 15)
 	if m.workspace != nil {
 		edges = append(edges, task.EdgeWorkspace)
 	}
@@ -9704,6 +9817,9 @@ func (m *TaskMutation) AddedEdges() []string {
 	}
 	if m.attachments != nil {
 		edges = append(edges, task.EdgeAttachments)
+	}
+	if m.mentions != nil {
+		edges = append(edges, task.EdgeMentions)
 	}
 	return edges
 }
@@ -9784,13 +9900,19 @@ func (m *TaskMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case task.EdgeMentions:
+		ids := make([]ent.Value, 0, len(m.mentions))
+		for id := range m.mentions {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *TaskMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 14)
+	edges := make([]string, 0, 15)
 	if m.removedchildren != nil {
 		edges = append(edges, task.EdgeChildren)
 	}
@@ -9814,6 +9936,9 @@ func (m *TaskMutation) RemovedEdges() []string {
 	}
 	if m.removedattachments != nil {
 		edges = append(edges, task.EdgeAttachments)
+	}
+	if m.removedmentions != nil {
+		edges = append(edges, task.EdgeMentions)
 	}
 	return edges
 }
@@ -9870,13 +9995,19 @@ func (m *TaskMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case task.EdgeMentions:
+		ids := make([]ent.Value, 0, len(m.removedmentions))
+		for id := range m.removedmentions {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TaskMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 14)
+	edges := make([]string, 0, 15)
 	if m.clearedworkspace {
 		edges = append(edges, task.EdgeWorkspace)
 	}
@@ -9919,6 +10050,9 @@ func (m *TaskMutation) ClearedEdges() []string {
 	if m.clearedattachments {
 		edges = append(edges, task.EdgeAttachments)
 	}
+	if m.clearedmentions {
+		edges = append(edges, task.EdgeMentions)
+	}
 	return edges
 }
 
@@ -9954,6 +10088,8 @@ func (m *TaskMutation) EdgeCleared(name string) bool {
 		return m.clearedcomments
 	case task.EdgeAttachments:
 		return m.clearedattachments
+	case task.EdgeMentions:
+		return m.clearedmentions
 	}
 	return false
 }
@@ -10029,6 +10165,9 @@ func (m *TaskMutation) ResetEdge(name string) error {
 		return nil
 	case task.EdgeAttachments:
 		m.ResetAttachments()
+		return nil
+	case task.EdgeMentions:
+		m.ResetMentions()
 		return nil
 	}
 	return fmt.Errorf("unknown Task edge %s", name)
@@ -11935,6 +12074,600 @@ func (m *TaskDependencyMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown TaskDependency edge %s", name)
+}
+
+// TaskMentionMutation represents an operation that mutates the TaskMention nodes in the graph.
+type TaskMentionMutation struct {
+	config
+	op                    Op
+	typ                   string
+	id                    *uuid.UUID
+	created_at            *time.Time
+	updated_at            *time.Time
+	clearedFields         map[string]struct{}
+	task                  *uuid.UUID
+	clearedtask           bool
+	mentioned_user        *uuid.UUID
+	clearedmentioned_user bool
+	done                  bool
+	oldValue              func(context.Context) (*TaskMention, error)
+	predicates            []predicate.TaskMention
+}
+
+var _ ent.Mutation = (*TaskMentionMutation)(nil)
+
+// taskmentionOption allows management of the mutation configuration using functional options.
+type taskmentionOption func(*TaskMentionMutation)
+
+// newTaskMentionMutation creates new mutation for the TaskMention entity.
+func newTaskMentionMutation(c config, op Op, opts ...taskmentionOption) *TaskMentionMutation {
+	m := &TaskMentionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeTaskMention,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withTaskMentionID sets the ID field of the mutation.
+func withTaskMentionID(id uuid.UUID) taskmentionOption {
+	return func(m *TaskMentionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *TaskMention
+		)
+		m.oldValue = func(ctx context.Context) (*TaskMention, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().TaskMention.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withTaskMention sets the old TaskMention of the mutation.
+func withTaskMention(node *TaskMention) taskmentionOption {
+	return func(m *TaskMentionMutation) {
+		m.oldValue = func(context.Context) (*TaskMention, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m TaskMentionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m TaskMentionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of TaskMention entities.
+func (m *TaskMentionMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *TaskMentionMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *TaskMentionMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().TaskMention.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *TaskMentionMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *TaskMentionMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the TaskMention entity.
+// If the TaskMention object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TaskMentionMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *TaskMentionMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *TaskMentionMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *TaskMentionMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the TaskMention entity.
+// If the TaskMention object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TaskMentionMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *TaskMentionMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetTaskID sets the "task_id" field.
+func (m *TaskMentionMutation) SetTaskID(u uuid.UUID) {
+	m.task = &u
+}
+
+// TaskID returns the value of the "task_id" field in the mutation.
+func (m *TaskMentionMutation) TaskID() (r uuid.UUID, exists bool) {
+	v := m.task
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTaskID returns the old "task_id" field's value of the TaskMention entity.
+// If the TaskMention object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TaskMentionMutation) OldTaskID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTaskID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTaskID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTaskID: %w", err)
+	}
+	return oldValue.TaskID, nil
+}
+
+// ResetTaskID resets all changes to the "task_id" field.
+func (m *TaskMentionMutation) ResetTaskID() {
+	m.task = nil
+}
+
+// SetMentionedUserID sets the "mentioned_user_id" field.
+func (m *TaskMentionMutation) SetMentionedUserID(u uuid.UUID) {
+	m.mentioned_user = &u
+}
+
+// MentionedUserID returns the value of the "mentioned_user_id" field in the mutation.
+func (m *TaskMentionMutation) MentionedUserID() (r uuid.UUID, exists bool) {
+	v := m.mentioned_user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldMentionedUserID returns the old "mentioned_user_id" field's value of the TaskMention entity.
+// If the TaskMention object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TaskMentionMutation) OldMentionedUserID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldMentionedUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldMentionedUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldMentionedUserID: %w", err)
+	}
+	return oldValue.MentionedUserID, nil
+}
+
+// ResetMentionedUserID resets all changes to the "mentioned_user_id" field.
+func (m *TaskMentionMutation) ResetMentionedUserID() {
+	m.mentioned_user = nil
+}
+
+// ClearTask clears the "task" edge to the Task entity.
+func (m *TaskMentionMutation) ClearTask() {
+	m.clearedtask = true
+	m.clearedFields[taskmention.FieldTaskID] = struct{}{}
+}
+
+// TaskCleared reports if the "task" edge to the Task entity was cleared.
+func (m *TaskMentionMutation) TaskCleared() bool {
+	return m.clearedtask
+}
+
+// TaskIDs returns the "task" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// TaskID instead. It exists only for internal usage by the builders.
+func (m *TaskMentionMutation) TaskIDs() (ids []uuid.UUID) {
+	if id := m.task; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetTask resets all changes to the "task" edge.
+func (m *TaskMentionMutation) ResetTask() {
+	m.task = nil
+	m.clearedtask = false
+}
+
+// ClearMentionedUser clears the "mentioned_user" edge to the User entity.
+func (m *TaskMentionMutation) ClearMentionedUser() {
+	m.clearedmentioned_user = true
+	m.clearedFields[taskmention.FieldMentionedUserID] = struct{}{}
+}
+
+// MentionedUserCleared reports if the "mentioned_user" edge to the User entity was cleared.
+func (m *TaskMentionMutation) MentionedUserCleared() bool {
+	return m.clearedmentioned_user
+}
+
+// MentionedUserIDs returns the "mentioned_user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// MentionedUserID instead. It exists only for internal usage by the builders.
+func (m *TaskMentionMutation) MentionedUserIDs() (ids []uuid.UUID) {
+	if id := m.mentioned_user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetMentionedUser resets all changes to the "mentioned_user" edge.
+func (m *TaskMentionMutation) ResetMentionedUser() {
+	m.mentioned_user = nil
+	m.clearedmentioned_user = false
+}
+
+// Where appends a list predicates to the TaskMentionMutation builder.
+func (m *TaskMentionMutation) Where(ps ...predicate.TaskMention) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the TaskMentionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *TaskMentionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.TaskMention, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *TaskMentionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *TaskMentionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (TaskMention).
+func (m *TaskMentionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *TaskMentionMutation) Fields() []string {
+	fields := make([]string, 0, 4)
+	if m.created_at != nil {
+		fields = append(fields, taskmention.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, taskmention.FieldUpdatedAt)
+	}
+	if m.task != nil {
+		fields = append(fields, taskmention.FieldTaskID)
+	}
+	if m.mentioned_user != nil {
+		fields = append(fields, taskmention.FieldMentionedUserID)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *TaskMentionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case taskmention.FieldCreatedAt:
+		return m.CreatedAt()
+	case taskmention.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case taskmention.FieldTaskID:
+		return m.TaskID()
+	case taskmention.FieldMentionedUserID:
+		return m.MentionedUserID()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *TaskMentionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case taskmention.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case taskmention.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case taskmention.FieldTaskID:
+		return m.OldTaskID(ctx)
+	case taskmention.FieldMentionedUserID:
+		return m.OldMentionedUserID(ctx)
+	}
+	return nil, fmt.Errorf("unknown TaskMention field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TaskMentionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case taskmention.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case taskmention.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case taskmention.FieldTaskID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTaskID(v)
+		return nil
+	case taskmention.FieldMentionedUserID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetMentionedUserID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown TaskMention field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *TaskMentionMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *TaskMentionMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *TaskMentionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown TaskMention numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *TaskMentionMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *TaskMentionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *TaskMentionMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown TaskMention nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *TaskMentionMutation) ResetField(name string) error {
+	switch name {
+	case taskmention.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case taskmention.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case taskmention.FieldTaskID:
+		m.ResetTaskID()
+		return nil
+	case taskmention.FieldMentionedUserID:
+		m.ResetMentionedUserID()
+		return nil
+	}
+	return fmt.Errorf("unknown TaskMention field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *TaskMentionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.task != nil {
+		edges = append(edges, taskmention.EdgeTask)
+	}
+	if m.mentioned_user != nil {
+		edges = append(edges, taskmention.EdgeMentionedUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *TaskMentionMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case taskmention.EdgeTask:
+		if id := m.task; id != nil {
+			return []ent.Value{*id}
+		}
+	case taskmention.EdgeMentionedUser:
+		if id := m.mentioned_user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *TaskMentionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *TaskMentionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *TaskMentionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedtask {
+		edges = append(edges, taskmention.EdgeTask)
+	}
+	if m.clearedmentioned_user {
+		edges = append(edges, taskmention.EdgeMentionedUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *TaskMentionMutation) EdgeCleared(name string) bool {
+	switch name {
+	case taskmention.EdgeTask:
+		return m.clearedtask
+	case taskmention.EdgeMentionedUser:
+		return m.clearedmentioned_user
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *TaskMentionMutation) ClearEdge(name string) error {
+	switch name {
+	case taskmention.EdgeTask:
+		m.ClearTask()
+		return nil
+	case taskmention.EdgeMentionedUser:
+		m.ClearMentionedUser()
+		return nil
+	}
+	return fmt.Errorf("unknown TaskMention unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *TaskMentionMutation) ResetEdge(name string) error {
+	switch name {
+	case taskmention.EdgeTask:
+		m.ResetTask()
+		return nil
+	case taskmention.EdgeMentionedUser:
+		m.ResetMentionedUser()
+		return nil
+	}
+	return fmt.Errorf("unknown TaskMention edge %s", name)
 }
 
 // TaskTagMutation represents an operation that mutates the TaskTag nodes in the graph.

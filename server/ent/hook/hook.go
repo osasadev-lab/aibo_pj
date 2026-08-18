@@ -177,6 +177,18 @@ func (f TaskDependencyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TaskDependencyMutation", m)
 }
 
+// The TaskMentionFunc type is an adapter to allow the use of ordinary
+// function as TaskMention mutator.
+type TaskMentionFunc func(context.Context, *ent.TaskMentionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TaskMentionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TaskMentionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TaskMentionMutation", m)
+}
+
 // The TaskTagFunc type is an adapter to allow the use of ordinary
 // function as TaskTag mutator.
 type TaskTagFunc func(context.Context, *ent.TaskTagMutation) (ent.Value, error)

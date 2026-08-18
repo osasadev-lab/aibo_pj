@@ -22,6 +22,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -432,6 +433,21 @@ func (_u *TaskUpdate) AddAttachments(v ...*Attachment) *TaskUpdate {
 	return _u.AddAttachmentIDs(ids...)
 }
 
+// AddMentionIDs adds the "mentions" edge to the TaskMention entity by IDs.
+func (_u *TaskUpdate) AddMentionIDs(ids ...uuid.UUID) *TaskUpdate {
+	_u.mutation.AddMentionIDs(ids...)
+	return _u
+}
+
+// AddMentions adds the "mentions" edges to the TaskMention entity.
+func (_u *TaskUpdate) AddMentions(v ...*TaskMention) *TaskUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMentionIDs(ids...)
+}
+
 // Mutation returns the TaskMutation object of the builder.
 func (_u *TaskUpdate) Mutation() *TaskMutation {
 	return _u.mutation
@@ -639,6 +655,27 @@ func (_u *TaskUpdate) RemoveAttachments(v ...*Attachment) *TaskUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAttachmentIDs(ids...)
+}
+
+// ClearMentions clears all "mentions" edges to the TaskMention entity.
+func (_u *TaskUpdate) ClearMentions() *TaskUpdate {
+	_u.mutation.ClearMentions()
+	return _u
+}
+
+// RemoveMentionIDs removes the "mentions" edge to TaskMention entities by IDs.
+func (_u *TaskUpdate) RemoveMentionIDs(ids ...uuid.UUID) *TaskUpdate {
+	_u.mutation.RemoveMentionIDs(ids...)
+	return _u
+}
+
+// RemoveMentions removes "mentions" edges to TaskMention entities.
+func (_u *TaskUpdate) RemoveMentions(v ...*TaskMention) *TaskUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMentionIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1282,6 +1319,51 @@ func (_u *TaskUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.MentionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MentionsTable,
+			Columns: []string{task.MentionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMentionsIDs(); len(nodes) > 0 && !_u.mutation.MentionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MentionsTable,
+			Columns: []string{task.MentionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MentionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MentionsTable,
+			Columns: []string{task.MentionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{task.Label}
@@ -1694,6 +1776,21 @@ func (_u *TaskUpdateOne) AddAttachments(v ...*Attachment) *TaskUpdateOne {
 	return _u.AddAttachmentIDs(ids...)
 }
 
+// AddMentionIDs adds the "mentions" edge to the TaskMention entity by IDs.
+func (_u *TaskUpdateOne) AddMentionIDs(ids ...uuid.UUID) *TaskUpdateOne {
+	_u.mutation.AddMentionIDs(ids...)
+	return _u
+}
+
+// AddMentions adds the "mentions" edges to the TaskMention entity.
+func (_u *TaskUpdateOne) AddMentions(v ...*TaskMention) *TaskUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMentionIDs(ids...)
+}
+
 // Mutation returns the TaskMutation object of the builder.
 func (_u *TaskUpdateOne) Mutation() *TaskMutation {
 	return _u.mutation
@@ -1901,6 +1998,27 @@ func (_u *TaskUpdateOne) RemoveAttachments(v ...*Attachment) *TaskUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAttachmentIDs(ids...)
+}
+
+// ClearMentions clears all "mentions" edges to the TaskMention entity.
+func (_u *TaskUpdateOne) ClearMentions() *TaskUpdateOne {
+	_u.mutation.ClearMentions()
+	return _u
+}
+
+// RemoveMentionIDs removes the "mentions" edge to TaskMention entities by IDs.
+func (_u *TaskUpdateOne) RemoveMentionIDs(ids ...uuid.UUID) *TaskUpdateOne {
+	_u.mutation.RemoveMentionIDs(ids...)
+	return _u
+}
+
+// RemoveMentions removes "mentions" edges to TaskMention entities.
+func (_u *TaskUpdateOne) RemoveMentions(v ...*TaskMention) *TaskUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMentionIDs(ids...)
 }
 
 // Where appends a list predicates to the TaskUpdate builder.
@@ -2567,6 +2685,51 @@ func (_u *TaskUpdateOne) sqlSave(ctx context.Context) (_node *Task, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(attachment.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MentionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MentionsTable,
+			Columns: []string{task.MentionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMentionsIDs(); len(nodes) > 0 && !_u.mutation.MentionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MentionsTable,
+			Columns: []string{task.MentionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MentionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MentionsTable,
+			Columns: []string{task.MentionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

@@ -30,6 +30,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -70,6 +71,8 @@ type Client struct {
 	TaskCalendarEvent *TaskCalendarEventClient
 	// TaskDependency is the client for interacting with the TaskDependency builders.
 	TaskDependency *TaskDependencyClient
+	// TaskMention is the client for interacting with the TaskMention builders.
+	TaskMention *TaskMentionClient
 	// TaskTag is the client for interacting with the TaskTag builders.
 	TaskTag *TaskTagClient
 	// User is the client for interacting with the User builders.
@@ -105,6 +108,7 @@ func (c *Client) init() {
 	c.TaskAssignee = NewTaskAssigneeClient(c.config)
 	c.TaskCalendarEvent = NewTaskCalendarEventClient(c.config)
 	c.TaskDependency = NewTaskDependencyClient(c.config)
+	c.TaskMention = NewTaskMentionClient(c.config)
 	c.TaskTag = NewTaskTagClient(c.config)
 	c.User = NewUserClient(c.config)
 	c.Workspace = NewWorkspaceClient(c.config)
@@ -216,6 +220,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		TaskAssignee:        NewTaskAssigneeClient(cfg),
 		TaskCalendarEvent:   NewTaskCalendarEventClient(cfg),
 		TaskDependency:      NewTaskDependencyClient(cfg),
+		TaskMention:         NewTaskMentionClient(cfg),
 		TaskTag:             NewTaskTagClient(cfg),
 		User:                NewUserClient(cfg),
 		Workspace:           NewWorkspaceClient(cfg),
@@ -254,6 +259,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		TaskAssignee:        NewTaskAssigneeClient(cfg),
 		TaskCalendarEvent:   NewTaskCalendarEventClient(cfg),
 		TaskDependency:      NewTaskDependencyClient(cfg),
+		TaskMention:         NewTaskMentionClient(cfg),
 		TaskTag:             NewTaskTagClient(cfg),
 		User:                NewUserClient(cfg),
 		Workspace:           NewWorkspaceClient(cfg),
@@ -290,8 +296,8 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.ActivityLog, c.Attachment, c.Comment, c.CommentMention, c.Notification,
 		c.Project, c.ProjectMember, c.ProjectStatusColumn, c.Section, c.Tag, c.Task,
-		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskTag, c.User,
-		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
+		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Use(hooks...)
 	}
@@ -303,8 +309,8 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.ActivityLog, c.Attachment, c.Comment, c.CommentMention, c.Notification,
 		c.Project, c.ProjectMember, c.ProjectStatusColumn, c.Section, c.Tag, c.Task,
-		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskTag, c.User,
-		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
+		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -341,6 +347,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.TaskCalendarEvent.mutate(ctx, m)
 	case *TaskDependencyMutation:
 		return c.TaskDependency.mutate(ctx, m)
+	case *TaskMentionMutation:
+		return c.TaskMention.mutate(ctx, m)
 	case *TaskTagMutation:
 		return c.TaskTag.mutate(ctx, m)
 	case *UserMutation:
@@ -2434,6 +2442,22 @@ func (c *TaskClient) QueryAttachments(_m *Task) *AttachmentQuery {
 	return query
 }
 
+// QueryMentions queries the mentions edge of a Task.
+func (c *TaskClient) QueryMentions(_m *Task) *TaskMentionQuery {
+	query := (&TaskMentionClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(task.Table, task.FieldID, id),
+			sqlgraph.To(taskmention.Table, taskmention.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, task.MentionsTable, task.MentionsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *TaskClient) Hooks() []Hook {
 	return c.hooks.Task
@@ -2951,6 +2975,171 @@ func (c *TaskDependencyClient) mutate(ctx context.Context, m *TaskDependencyMuta
 		return (&TaskDependencyDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown TaskDependency mutation op: %q", m.Op())
+	}
+}
+
+// TaskMentionClient is a client for the TaskMention schema.
+type TaskMentionClient struct {
+	config
+}
+
+// NewTaskMentionClient returns a client for the TaskMention from the given config.
+func NewTaskMentionClient(c config) *TaskMentionClient {
+	return &TaskMentionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `taskmention.Hooks(f(g(h())))`.
+func (c *TaskMentionClient) Use(hooks ...Hook) {
+	c.hooks.TaskMention = append(c.hooks.TaskMention, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `taskmention.Intercept(f(g(h())))`.
+func (c *TaskMentionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TaskMention = append(c.inters.TaskMention, interceptors...)
+}
+
+// Create returns a builder for creating a TaskMention entity.
+func (c *TaskMentionClient) Create() *TaskMentionCreate {
+	mutation := newTaskMentionMutation(c.config, OpCreate)
+	return &TaskMentionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TaskMention entities.
+func (c *TaskMentionClient) CreateBulk(builders ...*TaskMentionCreate) *TaskMentionCreateBulk {
+	return &TaskMentionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TaskMentionClient) MapCreateBulk(slice any, setFunc func(*TaskMentionCreate, int)) *TaskMentionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TaskMentionCreateBulk{err: fmt.Errorf("calling to TaskMentionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TaskMentionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TaskMentionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TaskMention.
+func (c *TaskMentionClient) Update() *TaskMentionUpdate {
+	mutation := newTaskMentionMutation(c.config, OpUpdate)
+	return &TaskMentionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TaskMentionClient) UpdateOne(_m *TaskMention) *TaskMentionUpdateOne {
+	mutation := newTaskMentionMutation(c.config, OpUpdateOne, withTaskMention(_m))
+	return &TaskMentionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TaskMentionClient) UpdateOneID(id uuid.UUID) *TaskMentionUpdateOne {
+	mutation := newTaskMentionMutation(c.config, OpUpdateOne, withTaskMentionID(id))
+	return &TaskMentionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TaskMention.
+func (c *TaskMentionClient) Delete() *TaskMentionDelete {
+	mutation := newTaskMentionMutation(c.config, OpDelete)
+	return &TaskMentionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TaskMentionClient) DeleteOne(_m *TaskMention) *TaskMentionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TaskMentionClient) DeleteOneID(id uuid.UUID) *TaskMentionDeleteOne {
+	builder := c.Delete().Where(taskmention.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TaskMentionDeleteOne{builder}
+}
+
+// Query returns a query builder for TaskMention.
+func (c *TaskMentionClient) Query() *TaskMentionQuery {
+	return &TaskMentionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTaskMention},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TaskMention entity by its id.
+func (c *TaskMentionClient) Get(ctx context.Context, id uuid.UUID) (*TaskMention, error) {
+	return c.Query().Where(taskmention.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TaskMentionClient) GetX(ctx context.Context, id uuid.UUID) *TaskMention {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryTask queries the task edge of a TaskMention.
+func (c *TaskMentionClient) QueryTask(_m *TaskMention) *TaskQuery {
+	query := (&TaskClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskmention.Table, taskmention.FieldID, id),
+			sqlgraph.To(task.Table, task.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskmention.TaskTable, taskmention.TaskColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMentionedUser queries the mentioned_user edge of a TaskMention.
+func (c *TaskMentionClient) QueryMentionedUser(_m *TaskMention) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskmention.Table, taskmention.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskmention.MentionedUserTable, taskmention.MentionedUserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TaskMentionClient) Hooks() []Hook {
+	return c.hooks.TaskMention
+}
+
+// Interceptors returns the client interceptors.
+func (c *TaskMentionClient) Interceptors() []Interceptor {
+	return c.inters.TaskMention
+}
+
+func (c *TaskMentionClient) mutate(ctx context.Context, m *TaskMentionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TaskMentionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TaskMentionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TaskMentionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TaskMentionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TaskMention mutation op: %q", m.Op())
 	}
 }
 
@@ -4008,13 +4197,13 @@ type (
 	hooks struct {
 		ActivityLog, Attachment, Comment, CommentMention, Notification, Project,
 		ProjectMember, ProjectStatusColumn, Section, Tag, Task, TaskAssignee,
-		TaskCalendarEvent, TaskDependency, TaskTag, User, Workspace,
+		TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User, Workspace,
 		WorkspaceInvitation, WorkspaceMember []ent.Hook
 	}
 	inters struct {
 		ActivityLog, Attachment, Comment, CommentMention, Notification, Project,
 		ProjectMember, ProjectStatusColumn, Section, Tag, Task, TaskAssignee,
-		TaskCalendarEvent, TaskDependency, TaskTag, User, Workspace,
+		TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User, Workspace,
 		WorkspaceInvitation, WorkspaceMember []ent.Interceptor
 	}
 )

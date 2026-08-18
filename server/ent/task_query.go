@@ -23,6 +23,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -49,6 +50,7 @@ type TaskQuery struct {
 	withTags           *TaskTagQuery
 	withComments       *CommentQuery
 	withAttachments    *AttachmentQuery
+	withMentions       *TaskMentionQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -393,6 +395,28 @@ func (_q *TaskQuery) QueryAttachments() *AttachmentQuery {
 	return query
 }
 
+// QueryMentions chains the current query on the "mentions" edge.
+func (_q *TaskQuery) QueryMentions() *TaskMentionQuery {
+	query := (&TaskMentionClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(task.Table, task.FieldID, selector),
+			sqlgraph.To(taskmention.Table, taskmention.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, task.MentionsTable, task.MentionsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first Task entity from the query.
 // Returns a *NotFoundError when no Task was found.
 func (_q *TaskQuery) First(ctx context.Context) (*Task, error) {
@@ -599,6 +623,7 @@ func (_q *TaskQuery) Clone() *TaskQuery {
 		withTags:           _q.withTags.Clone(),
 		withComments:       _q.withComments.Clone(),
 		withAttachments:    _q.withAttachments.Clone(),
+		withMentions:       _q.withMentions.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -759,6 +784,17 @@ func (_q *TaskQuery) WithAttachments(opts ...func(*AttachmentQuery)) *TaskQuery 
 	return _q
 }
 
+// WithMentions tells the query-builder to eager-load the nodes that are connected to
+// the "mentions" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TaskQuery) WithMentions(opts ...func(*TaskMentionQuery)) *TaskQuery {
+	query := (&TaskMentionClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withMentions = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -837,7 +873,7 @@ func (_q *TaskQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Task, e
 	var (
 		nodes       = []*Task{}
 		_spec       = _q.querySpec()
-		loadedTypes = [14]bool{
+		loadedTypes = [15]bool{
 			_q.withWorkspace != nil,
 			_q.withProject != nil,
 			_q.withSection != nil,
@@ -852,6 +888,7 @@ func (_q *TaskQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Task, e
 			_q.withTags != nil,
 			_q.withComments != nil,
 			_q.withAttachments != nil,
+			_q.withMentions != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -961,6 +998,13 @@ func (_q *TaskQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Task, e
 		if err := _q.loadAttachments(ctx, query, nodes,
 			func(n *Task) { n.Edges.Attachments = []*Attachment{} },
 			func(n *Task, e *Attachment) { n.Edges.Attachments = append(n.Edges.Attachments, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withMentions; query != nil {
+		if err := _q.loadMentions(ctx, query, nodes,
+			func(n *Task) { n.Edges.Mentions = []*TaskMention{} },
+			func(n *Task, e *TaskMention) { n.Edges.Mentions = append(n.Edges.Mentions, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1381,6 +1425,36 @@ func (_q *TaskQuery) loadAttachments(ctx context.Context, query *AttachmentQuery
 	}
 	query.Where(predicate.Attachment(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(task.AttachmentsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.TaskID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "task_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TaskQuery) loadMentions(ctx context.Context, query *TaskMentionQuery, nodes []*Task, init func(*Task), assign func(*Task, *TaskMention)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Task)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(taskmention.FieldTaskID)
+	}
+	query.Where(predicate.TaskMention(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(task.MentionsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

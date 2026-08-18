@@ -26,6 +26,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -105,6 +106,7 @@ func checkColumn(t, c string) error {
 			taskassignee.Table:        taskassignee.ValidColumn,
 			taskcalendarevent.Table:   taskcalendarevent.ValidColumn,
 			taskdependency.Table:      taskdependency.ValidColumn,
+			taskmention.Table:         taskmention.ValidColumn,
 			tasktag.Table:             tasktag.ValidColumn,
 			user.Table:                user.ValidColumn,
 			workspace.Table:           workspace.ValidColumn,

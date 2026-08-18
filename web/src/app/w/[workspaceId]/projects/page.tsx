@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { ChevronRight, FolderPlus, Globe, Lock } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiClient";
@@ -11,21 +11,14 @@ import MemberPicker from "@/components/MemberPicker";
 import Badge from "@/components/ui/Badge";
 import Button from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/fields";
-
-type Project = {
-  id: string;
-  name: string;
-  description: string | null;
-  visibility: "public" | "private";
-};
+import { useProjects } from "@/lib/workspace/ProjectsContext";
 
 export default function ProjectsPage() {
   const { user } = useAuth();
   const params = useParams<{ workspaceId: string }>();
   const workspaceId = params.workspaceId;
+  const { projects, refresh } = useProjects();
 
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState("");
@@ -33,18 +26,6 @@ export default function ProjectsPage() {
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
-
-  const load = useCallback(() => {
-    if (!workspaceId) return;
-    apiFetch<Project[]>(`/workspaces/${workspaceId}/projects`)
-      .then(setProjects)
-      .catch(() => setError("プロジェクト一覧の取得に失敗しました"))
-      .finally(() => setLoading(false));
-  }, [workspaceId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -58,14 +39,14 @@ export default function ProjectsPage() {
           name: name.trim(),
           description: description.trim() || undefined,
           visibility,
-          member_ids: memberIds,
+          member_ids: visibility === "private" ? memberIds : [],
         }),
       });
       setName("");
       setDescription("");
       setVisibility("public");
       setMemberIds([]);
-      load();
+      refresh();
     } catch {
       setError("プロジェクトの作成に失敗しました");
     } finally {
@@ -81,9 +62,7 @@ export default function ProjectsPage() {
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
-      {loading ? (
-        <p className="text-sm text-muted-foreground">読み込み中...</p>
-      ) : projects.length === 0 ? (
+      {projects.length === 0 ? (
         <p className="text-sm text-muted-foreground">プロジェクトはまだありません。</p>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -132,7 +111,10 @@ export default function ProjectsPage() {
               <input
                 type="radio"
                 checked={visibility === "public"}
-                onChange={() => setVisibility("public")}
+                onChange={() => {
+                  setVisibility("public");
+                  setMemberIds([]);
+                }}
                 className="accent-indigo-600"
               />
               Public（ワークスペース全員が閲覧可）
@@ -147,12 +129,14 @@ export default function ProjectsPage() {
               Private（参画メンバーのみ）
             </label>
           </div>
-          <div>
-            <p className="mb-1.5 text-sm text-muted-foreground">参画メンバー</p>
-            {workspaceId && (
-              <MemberPicker workspaceId={workspaceId} selected={memberIds} onChange={setMemberIds} />
-            )}
-          </div>
+          {visibility === "private" && (
+            <div>
+              <p className="mb-1.5 text-sm text-muted-foreground">参画メンバー</p>
+              {workspaceId && (
+                <MemberPicker workspaceId={workspaceId} selected={memberIds} onChange={setMemberIds} />
+              )}
+            </div>
+          )}
           <Button type="submit" variant="primary" disabled={creating} className="self-start">
             作成
           </Button>

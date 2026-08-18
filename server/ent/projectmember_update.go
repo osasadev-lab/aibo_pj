@@ -65,6 +65,20 @@ func (_u *ProjectMemberUpdate) SetNillableUserID(v *uuid.UUID) *ProjectMemberUpd
 	return _u
 }
 
+// SetRole sets the "role" field.
+func (_u *ProjectMemberUpdate) SetRole(v projectmember.Role) *ProjectMemberUpdate {
+	_u.mutation.SetRole(v)
+	return _u
+}
+
+// SetNillableRole sets the "role" field if the given value is not nil.
+func (_u *ProjectMemberUpdate) SetNillableRole(v *projectmember.Role) *ProjectMemberUpdate {
+	if v != nil {
+		_u.SetRole(*v)
+	}
+	return _u
+}
+
 // SetProject sets the "project" edge to the Project entity.
 func (_u *ProjectMemberUpdate) SetProject(v *Project) *ProjectMemberUpdate {
 	return _u.SetProjectID(v.ID)
@@ -130,6 +144,11 @@ func (_u *ProjectMemberUpdate) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *ProjectMemberUpdate) check() error {
+	if v, ok := _u.mutation.Role(); ok {
+		if err := projectmember.RoleValidator(v); err != nil {
+			return &ValidationError{Name: "role", err: fmt.Errorf(`ent: validator failed for field "ProjectMember.role": %w`, err)}
+		}
+	}
 	if _u.mutation.ProjectCleared() && len(_u.mutation.ProjectIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "ProjectMember.project"`)
 	}
@@ -153,6 +172,9 @@ func (_u *ProjectMemberUpdate) sqlSave(ctx context.Context) (_node int, err erro
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(projectmember.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.Role(); ok {
+		_spec.SetField(projectmember.FieldRole, field.TypeEnum, value)
 	}
 	if _u.mutation.ProjectCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -266,6 +288,20 @@ func (_u *ProjectMemberUpdateOne) SetNillableUserID(v *uuid.UUID) *ProjectMember
 	return _u
 }
 
+// SetRole sets the "role" field.
+func (_u *ProjectMemberUpdateOne) SetRole(v projectmember.Role) *ProjectMemberUpdateOne {
+	_u.mutation.SetRole(v)
+	return _u
+}
+
+// SetNillableRole sets the "role" field if the given value is not nil.
+func (_u *ProjectMemberUpdateOne) SetNillableRole(v *projectmember.Role) *ProjectMemberUpdateOne {
+	if v != nil {
+		_u.SetRole(*v)
+	}
+	return _u
+}
+
 // SetProject sets the "project" edge to the Project entity.
 func (_u *ProjectMemberUpdateOne) SetProject(v *Project) *ProjectMemberUpdateOne {
 	return _u.SetProjectID(v.ID)
@@ -344,6 +380,11 @@ func (_u *ProjectMemberUpdateOne) defaults() {
 
 // check runs all checks and user-defined validators on the builder.
 func (_u *ProjectMemberUpdateOne) check() error {
+	if v, ok := _u.mutation.Role(); ok {
+		if err := projectmember.RoleValidator(v); err != nil {
+			return &ValidationError{Name: "role", err: fmt.Errorf(`ent: validator failed for field "ProjectMember.role": %w`, err)}
+		}
+	}
 	if _u.mutation.ProjectCleared() && len(_u.mutation.ProjectIDs()) > 0 {
 		return errors.New(`ent: clearing a required unique edge "ProjectMember.project"`)
 	}
@@ -384,6 +425,9 @@ func (_u *ProjectMemberUpdateOne) sqlSave(ctx context.Context) (_node *ProjectMe
 	}
 	if value, ok := _u.mutation.UpdatedAt(); ok {
 		_spec.SetField(projectmember.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := _u.mutation.Role(); ok {
+		_spec.SetField(projectmember.FieldRole, field.TypeEnum, value)
 	}
 	if _u.mutation.ProjectCleared() {
 		edge := &sqlgraph.EdgeSpec{

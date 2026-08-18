@@ -8,6 +8,7 @@ import { getSupabaseClient } from "@/lib/supabaseClient";
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/fields";
+import type { MemberSummary } from "@/lib/types";
 
 type Comment = {
   id: string;
@@ -18,27 +19,20 @@ type Comment = {
   created_at: string;
 };
 
-type Member = {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-};
-
 // タスク詳細に埋め込むコメントスレッド。初回一覧はREST APIから取得し、
 // 以降の新着はSupabase Realtimeの直接購読で反映する（Goバックエンド非経由）。
 // docs/aibo/m3-implementation-plan.md参照。
 export default function CommentThread({ taskId }: { taskId: string }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [body, setBody] = useState("");
-  const [mentionable, setMentionable] = useState<Member[]>([]);
+  const [mentionable, setMentionable] = useState<MemberSummary[]>([]);
   const [showMentions, setShowMentions] = useState(false);
   const [mentionedIds, setMentionedIds] = useState<string[]>([]);
   // Realtime経由のINSERTペイロードにはJOIN結果のuser_nameが含まれない
   // （生のcommentsテーブル行のみ）。参照可能メンバー一覧から名前を補完するため、
   // 常に最新値を読めるようrefにも保持する（effectのクロージャが古い値を
   // 参照してしまうのを避けるため）。
-  const mentionableRef = useRef<Member[]>([]);
+  const mentionableRef = useRef<MemberSummary[]>([]);
 
   useEffect(() => {
     let ignore = false;
@@ -47,7 +41,7 @@ export default function CommentThread({ taskId }: { taskId: string }) {
         if (!ignore) setComments(list);
       })
       .catch(() => {});
-    apiFetch<Member[]>(`/tasks/${taskId}/mentionable-members`)
+    apiFetch<MemberSummary[]>(`/tasks/${taskId}/mentionable-members`)
       .then((list) => {
         if (!ignore) {
           setMentionable(list);
@@ -100,7 +94,7 @@ export default function CommentThread({ taskId }: { taskId: string }) {
     setShowMentions(value.endsWith("@"));
   }
 
-  function selectMention(m: Member) {
+  function selectMention(m: MemberSummary) {
     setBody((prev) => prev + m.name + " ");
     setMentionedIds((prev) => (prev.includes(m.user_id) ? prev : [...prev, m.user_id]));
     setShowMentions(false);

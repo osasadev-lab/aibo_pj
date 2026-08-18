@@ -101,10 +101,11 @@ func CurrentProject(c *gin.Context) *ent.Project {
 	return p
 }
 
-// RequireProjectOwnerOrCreator はRequireProjectAccessの後段で使い、
-// 呼び出しユーザーがプロジェクト作成者かworkspace Ownerであることを検証する
-// （プロジェクト削除用）。
-func RequireProjectOwnerOrCreator() gin.HandlerFunc {
+// RequireProjectManager はRequireProjectAccessの後段で使い、呼び出しユーザーが
+// そのプロジェクトのmanager（責任者）かworkspace Ownerであることを検証する
+// （PJ名変更・メンバー管理・列操作・プロジェクト削除用。workspace Ownerは常に
+// managerを上書きできる、というユーザー確認済みの方針）。
+func RequireProjectManager(client *ent.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		u := CurrentUser(c)
 		p := CurrentProject(c)
@@ -113,8 +114,20 @@ func RequireProjectOwnerOrCreator() gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 			return
 		}
-		if p.CreatedBy != u.ID && m.Role != workspacemember.RoleOwner {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "project creator or workspace owner required"})
+		if m.Role == workspacemember.RoleOwner {
+			c.Next()
+			return
+		}
+
+		isManager, err := client.ProjectMember.Query().
+			Where(
+				projectmember.ProjectIDEQ(p.ID),
+				projectmember.UserIDEQ(u.ID),
+				projectmember.RoleEQ(projectmember.RoleManager),
+			).
+			Exist(c.Request.Context())
+		if err != nil || !isManager {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "project manager required"})
 			return
 		}
 		c.Next()

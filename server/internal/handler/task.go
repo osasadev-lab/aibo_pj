@@ -21,6 +21,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
@@ -63,6 +64,14 @@ func taskJSON(t *ent.Task) gin.H {
 			ids = append(ids, a.UserID)
 		}
 		row["assignee_ids"] = ids
+	}
+	// mentionsがeager-load済み（WithMentions()）の場合のみmentioned_user_idsを含める。
+	if t.Edges.Mentions != nil {
+		ids := make([]uuid.UUID, 0, len(t.Edges.Mentions))
+		for _, tm := range t.Edges.Mentions {
+			ids = append(ids, tm.MentionedUserID)
+		}
+		row["mentioned_user_ids"] = ids
 	}
 	return row
 }
@@ -355,6 +364,9 @@ type updateTaskRequest struct {
 	Priority       *string    `json:"priority" binding:"omitempty,oneof=low medium high"`
 	StartDate      *string    `json:"start_date"`
 	DueDate        *string    `json:"due_date"`
+	// ポインタにして「フィールド省略＝メンション不変」と「空配列＝全メンション解除」を
+	// 区別する（ステータス変更等の部分PATCHが誤ってメンションを消さないようにするため）。
+	MentionedUserIDs *[]uuid.UUID `json:"mentioned_user_ids"`
 }
 
 // Update は PATCH /tasks/:task_id。
@@ -382,6 +394,29 @@ func (h *TaskHandler) Update(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+
+	var mentionIDs []uuid.UUID
+	if req.MentionedUserIDs != nil {
+		mentionIDs = dedupUUIDs(*req.MentionedUserIDs)
+		if len(mentionIDs) > 0 {
+			visibleIDs, err := middleware.TaskVisibleUserIDs(ctx, h.client, t)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate mentions"})
+				return
+			}
+			visibleSet := map[uuid.UUID]struct{}{}
+			for _, id := range visibleIDs {
+				visibleSet[id] = struct{}{}
+			}
+			for _, id := range mentionIDs {
+				if _, ok := visibleSet[id]; !ok {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "mentioned_user_ids must be visible to this task"})
+					return
+				}
+			}
+		}
+	}
+
 	statusChanging := req.Status != nil || req.StatusColumnID != nil
 	previousStatus := t.Status
 
@@ -442,6 +477,53 @@ func (h *TaskHandler) Update(c *gin.Context) {
 			return err
 		}
 
+		if req.MentionedUserIDs != nil {
+			existing, err := tx.TaskMention.Query().Where(taskmention.TaskIDEQ(t.ID)).All(ctx)
+			if err != nil {
+				return err
+			}
+			oldSet := make(map[uuid.UUID]struct{}, len(existing))
+			for _, tm := range existing {
+				oldSet[tm.MentionedUserID] = struct{}{}
+			}
+
+			if _, err := tx.TaskMention.Delete().Where(taskmention.TaskIDEQ(t.ID)).Exec(ctx); err != nil {
+				return err
+			}
+			for _, id := range mentionIDs {
+				if _, err := tx.TaskMention.Create().SetTaskID(t.ID).SetMentionedUserID(id).Save(ctx); err != nil {
+					return err
+				}
+			}
+
+			description := t.Description
+			if req.Description != nil {
+				description = req.Description
+			}
+			var descText string
+			if description != nil {
+				descText = *description
+			}
+			for _, id := range mentionIDs {
+				if _, wasMentioned := oldSet[id]; wasMentioned {
+					continue
+				}
+				if _, err := tx.Notification.Create().
+					SetUserID(id).
+					SetType("mentioned").
+					SetPayload(map[string]any{
+						"task_id":           t.ID,
+						"project_id":        t.ProjectID,
+						"mentioned_by":      u.ID,
+						"mentioned_by_name": u.Name,
+						"excerpt":           excerpt(descText, 100),
+					}).
+					Save(ctx); err != nil {
+					return err
+				}
+			}
+		}
+
 		if statusChanging {
 			if err := activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.status_changed",
 				map[string]any{"from": string(previousStatus), "to": string(updated.Status)}); err != nil {
@@ -494,6 +576,9 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 			return err
 		}
 		if _, err := tx.TaskAssignee.Delete().Where(taskassignee.TaskIDIn(ids...)).Exec(ctx); err != nil {
+			return err
+		}
+		if _, err := tx.TaskMention.Delete().Where(taskmention.TaskIDIn(ids...)).Exec(ctx); err != nil {
 			return err
 		}
 		if _, err := tx.CommentMention.Delete().
@@ -690,6 +775,19 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 	}
 
 	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		existing, err := tx.TaskAssignee.Query().Where(taskassignee.TaskIDEQ(t.ID)).All(ctx)
+		if err != nil {
+			return err
+		}
+		oldSet := make(map[uuid.UUID]struct{}, len(existing))
+		for _, a := range existing {
+			oldSet[a.UserID] = struct{}{}
+		}
+		newSet := make(map[uuid.UUID]struct{}, len(ids))
+		for _, id := range ids {
+			newSet[id] = struct{}{}
+		}
+
 		if _, err := tx.TaskAssignee.Delete().Where(taskassignee.TaskIDEQ(t.ID)).Exec(ctx); err != nil {
 			return err
 		}
@@ -702,6 +800,44 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 				return err
 			}
 		}
+
+		for _, id := range ids {
+			if _, was := oldSet[id]; was {
+				continue
+			}
+			if _, err := tx.Notification.Create().
+				SetUserID(id).
+				SetType("assigned").
+				SetPayload(map[string]any{
+					"task_id":         t.ID,
+					"project_id":      t.ProjectID,
+					"changed_by":      u.ID,
+					"changed_by_name": u.Name,
+					"task_title":      t.Title,
+				}).
+				Save(ctx); err != nil {
+				return err
+			}
+		}
+		for id := range oldSet {
+			if _, still := newSet[id]; still {
+				continue
+			}
+			if _, err := tx.Notification.Create().
+				SetUserID(id).
+				SetType("unassigned").
+				SetPayload(map[string]any{
+					"task_id":         t.ID,
+					"project_id":      t.ProjectID,
+					"changed_by":      u.ID,
+					"changed_by_name": u.Name,
+					"task_title":      t.Title,
+				}).
+				Save(ctx); err != nil {
+				return err
+			}
+		}
+
 		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.assigned",
 			map[string]any{"assignee_ids": ids})
 	})

@@ -87,9 +87,11 @@ type TaskEdges struct {
 	Comments []*Comment `json:"comments,omitempty"`
 	// Attachments holds the value of the attachments edge.
 	Attachments []*Attachment `json:"attachments,omitempty"`
+	// Mentions holds the value of the mentions edge.
+	Mentions []*TaskMention `json:"mentions,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [14]bool
+	loadedTypes [15]bool
 }
 
 // WorkspaceOrErr returns the Workspace value or an error if the edge
@@ -228,6 +230,15 @@ func (e TaskEdges) AttachmentsOrErr() ([]*Attachment, error) {
 		return e.Attachments, nil
 	}
 	return nil, &NotLoadedError{edge: "attachments"}
+}
+
+// MentionsOrErr returns the Mentions value or an error if the edge
+// was not loaded in eager-loading.
+func (e TaskEdges) MentionsOrErr() ([]*TaskMention, error) {
+	if e.loadedTypes[14] {
+		return e.Mentions, nil
+	}
+	return nil, &NotLoadedError{edge: "mentions"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -437,6 +448,11 @@ func (_m *Task) QueryComments() *CommentQuery {
 // QueryAttachments queries the "attachments" edge of the Task entity.
 func (_m *Task) QueryAttachments() *AttachmentQuery {
 	return NewTaskClient(_m.config).QueryAttachments(_m)
+}
+
+// QueryMentions queries the "mentions" edge of the Task entity.
+func (_m *Task) QueryMentions() *TaskMentionQuery {
+	return NewTaskClient(_m.config).QueryMentions(_m)
 }
 
 // Update returns a builder for updating this Task.

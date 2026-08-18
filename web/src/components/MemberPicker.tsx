@@ -6,13 +6,7 @@ import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
 import Avatar from "@/components/ui/Avatar";
-
-type Member = {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-};
+import type { MemberSummary } from "@/lib/types";
 
 type Props = {
   workspaceId: string;
@@ -23,12 +17,12 @@ type Props = {
 // ワークスペースメンバーのチェックボックス選択UI。
 // プロジェクト作成フォーム・参画メンバー編集で共用する。
 export default function MemberPicker({ workspaceId, selected, onChange }: Props) {
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<MemberSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let ignore = false;
-    apiFetch<Member[]>(`/workspaces/${workspaceId}/members`)
+    apiFetch<MemberSummary[]>(`/workspaces/${workspaceId}/members`)
       .then((list) => {
         if (!ignore) setMembers(list);
       })

@@ -21,6 +21,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -358,6 +359,25 @@ func init() {
 	taskdependencyDescID := taskdependencyMixinFields0[0].Descriptor()
 	// taskdependency.DefaultID holds the default value on creation for the id field.
 	taskdependency.DefaultID = taskdependencyDescID.Default.(func() uuid.UUID)
+	taskmentionMixin := schema.TaskMention{}.Mixin()
+	taskmentionMixinFields0 := taskmentionMixin[0].Fields()
+	_ = taskmentionMixinFields0
+	taskmentionFields := schema.TaskMention{}.Fields()
+	_ = taskmentionFields
+	// taskmentionDescCreatedAt is the schema descriptor for created_at field.
+	taskmentionDescCreatedAt := taskmentionMixinFields0[1].Descriptor()
+	// taskmention.DefaultCreatedAt holds the default value on creation for the created_at field.
+	taskmention.DefaultCreatedAt = taskmentionDescCreatedAt.Default.(func() time.Time)
+	// taskmentionDescUpdatedAt is the schema descriptor for updated_at field.
+	taskmentionDescUpdatedAt := taskmentionMixinFields0[2].Descriptor()
+	// taskmention.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	taskmention.DefaultUpdatedAt = taskmentionDescUpdatedAt.Default.(func() time.Time)
+	// taskmention.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	taskmention.UpdateDefaultUpdatedAt = taskmentionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// taskmentionDescID is the schema descriptor for id field.
+	taskmentionDescID := taskmentionMixinFields0[0].Descriptor()
+	// taskmention.DefaultID holds the default value on creation for the id field.
+	taskmention.DefaultID = taskmentionDescID.Default.(func() uuid.UUID)
 	tasktagMixin := schema.TaskTag{}.Mixin()
 	tasktagMixinFields0 := tasktagMixin[0].Fields()
 	_ = tasktagMixinFields0

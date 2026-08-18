@@ -40,6 +40,8 @@ type Tx struct {
 	TaskCalendarEvent *TaskCalendarEventClient
 	// TaskDependency is the client for interacting with the TaskDependency builders.
 	TaskDependency *TaskDependencyClient
+	// TaskMention is the client for interacting with the TaskMention builders.
+	TaskMention *TaskMentionClient
 	// TaskTag is the client for interacting with the TaskTag builders.
 	TaskTag *TaskTagClient
 	// User is the client for interacting with the User builders.
@@ -195,6 +197,7 @@ func (tx *Tx) init() {
 	tx.TaskAssignee = NewTaskAssigneeClient(tx.config)
 	tx.TaskCalendarEvent = NewTaskCalendarEventClient(tx.config)
 	tx.TaskDependency = NewTaskDependencyClient(tx.config)
+	tx.TaskMention = NewTaskMentionClient(tx.config)
 	tx.TaskTag = NewTaskTagClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 	tx.Workspace = NewWorkspaceClient(tx.config)

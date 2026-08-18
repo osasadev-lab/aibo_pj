@@ -48,6 +48,9 @@ type TaskCalendarEvent func(*sql.Selector)
 // TaskDependency is the predicate function for taskdependency builders.
 type TaskDependency func(*sql.Selector)
 
+// TaskMention is the predicate function for taskmention builders.
+type TaskMention func(*sql.Selector)
+
 // TaskTag is the predicate function for tasktag builders.
 type TaskTag func(*sql.Selector)
 

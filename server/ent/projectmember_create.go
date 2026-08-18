@@ -63,6 +63,20 @@ func (_c *ProjectMemberCreate) SetUserID(v uuid.UUID) *ProjectMemberCreate {
 	return _c
 }
 
+// SetRole sets the "role" field.
+func (_c *ProjectMemberCreate) SetRole(v projectmember.Role) *ProjectMemberCreate {
+	_c.mutation.SetRole(v)
+	return _c
+}
+
+// SetNillableRole sets the "role" field if the given value is not nil.
+func (_c *ProjectMemberCreate) SetNillableRole(v *projectmember.Role) *ProjectMemberCreate {
+	if v != nil {
+		_c.SetRole(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *ProjectMemberCreate) SetID(v uuid.UUID) *ProjectMemberCreate {
 	_c.mutation.SetID(v)
@@ -130,6 +144,10 @@ func (_c *ProjectMemberCreate) defaults() {
 		v := projectmember.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.Role(); !ok {
+		v := projectmember.DefaultRole
+		_c.mutation.SetRole(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := projectmember.DefaultID()
 		_c.mutation.SetID(v)
@@ -149,6 +167,14 @@ func (_c *ProjectMemberCreate) check() error {
 	}
 	if _, ok := _c.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "ProjectMember.user_id"`)}
+	}
+	if _, ok := _c.mutation.Role(); !ok {
+		return &ValidationError{Name: "role", err: errors.New(`ent: missing required field "ProjectMember.role"`)}
+	}
+	if v, ok := _c.mutation.Role(); ok {
+		if err := projectmember.RoleValidator(v); err != nil {
+			return &ValidationError{Name: "role", err: fmt.Errorf(`ent: validator failed for field "ProjectMember.role": %w`, err)}
+		}
 	}
 	if len(_c.mutation.ProjectIDs()) == 0 {
 		return &ValidationError{Name: "project", err: errors.New(`ent: missing required edge "ProjectMember.project"`)}
@@ -198,6 +224,10 @@ func (_c *ProjectMemberCreate) createSpec() (*ProjectMember, *sqlgraph.CreateSpe
 	if value, ok := _c.mutation.UpdatedAt(); ok {
 		_spec.SetField(projectmember.FieldUpdatedAt, field.TypeTime, value)
 		_node.UpdatedAt = value
+	}
+	if value, ok := _c.mutation.Role(); ok {
+		_spec.SetField(projectmember.FieldRole, field.TypeEnum, value)
+		_node.Role = value
 	}
 	if nodes := _c.mutation.ProjectIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

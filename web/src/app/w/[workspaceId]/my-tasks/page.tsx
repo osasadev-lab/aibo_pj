@@ -3,13 +3,12 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { CalendarClock, X } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiClient";
 import KanbanBoard from "@/components/kanban/KanbanBoard";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
-import { Input } from "@/components/ui/fields";
-import IconButton from "@/components/ui/IconButton";
+import DatePicker from "@/components/ui/DatePicker";
 
 type Task = {
   id: string;
@@ -21,7 +20,7 @@ type Task = {
 
 const STATUS_COLUMNS = [
   { id: "not_started", label: "未対応" },
-  { id: "in_progress", label: "着手中" },
+  { id: "in_progress", label: "対応中" },
   { id: "done", label: "対応済" },
   { id: "on_hold", label: "保留" },
 ];
@@ -84,23 +83,12 @@ export default function MyTasksPage() {
 
   return (
     <div className="flex max-w-full flex-col gap-6 px-6 py-8 lg:px-10">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+      <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">マイタスク</h1>
         <div className="flex shrink-0 items-center gap-2">
           <CalendarClock className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span className="shrink-0 whitespace-nowrap text-sm text-muted-foreground">基準日</span>
-          <Input
-            id="my-tasks-date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-40 shrink-0 text-sm"
-          />
-          {date && (
-            <IconButton size="sm" onClick={() => setDate("")} title="クリア">
-              <X className="h-3.5 w-3.5" />
-            </IconButton>
-          )}
+          <DatePicker value={date} onChange={setDate} placeholder="全期間" className="w-40" />
         </div>
       </header>
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

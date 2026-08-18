@@ -968,6 +968,29 @@ func HasAttachmentsWith(preds ...predicate.Attachment) predicate.Task {
 	})
 }
 
+// HasMentions applies the HasEdge predicate on the "mentions" edge.
+func HasMentions() predicate.Task {
+	return predicate.Task(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, MentionsTable, MentionsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMentionsWith applies the HasEdge predicate on the "mentions" edge with a given conditions (other predicates).
+func HasMentionsWith(preds ...predicate.TaskMention) predicate.Task {
+	return predicate.Task(func(s *sql.Selector) {
+		step := newMentionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Task) predicate.Task {
 	return predicate.Task(sql.AndPredicates(predicates...))

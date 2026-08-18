@@ -28,6 +28,8 @@ type ProjectMember struct {
 	ProjectID uuid.UUID `json:"project_id,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID uuid.UUID `json:"user_id,omitempty"`
+	// Role holds the value of the "role" field.
+	Role projectmember.Role `json:"role,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the ProjectMemberQuery when eager-loading is set.
 	Edges        ProjectMemberEdges `json:"edges"`
@@ -72,6 +74,8 @@ func (*ProjectMember) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case projectmember.FieldRole:
+			values[i] = new(sql.NullString)
 		case projectmember.FieldCreatedAt, projectmember.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
 		case projectmember.FieldID, projectmember.FieldProjectID, projectmember.FieldUserID:
@@ -120,6 +124,12 @@ func (_m *ProjectMember) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
 			} else if value != nil {
 				_m.UserID = *value
+			}
+		case projectmember.FieldRole:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field role", values[i])
+			} else if value.Valid {
+				_m.Role = projectmember.Role(value.String)
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -178,6 +188,9 @@ func (_m *ProjectMember) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))
+	builder.WriteString(", ")
+	builder.WriteString("role=")
+	builder.WriteString(fmt.Sprintf("%v", _m.Role))
 	builder.WriteByte(')')
 	return builder.String()
 }

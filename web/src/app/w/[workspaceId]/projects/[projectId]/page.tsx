@@ -2,40 +2,19 @@
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Calendar, Check, Pencil, Plus, Trash2, Users, X } from "lucide-react";
+import { Calendar, Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 
 import { apiFetch, ApiError } from "@/lib/apiClient";
-import { useAuth } from "@/lib/auth/useAuth";
-import MemberPicker from "@/components/MemberPicker";
 import KanbanBoard from "@/components/kanban/KanbanBoard";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import Button from "@/components/ui/Button";
 import IconButton from "@/components/ui/IconButton";
-import Badge from "@/components/ui/Badge";
 import Avatar from "@/components/ui/Avatar";
-import { Input, Select } from "@/components/ui/fields";
-
-type Project = {
-  id: string;
-  workspace_id: string;
-  name: string;
-  description: string | null;
-  visibility: "public" | "private";
-  created_by: string;
-};
-
-type Workspace = {
-  id: string;
-  role: "owner" | "member";
-};
-
-type Member = {
-  id: string;
-  user_id: string;
-  name: string;
-  email: string;
-};
+import { Input, Select, Textarea } from "@/components/ui/fields";
+import { useProjects } from "@/lib/workspace/ProjectsContext";
+import { useCurrentProject } from "@/lib/workspace/CurrentProjectContext";
+import type { MemberSummary } from "@/lib/types";
 
 type StatusColumn = {
   id: string;
@@ -59,7 +38,7 @@ type Task = {
 
 const MAPS_TO_STATUS_OPTIONS = [
   { value: "not_started", label: "未対応" },
-  { value: "in_progress", label: "着手中" },
+  { value: "in_progress", label: "対応中" },
   { value: "done", label: "対応済" },
   { value: "on_hold", label: "保留" },
 ] as const;
@@ -73,37 +52,34 @@ const PRIORITY_DOT: Record<string, string> = {
 export default function ProjectDetailPage() {
   const params = useParams<{ workspaceId: string; projectId: string }>();
   const { workspaceId, projectId } = params;
-  const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const openTaskId = searchParams.get("task");
+  const { refresh: refreshProjects } = useProjects();
+  const { project, isManager, reload: reloadCurrentProject } = useCurrentProject();
 
-  const [project, setProject] = useState<Project | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<MemberSummary[]>([]);
   const [columns, setColumns] = useState<StatusColumn[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [addingToColumn, setAddingToColumn] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newColumnName, setNewColumnName] = useState("");
-  // 既定4列（未対応/着手中/対応済/保留）で共通ステータスは出揃うため、カスタム列を
+  // 既定4列（未対応/対応中/対応済/保留）で共通ステータスは出揃うため、カスタム列を
   // 追加する場合の対応づけ先に「最も多いケース」は無い。プルダウン自体は必須
   // （内部的にどの共通ステータスに属するかを決める値のため省略できない）。
   const [newColumnMapsTo, setNewColumnMapsTo] = useState<string>("not_started");
   const [editingColumnId, setEditingColumnId] = useState<string | null>(null);
   const [editingColumnName, setEditingColumnName] = useState("");
-  const [editingMembers, setEditingMembers] = useState(false);
-  const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState("");
 
   const load = useCallback(() => {
     if (!projectId || !workspaceId) return;
-    apiFetch<Project>(`/projects/${projectId}`)
-      .then(setProject)
-      .catch(() => setError("プロジェクトの取得に失敗しました（参画メンバーでない可能性があります）"));
-    apiFetch<Workspace>(`/workspaces/${workspaceId}`).then(setWorkspace).catch(() => {});
-    apiFetch<Member[]>(`/workspaces/${workspaceId}/members`).then(setMembers).catch(() => {});
+    apiFetch<MemberSummary[]>(`/workspaces/${workspaceId}/members`).then(setMembers).catch(() => {});
     apiFetch<StatusColumn[]>(`/projects/${projectId}/status-columns`).then(setColumns);
     apiFetch<Task[]>(`/workspaces/${workspaceId}/tasks?project_id=${projectId}`).then(setTasks);
   }, [projectId, workspaceId]);
@@ -209,8 +185,8 @@ export default function ProjectDetailPage() {
     }
   }
 
-  // 列名の変更。既定列（未対応/着手中/対応済）は名前も固定表示のまま変更不可とし、
-  // カスタム列（is_default=false）のみ編集可能にする（削除制限と同じ線引き）。
+  // 列名の変更。既定列（未対応/対応中/対応済）は名前も固定表示のまま変更不可とし、
+  // カスタム列（is_default=false）かつ責任者(isManager)のみ編集可能にする（削除制限と同じ線引き）。
   async function handleRenameColumn(columnId: string) {
     const name = editingColumnName.trim();
     if (!name) return;
@@ -247,15 +223,29 @@ export default function ProjectDetailPage() {
     }
   }
 
-  async function handleSaveMembers() {
+  async function handleRenameProject() {
+    const name = nameDraft.trim();
+    if (!name || !project) return;
     try {
-      await apiFetch(`/projects/${projectId}/members`, {
-        method: "PUT",
-        body: JSON.stringify({ member_ids: memberIds }),
-      });
-      setEditingMembers(false);
+      await apiFetch(`/projects/${projectId}`, { method: "PATCH", body: JSON.stringify({ name }) });
+      setEditingName(false);
+      reloadCurrentProject();
+      refreshProjects();
     } catch {
-      setError("参画メンバーの更新に失敗しました");
+      setError("プロジェクト名の変更に失敗しました");
+    }
+  }
+
+  async function handleSaveDescription() {
+    try {
+      await apiFetch(`/projects/${projectId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ description: descriptionDraft.trim() || null }),
+      });
+      setEditingDescription(false);
+      reloadCurrentProject();
+    } catch {
+      setError("プロジェクト説明の変更に失敗しました");
     }
   }
 
@@ -264,39 +254,97 @@ export default function ProjectDetailPage() {
   }
 
   const topLevelTasks = tasks.filter((t) => !t.parent_task_id);
-  // 参画メンバー編集はプロジェクト作成者 or workspace Owner限定（server側と同じ判定）。
-  const canEditMembers = !!user && (user.id === project.created_by || workspace?.role === "owner");
 
   return (
     <div className="flex max-w-full flex-col gap-6 px-6 py-8 lg:px-10">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">{project.name}</h1>
-          {project.description && <p className="mt-1 text-sm text-muted-foreground">{project.description}</p>}
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge tone={project.visibility === "private" ? "amber" : "green"}>
-            {project.visibility === "private" ? "Private" : "Public"}
-          </Badge>
-          {canEditMembers && (
-            <Button size="sm" variant="secondary" onClick={() => setEditingMembers((v) => !v)}>
-              <Users className="h-3.5 w-3.5" />
-              参画メンバー
-            </Button>
+        <div className="min-w-0 flex-1">
+          {editingName ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleRenameProject();
+              }}
+              className="flex items-center gap-1.5"
+            >
+              <Input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                className="max-w-sm text-lg font-semibold"
+              />
+              <IconButton size="sm" type="submit" title="保存">
+                <Check className="h-4 w-4" />
+              </IconButton>
+              <IconButton size="sm" type="button" title="取消" onClick={() => setEditingName(false)}>
+                <X className="h-4 w-4" />
+              </IconButton>
+            </form>
+          ) : (
+            <h1 className="group flex items-center gap-2 text-2xl font-semibold tracking-tight text-foreground">
+              {project.name}
+              {isManager && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNameDraft(project.name);
+                    setEditingName(true);
+                  }}
+                  title="プロジェクト名を編集"
+                >
+                  <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
+              )}
+            </h1>
+          )}
+          {editingDescription ? (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSaveDescription();
+              }}
+              className="mt-1 flex items-start gap-1.5"
+            >
+              <Textarea
+                autoFocus
+                value={descriptionDraft}
+                onChange={(e) => setDescriptionDraft(e.target.value)}
+                placeholder="説明（任意）"
+                rows={2}
+                className="max-w-md text-sm"
+              />
+              <IconButton size="sm" type="submit" title="保存">
+                <Check className="h-4 w-4" />
+              </IconButton>
+              <IconButton size="sm" type="button" title="取消" onClick={() => setEditingDescription(false)}>
+                <X className="h-4 w-4" />
+              </IconButton>
+            </form>
+          ) : (
+            <div className="group mt-1 flex items-start gap-1.5">
+              {project.description ? (
+                <p className="text-sm text-muted-foreground">{project.description}</p>
+              ) : (
+                isManager && <p className="text-sm text-muted-foreground/50">説明はありません</p>
+              )}
+              {isManager && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDescriptionDraft(project.description ?? "");
+                    setEditingDescription(true);
+                  }}
+                  title="説明を編集"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                </button>
+              )}
+            </div>
           )}
         </div>
       </header>
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-
-      {canEditMembers && editingMembers && (
-        <section className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
-          <MemberPicker workspaceId={workspaceId} selected={memberIds} onChange={setMemberIds} />
-          <Button variant="primary" size="sm" className="self-start" onClick={handleSaveMembers}>
-            保存
-          </Button>
-        </section>
-      )}
 
       <KanbanBoard
         columns={columns.map((c) => ({ id: c.id, label: c.name }))}
@@ -305,7 +353,7 @@ export default function ProjectDetailPage() {
         )}
         getItemId={(t) => t.id}
         onDrop={handleDrop}
-        onReorderColumns={handleReorderColumns}
+        onReorderColumns={isManager ? handleReorderColumns : undefined}
         renderColumnLabel={(columnId, label) => {
           const col = columns.find((c) => c.id === columnId);
           if (editingColumnId === columnId) {
@@ -332,7 +380,7 @@ export default function ProjectDetailPage() {
               </form>
             );
           }
-          if (col && !col.is_default) {
+          if (col && !col.is_default && isManager) {
             return (
               <button
                 type="button"
@@ -356,7 +404,7 @@ export default function ProjectDetailPage() {
           return (
             <div className="flex items-center gap-1">
               <span className="rounded-full bg-surface px-1.5 py-0.5 text-xs text-muted-foreground">{count}</span>
-              {col && !col.is_default && (
+              {col && !col.is_default && isManager && (
                 <IconButton size="sm" title="列を削除" onClick={() => handleDeleteColumn(columnId)}>
                   <Trash2 className="h-3.5 w-3.5 hover:text-red-600" />
                 </IconButton>
@@ -432,27 +480,29 @@ export default function ProjectDetailPage() {
           )
         }
         trailingColumn={
-          <form
-            onSubmit={handleAddColumn}
-            className="flex w-72 shrink-0 flex-col gap-2 rounded-xl border border-dashed border-border p-3"
-          >
-            <Input
-              value={newColumnName}
-              onChange={(e) => setNewColumnName(e.target.value)}
-              placeholder="新しい列名"
-            />
-            <Select value={newColumnMapsTo} onChange={(e) => setNewColumnMapsTo(e.target.value)}>
-              {MAPS_TO_STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-            <Button type="submit" variant="primary" size="sm">
-              <Plus className="h-3.5 w-3.5" />
-              列を追加
-            </Button>
-          </form>
+          isManager ? (
+            <form
+              onSubmit={handleAddColumn}
+              className="flex w-72 shrink-0 flex-col gap-2 rounded-xl border border-dashed border-border p-3"
+            >
+              <Input
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                placeholder="新しい列名"
+              />
+              <Select value={newColumnMapsTo} onChange={(e) => setNewColumnMapsTo(e.target.value)}>
+                {MAPS_TO_STATUS_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </Select>
+              <Button type="submit" variant="primary" size="sm">
+                <Plus className="h-3.5 w-3.5" />
+                列を追加
+              </Button>
+            </form>
+          ) : undefined
         }
       />
 

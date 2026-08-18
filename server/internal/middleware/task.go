@@ -36,7 +36,7 @@ func RequireTaskAccess(client *ent.Client) gin.HandlerFunc {
 
 		ctx := c.Request.Context()
 
-		t, err := client.Task.Query().Where(task.IDEQ(taskID)).WithAssignees().Only(ctx)
+		t, err := client.Task.Query().Where(task.IDEQ(taskID)).WithAssignees().WithMentions().Only(ctx)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return

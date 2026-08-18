@@ -3,6 +3,7 @@
 package projectmember
 
 import (
+	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -23,6 +24,8 @@ const (
 	FieldProjectID = "project_id"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
+	// FieldRole holds the string denoting the role field in the database.
+	FieldRole = "role"
 	// EdgeProject holds the string denoting the project edge name in mutations.
 	EdgeProject = "project"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -52,6 +55,7 @@ var Columns = []string{
 	FieldUpdatedAt,
 	FieldProjectID,
 	FieldUserID,
+	FieldRole,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -74,6 +78,32 @@ var (
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
+
+// Role defines the type for the "role" enum field.
+type Role string
+
+// RoleStaff is the default value of the Role enum.
+const DefaultRole = RoleStaff
+
+// Role values.
+const (
+	RoleManager Role = "manager"
+	RoleStaff   Role = "staff"
+)
+
+func (r Role) String() string {
+	return string(r)
+}
+
+// RoleValidator is a validator for the "role" field enum values. It is called by the builders before save.
+func RoleValidator(r Role) error {
+	switch r {
+	case RoleManager, RoleStaff:
+		return nil
+	default:
+		return fmt.Errorf("projectmember: invalid enum value for role field: %q", r)
+	}
+}
 
 // OrderOption defines the ordering options for the ProjectMember queries.
 type OrderOption func(*sql.Selector)
@@ -101,6 +131,11 @@ func ByProjectID(opts ...sql.OrderTermOption) OrderOption {
 // ByUserID orders the results by the user_id field.
 func ByUserID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUserID, opts...).ToFunc()
+}
+
+// ByRole orders the results by the role field.
+func ByRole(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRole, opts...).ToFunc()
 }
 
 // ByProjectField orders the results by project field.

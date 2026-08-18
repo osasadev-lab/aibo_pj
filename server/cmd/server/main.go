@@ -58,6 +58,7 @@ func main() {
 	requireWorkspaceMember := middleware.RequireWorkspaceMember(client)
 	requireOwner := middleware.RequireOwner()
 	requireProjectAccess := middleware.RequireProjectAccess(client)
+	requireProjectManager := middleware.RequireProjectManager(client)
 	requireTaskAccess := middleware.RequireTaskAccess(client)
 
 	api := router.Group("/api/v1")
@@ -106,16 +107,18 @@ func main() {
 			withProject := projects.Group("/:project_id", requireProjectAccess)
 			{
 				withProject.GET("", projectHandler.Get)
-				withProject.PATCH("", projectHandler.Update)
-				withProject.DELETE("", middleware.RequireProjectOwnerOrCreator(), projectHandler.Delete)
+				withProject.PATCH("", requireProjectManager, projectHandler.Update)
+				withProject.DELETE("", requireProjectManager, projectHandler.Delete)
 
 				withProject.GET("/members", projectHandler.ListMembers)
-				withProject.PUT("/members", middleware.RequireProjectOwnerOrCreator(), projectHandler.PutMembers)
+				withProject.PUT("/members", requireProjectManager, projectHandler.PutMembers)
+				withProject.PATCH("/members/:member_id", requireProjectManager, projectHandler.ChangeMemberRole)
+				withProject.PUT("/managers", requireProjectManager, projectHandler.PutManagers)
 
 				withProject.GET("/status-columns", projectHandler.ListStatusColumns)
-				withProject.POST("/status-columns", projectHandler.CreateStatusColumn)
-				withProject.PATCH("/status-columns/:column_id", projectHandler.UpdateStatusColumn)
-				withProject.DELETE("/status-columns/:column_id", projectHandler.DeleteStatusColumn)
+				withProject.POST("/status-columns", requireProjectManager, projectHandler.CreateStatusColumn)
+				withProject.PATCH("/status-columns/:column_id", requireProjectManager, projectHandler.UpdateStatusColumn)
+				withProject.DELETE("/status-columns/:column_id", requireProjectManager, projectHandler.DeleteStatusColumn)
 			}
 		}
 

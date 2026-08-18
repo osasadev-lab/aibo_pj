@@ -20,6 +20,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -386,6 +387,21 @@ func (_c *TaskCreate) AddAttachments(v ...*Attachment) *TaskCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddAttachmentIDs(ids...)
+}
+
+// AddMentionIDs adds the "mentions" edge to the TaskMention entity by IDs.
+func (_c *TaskCreate) AddMentionIDs(ids ...uuid.UUID) *TaskCreate {
+	_c.mutation.AddMentionIDs(ids...)
+	return _c
+}
+
+// AddMentions adds the "mentions" edges to the TaskMention entity.
+func (_c *TaskCreate) AddMentions(v ...*TaskMention) *TaskCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddMentionIDs(ids...)
 }
 
 // Mutation returns the TaskMutation object of the builder.
@@ -772,6 +788,22 @@ func (_c *TaskCreate) createSpec() (*Task, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(attachment.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MentionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MentionsTable,
+			Columns: []string{task.MentionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

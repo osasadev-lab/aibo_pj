@@ -22,6 +22,11 @@ func (ProjectMember) Fields() []ent.Field {
 	return []ent.Field{
 		field.UUID("project_id", uuid.UUID{}),
 		field.UUID("user_id", uuid.UUID{}),
+		// プロジェクト内の権限。managerはPJ名変更・メンバー管理・列操作が可能
+		// （ワークスペースOwnerは常にmanager相当として上書き可能。middleware.RequireProjectManager参照）。
+		field.Enum("role").
+			Values("manager", "staff").
+			Default("staff"),
 	}
 }
 

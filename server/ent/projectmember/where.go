@@ -196,6 +196,26 @@ func UserIDNotIn(vs ...uuid.UUID) predicate.ProjectMember {
 	return predicate.ProjectMember(sql.FieldNotIn(FieldUserID, vs...))
 }
 
+// RoleEQ applies the EQ predicate on the "role" field.
+func RoleEQ(v Role) predicate.ProjectMember {
+	return predicate.ProjectMember(sql.FieldEQ(FieldRole, v))
+}
+
+// RoleNEQ applies the NEQ predicate on the "role" field.
+func RoleNEQ(v Role) predicate.ProjectMember {
+	return predicate.ProjectMember(sql.FieldNEQ(FieldRole, v))
+}
+
+// RoleIn applies the In predicate on the "role" field.
+func RoleIn(vs ...Role) predicate.ProjectMember {
+	return predicate.ProjectMember(sql.FieldIn(FieldRole, vs...))
+}
+
+// RoleNotIn applies the NotIn predicate on the "role" field.
+func RoleNotIn(vs ...Role) predicate.ProjectMember {
+	return predicate.ProjectMember(sql.FieldNotIn(FieldRole, vs...))
+}
+
 // HasProject applies the HasEdge predicate on the "project" edge.
 func HasProject() predicate.ProjectMember {
 	return predicate.ProjectMember(func(s *sql.Selector) {
