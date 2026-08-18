@@ -103,7 +103,7 @@ export default function CommentThread({ taskId }: { taskId: string }) {
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">コメント</p>
-      <ul className="flex max-h-64 flex-col gap-3 overflow-y-auto">
+      <ul className="flex max-h-[32rem] flex-col gap-3 overflow-y-auto">
         {comments.map((c) => (
           <li key={c.id} className="flex items-start gap-2">
             <Avatar name={c.user_name ?? "?"} seed={c.user_id} size="sm" />

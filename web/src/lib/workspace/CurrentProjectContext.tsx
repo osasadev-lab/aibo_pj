@@ -12,7 +12,7 @@ import MemberPicker from "@/components/MemberPicker";
 import SidePanel from "@/components/ui/SidePanel";
 import { Select } from "@/components/ui/fields";
 import { useProjects } from "@/lib/workspace/ProjectsContext";
-import type { ProjectMemberSummary, Workspace } from "@/lib/types";
+import type { MemberSummary, ProjectMemberSummary, Workspace } from "@/lib/types";
 
 export type CurrentProject = {
   id: string;
@@ -58,9 +58,9 @@ export function CurrentProjectProvider({
   const [workspaceRole, setWorkspaceRole] = useState<Workspace["role"] | undefined>(undefined);
   const [project, setProject] = useState<CurrentProject | null>(null);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberSummary[]>([]);
+  const [workspaceMembers, setWorkspaceMembers] = useState<MemberSummary[]>([]);
   const [editingMembers, setEditingMembers] = useState(false);
   const [memberIds, setMemberIds] = useState<string[]>([]);
-  const [managerIds, setManagerIds] = useState<string[]>([]);
   const [memberError, setMemberError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -124,8 +124,9 @@ export function CurrentProjectProvider({
     !!user &&
     (workspaceRole === "owner" || projectMembers.find((pm) => pm.user_id === user.id)?.role === "manager");
 
-  // publicは参画という概念が無く「誰が責任者か」だけを編集する
-  // （現在のprojectMembersは常にmanagerのみ＝そのままselected初期値にできる）。
+  // publicは参画という概念が無く「誰が責任者か」だけを編集する。private同様、
+  // ワークスペース全員を一覧表示しプルダウンで責任者/スタッフを個別に切り替える
+  // （現在のprojectMembersは常にmanagerのみ＝一覧中で責任者として選択済みの行）。
   // privateは参画メンバーの追加・削除（memberIds）を編集する。
   // openMembersPanel/openDeleteConfirmはcontext経由でサイドバー（別コンポーネント）
   // からも呼ばれるため、useCallbackで安定させclosure内のproject/projectMembersが
@@ -135,11 +136,13 @@ export function CurrentProjectProvider({
     if (project.visibility === "private") {
       setMemberIds(projectMembers.map((pm) => pm.user_id));
     } else {
-      setManagerIds(projectMembers.map((pm) => pm.user_id));
+      apiFetch<MemberSummary[]>(`/workspaces/${workspaceId}/members`)
+        .then(setWorkspaceMembers)
+        .catch(() => setWorkspaceMembers([]));
     }
     setMemberError(null);
     setEditingMembers(true);
-  }, [project, projectMembers]);
+  }, [project, projectMembers, workspaceId]);
 
   const closeMembersPanel = useCallback(() => {
     setEditingMembers(false);
@@ -164,14 +167,18 @@ export function CurrentProjectProvider({
     }
   }
 
-  async function handleSaveManagers() {
+  // 行ごとのプルダウン変更を即時反映する（private側のhandleChangeMemberRoleと
+  // 同じUX）。現在の責任者集合はprojectMembersが常にmanagerのみを保持している
+  // ためそれを真値とし、対象ユーザーの有無を入れ替えた配列をPUTする。
+  async function handleToggleManager(userId: string, makeManager: boolean) {
     if (!projectId) return;
+    const currentIds = projectMembers.map((pm) => pm.user_id);
+    const nextIds = makeManager ? [...currentIds, userId] : currentIds.filter((id) => id !== userId);
     try {
       await apiFetch(`/projects/${projectId}/managers`, {
         method: "PUT",
-        body: JSON.stringify({ user_ids: managerIds }),
+        body: JSON.stringify({ user_ids: nextIds }),
       });
-      setEditingMembers(false);
       reload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
@@ -263,11 +270,29 @@ export function CurrentProjectProvider({
           ) : (
             <div className="flex flex-col gap-3">
               {/* publicはワークスペース全員が閲覧できるため参画という概念が無く、
-                  責任者の付与・剥奪のみを編集する（対象はワークスペース全員から選ぶ）。 */}
-              <MemberPicker workspaceId={workspaceId} selected={managerIds} onChange={setManagerIds} />
-              <Button variant="primary" size="sm" className="self-start" onClick={handleSaveManagers}>
-                保存
-              </Button>
+                  全員を一覧表示しプルダウンで責任者/スタッフを個別に切り替える
+                  （対象はワークスペース全員）。 */}
+              <ul className="flex flex-col gap-1.5">
+                {workspaceMembers.map((m) => {
+                  const isManagerRow = projectMembers.some((pm) => pm.user_id === m.user_id);
+                  return (
+                    <li key={m.user_id} className="flex items-center justify-between gap-3 text-sm">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <Avatar name={m.name} seed={m.user_id} size="sm" />
+                        <span className="truncate text-foreground">{m.name}</span>
+                      </span>
+                      <Select
+                        value={isManagerRow ? "manager" : "staff"}
+                        onChange={(e) => handleToggleManager(m.user_id, e.target.value === "manager")}
+                        className="w-auto py-1 text-xs"
+                      >
+                        <option value="manager">責任者</option>
+                        <option value="staff">スタッフ</option>
+                      </Select>
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           )}
         </SidePanel>

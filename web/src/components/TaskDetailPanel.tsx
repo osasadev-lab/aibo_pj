@@ -196,7 +196,7 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
               value={description}
               onChange={(e) => handleDescriptionChange(e.target.value)}
               placeholder="説明を追加...（@でメンション）"
-              rows={3}
+              rows={7}
               className="text-sm"
             />
             {showMentions && mentionable.length > 0 && (

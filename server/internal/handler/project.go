@@ -69,6 +69,28 @@ func notifyProjectMembership(ctx context.Context, tx *ent.Tx, projectID uuid.UUI
 	return err
 }
 
+// notifyProjectLifecycle はプロジェクト自体の作成・削除をuserIDに通知する
+// （notifyProjectMembershipは「参画状態の変化」用で、こちらは「プロジェクトという
+// モノ自体の生成・消滅」用。publicはワークスペース全員が対象、privateは
+// 参画メンバー全員が対象。actor自身には呼び出し側で通知しない）。
+func notifyProjectLifecycle(ctx context.Context, tx *ent.Tx, projectID uuid.UUID, projectName string, actorID uuid.UUID, actorName string, userID uuid.UUID, created bool) error {
+	notifType := "project_deleted"
+	if created {
+		notifType = "project_created"
+	}
+	_, err := tx.Notification.Create().
+		SetUserID(userID).
+		SetType(notifType).
+		SetPayload(map[string]any{
+			"project_id":      projectID,
+			"project_name":    projectName,
+			"changed_by":      actorID,
+			"changed_by_name": actorName,
+		}).
+		Save(ctx)
+	return err
+}
+
 func projectJSON(p *ent.Project) gin.H {
 	return gin.H{
 		"id":           p.ID,
@@ -190,6 +212,26 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 			}
 			if err := notifyProjectMembership(ctx, tx, p.ID, p.Name, m.UserID, u.Name, uid, true); err != nil {
 				return err
+			}
+		}
+
+		// publicは参画メンバーという概念が無く前段のループが空振りするため、
+		// 代わりにワークスペース全員（作成者以外）へプロジェクト作成を通知する
+		// （publicは誰でも閲覧できるため、新設自体を全員に知らせる）。
+		if req.Visibility == "public" {
+			wms, err := tx.WorkspaceMember.Query().
+				Where(workspacemember.WorkspaceIDEQ(m.WorkspaceID)).
+				All(ctx)
+			if err != nil {
+				return err
+			}
+			for _, wm := range wms {
+				if wm.UserID == m.UserID {
+					continue
+				}
+				if err := notifyProjectLifecycle(ctx, tx, p.ID, p.Name, m.UserID, u.Name, wm.UserID, true); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -343,8 +385,40 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		if _, err := tx.ProjectStatusColumn.Delete().Where(projectstatuscolumn.ProjectIDEQ(p.ID)).Exec(ctx); err != nil {
 			return err
 		}
+		// project_members行を消す前に通知対象を確定しておく（private=参画メンバー
+		// 全員、public=ワークスペース全員。ともにactor自身は除く）。
+		var recipientIDs []uuid.UUID
+		if p.Visibility == project.VisibilityPublic {
+			wms, err := tx.WorkspaceMember.Query().
+				Where(workspacemember.WorkspaceIDEQ(p.WorkspaceID)).
+				All(ctx)
+			if err != nil {
+				return err
+			}
+			for _, wm := range wms {
+				if wm.UserID != u.ID {
+					recipientIDs = append(recipientIDs, wm.UserID)
+				}
+			}
+		} else {
+			pms, err := tx.ProjectMember.Query().Where(projectmember.ProjectIDEQ(p.ID)).All(ctx)
+			if err != nil {
+				return err
+			}
+			for _, pm := range pms {
+				if pm.UserID != u.ID {
+					recipientIDs = append(recipientIDs, pm.UserID)
+				}
+			}
+		}
+
 		if _, err := tx.ProjectMember.Delete().Where(projectmember.ProjectIDEQ(p.ID)).Exec(ctx); err != nil {
 			return err
+		}
+		for _, uid := range recipientIDs {
+			if err := notifyProjectLifecycle(ctx, tx, p.ID, p.Name, u.ID, u.Name, uid, false); err != nil {
+				return err
+			}
 		}
 		// project.deleted自体は削除対象のproject_idを参照できない（削除後に外部キー
 		// 違反になる）ため、project_idを付けずpayloadにだけ残す。

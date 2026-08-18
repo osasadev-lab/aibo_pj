@@ -56,6 +56,7 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
   // 画面が丸ごとアンマウントされてタスクが見えなくなってしまうため。
   const [showMembers, setShowMembers] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
     if (!params.workspaceId) return;
@@ -64,6 +65,19 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
       .catch(() => setWorkspace(null));
   }, [params.workspaceId]);
 
+  // 未読の有無だけをここで把握し、通知パネルを開かずとも左サイドバーの
+  // 「通知」ラベルを明るく表示する。パネルを閉じた直後（既読化された可能性が
+  // ある）に再取得する。
+  const refreshUnread = () => {
+    apiFetch<unknown[]>("/notifications?unread=true")
+      .then((list) => setHasUnread(list.length > 0))
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshUnread();
+  }, []);
+
   if (!user) return null;
 
   const projectsHref = `/w/${params.workspaceId}/projects`;
@@ -71,7 +85,7 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
+      <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-surface">
         <Link
           href="/workspaces"
           className="group flex items-center gap-2 border-b border-border px-4 py-4 transition-colors hover:bg-surface-muted"
@@ -118,6 +132,7 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
             label="通知"
             icon={Bell}
             active={showNotifications}
+            emphasize={hasUnread}
             onClick={() => setShowNotifications(true)}
           />
         </nav>
@@ -137,7 +152,14 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
       <main className="min-w-0 flex-1">{children}</main>
 
       {showMembers && <MembersPanel onClose={() => setShowMembers(false)} />}
-      {showNotifications && <NotificationsPanel onClose={() => setShowNotifications(false)} />}
+      {showNotifications && (
+        <NotificationsPanel
+          onClose={() => {
+            setShowNotifications(false);
+            refreshUnread();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -225,15 +247,18 @@ function NavLink({
 }
 
 // メンバー・通知用。NavLinkと見た目は同じだがページ遷移せず状態でパネルを開く。
+// emphasize（未読通知あり等）の場合は非アクティブ時でも文字色を明るくする。
 function NavButton({
   label,
   icon: Icon,
   active,
+  emphasize,
   onClick,
 }: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   active: boolean;
+  emphasize?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -244,7 +269,9 @@ function NavButton({
         "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm transition-colors",
         active
           ? "bg-indigo-50 font-medium text-indigo-600 dark:bg-indigo-500/10 dark:text-indigo-400"
-          : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
+          : emphasize
+            ? "font-medium text-foreground hover:bg-surface-muted"
+            : "text-muted-foreground hover:bg-surface-muted hover:text-foreground",
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />

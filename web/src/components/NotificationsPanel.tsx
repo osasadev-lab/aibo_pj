@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { AtSign, Bell, Check, LogIn, LogOut, UserMinus, UserPlus } from "lucide-react";
+import { AtSign, Bell, Check, FolderPlus, FolderX, LogIn, LogOut, UserMinus, UserPlus } from "lucide-react";
 import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
@@ -53,6 +53,7 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
   // （project_idがあればプロジェクトのカンバン、無ければマイタスク側で開く。
   // どちらも既存の?task=クエリパラメータ方式で開閉するTaskDetailPanelと同じ導線）。
   // task_idが無くproject_idのみ（参画・除外通知）の場合はプロジェクト自体へ遷移する。
+  // project_deletedは対象プロジェクトが既に存在しないため遷移先が無い（hasTarget側で除外）。
   // 遷移先が現在の画面と同じ場合もあるため、まずこのパネル自体を閉じてから遷移する。
   function handleOpen(n: Notification) {
     const taskId = n.payload?.task_id as string | undefined;
@@ -81,7 +82,8 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
         ) : (
           <ul className="flex flex-col gap-2">
             {notifications.map((n) => {
-              const hasTarget = !!n.payload?.task_id || !!n.payload?.project_id;
+              // project_deletedは対象プロジェクトが既に存在しないため遷移先にできない。
+              const hasTarget = n.type !== "project_deleted" && (!!n.payload?.task_id || !!n.payload?.project_id);
               return (
                 <li key={n.id}>
                   {/* 通知全体をクリック可能にしつつ既読ボタンもネストするため、
@@ -167,6 +169,16 @@ function describeNotification(n: Notification): string {
     const name = (n.payload?.project_name as string) ?? "";
     return `${by}さんがあなたをプロジェクトから外しました: ${name}`;
   }
+  if (n.type === "project_created") {
+    const by = (n.payload?.changed_by_name as string) ?? "誰か";
+    const name = (n.payload?.project_name as string) ?? "";
+    return `${by}さんが新しいプロジェクトを作成しました: ${name}`;
+  }
+  if (n.type === "project_deleted") {
+    const by = (n.payload?.changed_by_name as string) ?? "誰か";
+    const name = (n.payload?.project_name as string) ?? "";
+    return `${by}さんがプロジェクトを削除しました: ${name}`;
+  }
   return n.type;
 }
 
@@ -175,5 +187,7 @@ function NotificationIcon({ type, className }: { type: string; className?: strin
   if (type === "unassigned") return <UserMinus className={className} />;
   if (type === "project_joined") return <LogIn className={className} />;
   if (type === "project_removed") return <LogOut className={className} />;
+  if (type === "project_created") return <FolderPlus className={className} />;
+  if (type === "project_deleted") return <FolderX className={className} />;
   return <AtSign className={className} />;
 }
