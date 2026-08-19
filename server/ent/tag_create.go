@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
+	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -57,6 +58,20 @@ func (_c *TagCreate) SetWorkspaceID(v uuid.UUID) *TagCreate {
 	return _c
 }
 
+// SetProjectID sets the "project_id" field.
+func (_c *TagCreate) SetProjectID(v uuid.UUID) *TagCreate {
+	_c.mutation.SetProjectID(v)
+	return _c
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (_c *TagCreate) SetNillableProjectID(v *uuid.UUID) *TagCreate {
+	if v != nil {
+		_c.SetProjectID(*v)
+	}
+	return _c
+}
+
 // SetName sets the "name" field.
 func (_c *TagCreate) SetName(v string) *TagCreate {
 	_c.mutation.SetName(v)
@@ -86,6 +101,11 @@ func (_c *TagCreate) SetNillableID(v *uuid.UUID) *TagCreate {
 // SetWorkspace sets the "workspace" edge to the Workspace entity.
 func (_c *TagCreate) SetWorkspace(v *Workspace) *TagCreate {
 	return _c.SetWorkspaceID(v.ID)
+}
+
+// SetProject sets the "project" edge to the Project entity.
+func (_c *TagCreate) SetProject(v *Project) *TagCreate {
+	return _c.SetProjectID(v.ID)
 }
 
 // AddTaskIDs adds the "tasks" edge to the TaskTag entity by IDs.
@@ -248,6 +268,23 @@ func (_c *TagCreate) createSpec() (*Tag, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.WorkspaceID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ProjectIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   tag.ProjectTable,
+			Columns: []string{tag.ProjectColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(project.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.ProjectID = &nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	if nodes := _c.mutation.TasksIDs(); len(nodes) > 0 {

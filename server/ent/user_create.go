@@ -135,6 +135,20 @@ func (_c *UserCreate) SetNillableCalendarSyncMode(v *user.CalendarSyncMode) *Use
 	return _c
 }
 
+// SetHoverHighlightMode sets the "hover_highlight_mode" field.
+func (_c *UserCreate) SetHoverHighlightMode(v user.HoverHighlightMode) *UserCreate {
+	_c.mutation.SetHoverHighlightMode(v)
+	return _c
+}
+
+// SetNillableHoverHighlightMode sets the "hover_highlight_mode" field if the given value is not nil.
+func (_c *UserCreate) SetNillableHoverHighlightMode(v *user.HoverHighlightMode) *UserCreate {
+	if v != nil {
+		_c.SetHoverHighlightMode(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *UserCreate) SetID(v uuid.UUID) *UserCreate {
 	_c.mutation.SetID(v)
@@ -376,6 +390,10 @@ func (_c *UserCreate) defaults() {
 		v := user.DefaultCalendarSyncEnabled
 		_c.mutation.SetCalendarSyncEnabled(v)
 	}
+	if _, ok := _c.mutation.HoverHighlightMode(); !ok {
+		v := user.DefaultHoverHighlightMode
+		_c.mutation.SetHoverHighlightMode(v)
+	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := user.DefaultID()
 		_c.mutation.SetID(v)
@@ -420,6 +438,14 @@ func (_c *UserCreate) check() error {
 	if v, ok := _c.mutation.CalendarSyncMode(); ok {
 		if err := user.CalendarSyncModeValidator(v); err != nil {
 			return &ValidationError{Name: "calendar_sync_mode", err: fmt.Errorf(`ent: validator failed for field "User.calendar_sync_mode": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.HoverHighlightMode(); !ok {
+		return &ValidationError{Name: "hover_highlight_mode", err: errors.New(`ent: missing required field "User.hover_highlight_mode"`)}
+	}
+	if v, ok := _c.mutation.HoverHighlightMode(); ok {
+		if err := user.HoverHighlightModeValidator(v); err != nil {
+			return &ValidationError{Name: "hover_highlight_mode", err: fmt.Errorf(`ent: validator failed for field "User.hover_highlight_mode": %w`, err)}
 		}
 	}
 	return nil
@@ -492,6 +518,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CalendarSyncMode(); ok {
 		_spec.SetField(user.FieldCalendarSyncMode, field.TypeEnum, value)
 		_node.CalendarSyncMode = &value
+	}
+	if value, ok := _c.mutation.HoverHighlightMode(); ok {
+		_spec.SetField(user.FieldHoverHighlightMode, field.TypeEnum, value)
+		_node.HoverHighlightMode = value
 	}
 	if nodes := _c.mutation.WorkspaceMembersIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

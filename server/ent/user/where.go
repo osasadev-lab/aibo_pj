@@ -561,6 +561,26 @@ func CalendarSyncModeNotNil() predicate.User {
 	return predicate.User(sql.FieldNotNull(FieldCalendarSyncMode))
 }
 
+// HoverHighlightModeEQ applies the EQ predicate on the "hover_highlight_mode" field.
+func HoverHighlightModeEQ(v HoverHighlightMode) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldHoverHighlightMode, v))
+}
+
+// HoverHighlightModeNEQ applies the NEQ predicate on the "hover_highlight_mode" field.
+func HoverHighlightModeNEQ(v HoverHighlightMode) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldHoverHighlightMode, v))
+}
+
+// HoverHighlightModeIn applies the In predicate on the "hover_highlight_mode" field.
+func HoverHighlightModeIn(vs ...HoverHighlightMode) predicate.User {
+	return predicate.User(sql.FieldIn(FieldHoverHighlightMode, vs...))
+}
+
+// HoverHighlightModeNotIn applies the NotIn predicate on the "hover_highlight_mode" field.
+func HoverHighlightModeNotIn(vs ...HoverHighlightMode) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldHoverHighlightMode, vs...))
+}
+
 // HasWorkspaceMembers applies the HasEdge predicate on the "workspace_members" edge.
 func HasWorkspaceMembers() predicate.User {
 	return predicate.User(func(s *sql.Selector) {

@@ -36,7 +36,12 @@ func RequireTaskAccess(client *ent.Client) gin.HandlerFunc {
 
 		ctx := c.Request.Context()
 
-		t, err := client.Task.Query().Where(task.IDEQ(taskID)).WithAssignees().WithMentions().Only(ctx)
+		// この関数は全タスク関連エンドポイント（担当者/タグ入替、依存関係、添付ファイル、
+		// 子タスク等）で毎回実行されるため、ここではeager-loadしない（パフォーマンス上の
+		// 理由。以前はWithAssignees/WithMentions/WithTagsを常時eager-loadしていたが、
+		// 実際にそれらを使うのはGET /tasks/:task_idのレスポンスのみだったため、
+		// TaskHandler.Get側で必要な時だけ取得するよう変更した）。
+		t, err := client.Task.Query().Where(task.IDEQ(taskID)).Only(ctx)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "task not found"})
 			return

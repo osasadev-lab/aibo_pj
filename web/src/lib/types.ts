@@ -28,3 +28,12 @@ export type Workspace = {
   name: string;
   role: "owner" | "member";
 };
+
+// タグ。project_idがnullならワークスペース共通タグ（Owner限定管理、単体タスク・
+// 全プロジェクトのタスクから使える）、非nullならそのプロジェクト専用タグ。
+export type Tag = {
+  id: string;
+  project_id: string | null;
+  name: string;
+  color: string;
+};

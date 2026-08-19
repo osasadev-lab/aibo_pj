@@ -26,6 +26,7 @@ type Props<T> = {
   itemsByColumn: Record<string, T[]>;
   getItemId: (item: T) => string;
   renderCard: (item: T) => ReactNode;
+  cardClassName?: (item: T) => string | undefined;
   onDrop: (itemId: string, columnId: string) => void;
   onReorderColumns?: (orderedColumnIds: string[]) => void;
   renderColumnFooter?: (columnId: string) => ReactNode;
@@ -53,6 +54,7 @@ export default function KanbanBoard<T>({
   itemsByColumn,
   getItemId,
   renderCard,
+  cardClassName,
   onDrop,
   onReorderColumns,
   renderColumnFooter,
@@ -97,7 +99,7 @@ export default function KanbanBoard<T>({
               label={renderColumnLabel?.(col.id, col.label)}
             >
               {(itemsByColumn[col.id] ?? []).map((item) => (
-                <KanbanCard key={getItemId(item)} id={getItemId(item)}>
+                <KanbanCard key={getItemId(item)} id={getItemId(item)} className={cardClassName?.(item)}>
                   {renderCard(item)}
                 </KanbanCard>
               ))}
@@ -176,7 +178,15 @@ function KanbanColumn({
 // ドラッグリスナーはカード全体ではなく専用ハンドル（⠿）にのみ付ける。
 // カード全体に付けると、内部のボタン（タスク展開等）の最初のクリックを
 // dnd-kitのPointerSensorが取りこぼす現象があったため（実機確認済み）。
-function KanbanCard({ id, children }: { id: string; children: ReactNode }) {
+function KanbanCard({
+  id,
+  children,
+  className,
+}: {
+  id: string;
+  children: ReactNode;
+  className?: string;
+}) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id,
     data: { type: "card" },
@@ -191,6 +201,7 @@ function KanbanCard({ id, children }: { id: string; children: ReactNode }) {
       className={clsx(
         "group flex items-start gap-1 rounded-lg border border-border bg-surface p-2.5 text-sm shadow-sm transition-shadow hover:shadow-md",
         isDragging && "opacity-50",
+        className,
       )}
     >
       <span

@@ -36,6 +36,8 @@ type User struct {
 	CalendarSyncEnabled bool `json:"calendar_sync_enabled,omitempty"`
 	// CalendarSyncMode holds the value of the "calendar_sync_mode" field.
 	CalendarSyncMode *user.CalendarSyncMode `json:"calendar_sync_mode,omitempty"`
+	// HoverHighlightMode holds the value of the "hover_highlight_mode" field.
+	HoverHighlightMode user.HoverHighlightMode `json:"hover_highlight_mode,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges        UserEdges `json:"edges"`
@@ -188,7 +190,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldCalendarSyncEnabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldGoogleSub, user.FieldEmail, user.FieldName, user.FieldAvatarURL, user.FieldGoogleRefreshToken, user.FieldCalendarSyncMode:
+		case user.FieldGoogleSub, user.FieldEmail, user.FieldName, user.FieldAvatarURL, user.FieldGoogleRefreshToken, user.FieldCalendarSyncMode, user.FieldHoverHighlightMode:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -271,6 +273,12 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CalendarSyncMode = new(user.CalendarSyncMode)
 				*_m.CalendarSyncMode = user.CalendarSyncMode(value.String)
+			}
+		case user.FieldHoverHighlightMode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field hover_highlight_mode", values[i])
+			} else if value.Valid {
+				_m.HoverHighlightMode = user.HoverHighlightMode(value.String)
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -397,6 +405,9 @@ func (_m *User) String() string {
 		builder.WriteString("calendar_sync_mode=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("hover_highlight_mode=")
+	builder.WriteString(fmt.Sprintf("%v", _m.HoverHighlightMode))
 	builder.WriteByte(')')
 	return builder.String()
 }

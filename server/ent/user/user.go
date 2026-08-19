@@ -34,6 +34,8 @@ const (
 	FieldCalendarSyncEnabled = "calendar_sync_enabled"
 	// FieldCalendarSyncMode holds the string denoting the calendar_sync_mode field in the database.
 	FieldCalendarSyncMode = "calendar_sync_mode"
+	// FieldHoverHighlightMode holds the string denoting the hover_highlight_mode field in the database.
+	FieldHoverHighlightMode = "hover_highlight_mode"
 	// EdgeWorkspaceMembers holds the string denoting the workspace_members edge name in mutations.
 	EdgeWorkspaceMembers = "workspace_members"
 	// EdgeProjectMembers holds the string denoting the project_members edge name in mutations.
@@ -158,6 +160,7 @@ var Columns = []string{
 	FieldGoogleRefreshToken,
 	FieldCalendarSyncEnabled,
 	FieldCalendarSyncMode,
+	FieldHoverHighlightMode,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -212,6 +215,34 @@ func CalendarSyncModeValidator(csm CalendarSyncMode) error {
 	}
 }
 
+// HoverHighlightMode defines the type for the "hover_highlight_mode" enum field.
+type HoverHighlightMode string
+
+// HoverHighlightModeOff is the default value of the HoverHighlightMode enum.
+const DefaultHoverHighlightMode = HoverHighlightModeOff
+
+// HoverHighlightMode values.
+const (
+	HoverHighlightModeOff        HoverHighlightMode = "off"
+	HoverHighlightModeTag        HoverHighlightMode = "tag"
+	HoverHighlightModeDependency HoverHighlightMode = "dependency"
+	HoverHighlightModeSubtask    HoverHighlightMode = "subtask"
+)
+
+func (hhm HoverHighlightMode) String() string {
+	return string(hhm)
+}
+
+// HoverHighlightModeValidator is a validator for the "hover_highlight_mode" field enum values. It is called by the builders before save.
+func HoverHighlightModeValidator(hhm HoverHighlightMode) error {
+	switch hhm {
+	case HoverHighlightModeOff, HoverHighlightModeTag, HoverHighlightModeDependency, HoverHighlightModeSubtask:
+		return nil
+	default:
+		return fmt.Errorf("user: invalid enum value for hover_highlight_mode field: %q", hhm)
+	}
+}
+
 // OrderOption defines the ordering options for the User queries.
 type OrderOption func(*sql.Selector)
 
@@ -263,6 +294,11 @@ func ByCalendarSyncEnabled(opts ...sql.OrderTermOption) OrderOption {
 // ByCalendarSyncMode orders the results by the calendar_sync_mode field.
 func ByCalendarSyncMode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCalendarSyncMode, opts...).ToFunc()
+}
+
+// ByHoverHighlightMode orders the results by the hover_highlight_mode field.
+func ByHoverHighlightMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldHoverHighlightMode, opts...).ToFunc()
 }
 
 // ByWorkspaceMembersCount orders the results by workspace_members count.

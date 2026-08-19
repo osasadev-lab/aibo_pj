@@ -13,6 +13,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	internalauth "github.com/osasadev-lab/aibo_pj/server/internal/auth"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 )
 
 // AuthHandler は /auth 配下のエンドポイントを扱う。
@@ -23,11 +24,14 @@ type AuthHandler struct {
 	supabaseJWTSecret string
 	frontendURL       string
 	cookieSecure      bool
+	r2                *storage.R2Client
 }
 
 // NewAuthHandler はAuthHandlerを構築する。cookieSecureは本番(HTTPS)ではtrue、
-// ローカルのhttp開発ではfalseを渡す。
-func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, supabaseJWTSecret, frontendURL string, cookieSecure bool) *AuthHandler {
+// ローカルのhttp開発ではfalseを渡す。r2はGET /auth/meのstorage_enabledフラグに
+// 使う（未設定＝ローカル開発でR2を無効化中でも、フロントが添付ファイルUIを
+// 出さないようにするための情報。ユーザー確認済みの方針）。
+func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, supabaseJWTSecret, frontendURL string, cookieSecure bool, r2 *storage.R2Client) *AuthHandler {
 	return &AuthHandler{
 		client:            client,
 		oauthConfig:       internalauth.NewGoogleOAuthConfig(clientID, clientSecret, redirectURL),
@@ -35,6 +39,7 @@ func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwt
 		supabaseJWTSecret: supabaseJWTSecret,
 		frontendURL:       frontendURL,
 		cookieSecure:      cookieSecure,
+		r2:                r2,
 	}
 }
 
@@ -156,11 +161,43 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 func (h *AuthHandler) Me(c *gin.Context) {
 	u := middleware.CurrentUser(c)
 	c.JSON(http.StatusOK, gin.H{
-		"id":         u.ID,
-		"email":      u.Email,
-		"name":       u.Name,
-		"avatar_url": u.AvatarURL,
+		"id":              u.ID,
+		"email":           u.Email,
+		"name":            u.Name,
+		"avatar_url":      u.AvatarURL,
+		"storage_enabled": h.r2 != nil,
 	})
+}
+
+// GetHoverSettings は GET /me/hover-settings。カンバンのホバー強調モードの
+// 個人設定を返す（M4追加）。
+func (h *AuthHandler) GetHoverSettings(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	c.JSON(http.StatusOK, gin.H{"mode": u.HoverHighlightMode})
+}
+
+type updateHoverSettingsRequest struct {
+	Mode string `json:"mode" binding:"required,oneof=off tag dependency subtask"`
+}
+
+// UpdateHoverSettings は PATCH /me/hover-settings。
+func (h *AuthHandler) UpdateHoverSettings(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+
+	var req updateHoverSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mode must be one of off/tag/dependency"})
+		return
+	}
+
+	updated, err := h.client.User.UpdateOneID(u.ID).
+		SetHoverHighlightMode(user.HoverHighlightMode(req.Mode)).
+		Save(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update hover settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"mode": updated.HoverHighlightMode})
 }
 
 // SupabaseToken は GET /me/supabase-token。Supabase Realtimeのチャンネル認証用に、

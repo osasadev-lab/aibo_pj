@@ -10,12 +10,14 @@ import (
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
+	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
+	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
@@ -24,15 +26,17 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 )
 
 // ProjectHandler は /projects, /workspaces/:workspace_id/projects 配下を扱う。
 type ProjectHandler struct {
 	client *ent.Client
+	r2     *storage.R2Client
 }
 
-func NewProjectHandler(client *ent.Client) *ProjectHandler {
-	return &ProjectHandler{client: client}
+func NewProjectHandler(client *ent.Client, r2 *storage.R2Client) *ProjectHandler {
+	return &ProjectHandler{client: client, r2: r2}
 }
 
 // defaultStatusColumns はプロジェクト作成時に自動投入する既定4列（db-schema.md）。
@@ -103,9 +107,11 @@ func projectJSON(p *ent.Project) gin.H {
 }
 
 // List は GET /workspaces/:workspace_id/projects。
-// public全件 + privateは参画分のみを返す。
+// public全件 + privateは参画分のみを返す。各行にis_managerを含める
+// （設定画面でOwner/責任者が管理対象プロジェクトを判定するため）。
 func (h *ProjectHandler) List(c *gin.Context) {
 	m := middleware.CurrentMembership(c)
+	ctx := c.Request.Context()
 
 	projects, err := h.client.Project.Query().
 		Where(
@@ -115,15 +121,41 @@ func (h *ProjectHandler) List(c *gin.Context) {
 				project.HasMembersWith(projectmember.UserIDEQ(m.UserID)),
 			),
 		).
-		All(c.Request.Context())
+		All(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list projects"})
 		return
 	}
 
+	isOwner := m.Role == workspacemember.RoleOwner
+	managedProjectIDs := map[uuid.UUID]struct{}{}
+	if !isOwner && len(projects) > 0 {
+		ids := make([]uuid.UUID, 0, len(projects))
+		for _, p := range projects {
+			ids = append(ids, p.ID)
+		}
+		rows, err := h.client.ProjectMember.Query().
+			Where(
+				projectmember.UserIDEQ(m.UserID),
+				projectmember.RoleEQ(projectmember.RoleManager),
+				projectmember.ProjectIDIn(ids...),
+			).
+			All(ctx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to resolve managed projects"})
+			return
+		}
+		for _, r := range rows {
+			managedProjectIDs[r.ProjectID] = struct{}{}
+		}
+	}
+
 	out := make([]gin.H, 0, len(projects))
 	for _, p := range projects {
-		out = append(out, projectJSON(p))
+		row := projectJSON(p)
+		_, managed := managedProjectIDs[p.ID]
+		row["is_manager"] = isOwner || managed
+		out = append(out, row)
 	}
 	c.JSON(http.StatusOK, out)
 }
@@ -328,6 +360,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 	u := middleware.CurrentUser(c)
 	ctx := c.Request.Context()
 
+	var attachmentKeys []string
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		taskIDs, err := tx.Task.Query().
 			Where(task.ProjectIDEQ(p.ID)).
@@ -362,6 +395,17 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 			if _, err := tx.Comment.Delete().Where(comment.TaskIDIn(taskIDs...)).Exec(ctx); err != nil {
 				return err
 			}
+			// R2オブジェクトはDBコミット確定後に削除する（キーだけここで収集）。
+			attachments, err := tx.Attachment.Query().Where(attachment.TaskIDIn(taskIDs...)).All(ctx)
+			if err != nil {
+				return err
+			}
+			for _, a := range attachments {
+				attachmentKeys = append(attachmentKeys, a.StorageKey)
+			}
+			if _, err := tx.Attachment.Delete().Where(attachment.TaskIDIn(taskIDs...)).Exec(ctx); err != nil {
+				return err
+			}
 		}
 		// activity_logsはtask_id経由（このプロジェクトのタスク）とproject_id経由
 		// （project.created/updated等）の両方で参照され得るため両方消す。
@@ -384,6 +428,21 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		}
 		if _, err := tx.ProjectStatusColumn.Delete().Where(projectstatuscolumn.ProjectIDEQ(p.ID)).Exec(ctx); err != nil {
 			return err
+		}
+		// このプロジェクト専用タグ（project_id非nil）も削除する。
+		// task_tagsはこのプロジェクトのタスクの分は既に上で削除済みだが、
+		// タグ行自体はここで消す必要がある。
+		projectTagIDs, err := tx.Tag.Query().Where(tag.ProjectIDEQ(p.ID)).IDs(ctx)
+		if err != nil {
+			return err
+		}
+		if len(projectTagIDs) > 0 {
+			if _, err := tx.TaskTag.Delete().Where(tasktag.TagIDIn(projectTagIDs...)).Exec(ctx); err != nil {
+				return err
+			}
+			if _, err := tx.Tag.Delete().Where(tag.IDIn(projectTagIDs...)).Exec(ctx); err != nil {
+				return err
+			}
 		}
 		// project_members行を消す前に通知対象を確定しておく（private=参画メンバー
 		// 全員、public=ワークスペース全員。ともにactor自身は除く）。
@@ -432,6 +491,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete project"})
 		return
 	}
+	deleteR2Objects(ctx, h.r2, attachmentKeys)
 	c.Status(http.StatusNoContent)
 }
 

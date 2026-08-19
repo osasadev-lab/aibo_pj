@@ -71,6 +71,11 @@ func WorkspaceID(v uuid.UUID) predicate.Tag {
 	return predicate.Tag(sql.FieldEQ(FieldWorkspaceID, v))
 }
 
+// ProjectID applies equality check predicate on the "project_id" field. It's identical to ProjectIDEQ.
+func ProjectID(v uuid.UUID) predicate.Tag {
+	return predicate.Tag(sql.FieldEQ(FieldProjectID, v))
+}
+
 // Name applies equality check predicate on the "name" field. It's identical to NameEQ.
 func Name(v string) predicate.Tag {
 	return predicate.Tag(sql.FieldEQ(FieldName, v))
@@ -179,6 +184,36 @@ func WorkspaceIDIn(vs ...uuid.UUID) predicate.Tag {
 // WorkspaceIDNotIn applies the NotIn predicate on the "workspace_id" field.
 func WorkspaceIDNotIn(vs ...uuid.UUID) predicate.Tag {
 	return predicate.Tag(sql.FieldNotIn(FieldWorkspaceID, vs...))
+}
+
+// ProjectIDEQ applies the EQ predicate on the "project_id" field.
+func ProjectIDEQ(v uuid.UUID) predicate.Tag {
+	return predicate.Tag(sql.FieldEQ(FieldProjectID, v))
+}
+
+// ProjectIDNEQ applies the NEQ predicate on the "project_id" field.
+func ProjectIDNEQ(v uuid.UUID) predicate.Tag {
+	return predicate.Tag(sql.FieldNEQ(FieldProjectID, v))
+}
+
+// ProjectIDIn applies the In predicate on the "project_id" field.
+func ProjectIDIn(vs ...uuid.UUID) predicate.Tag {
+	return predicate.Tag(sql.FieldIn(FieldProjectID, vs...))
+}
+
+// ProjectIDNotIn applies the NotIn predicate on the "project_id" field.
+func ProjectIDNotIn(vs ...uuid.UUID) predicate.Tag {
+	return predicate.Tag(sql.FieldNotIn(FieldProjectID, vs...))
+}
+
+// ProjectIDIsNil applies the IsNil predicate on the "project_id" field.
+func ProjectIDIsNil() predicate.Tag {
+	return predicate.Tag(sql.FieldIsNull(FieldProjectID))
+}
+
+// ProjectIDNotNil applies the NotNil predicate on the "project_id" field.
+func ProjectIDNotNil() predicate.Tag {
+	return predicate.Tag(sql.FieldNotNull(FieldProjectID))
 }
 
 // NameEQ applies the EQ predicate on the "name" field.
@@ -326,6 +361,29 @@ func HasWorkspace() predicate.Tag {
 func HasWorkspaceWith(preds ...predicate.Workspace) predicate.Tag {
 	return predicate.Tag(func(s *sql.Selector) {
 		step := newWorkspaceStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasProject applies the HasEdge predicate on the "project" edge.
+func HasProject() predicate.Tag {
+	return predicate.Tag(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, ProjectTable, ProjectColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasProjectWith applies the HasEdge predicate on the "project" edge with a given conditions (other predicates).
+func HasProjectWith(preds ...predicate.Project) predicate.Tag {
+	return predicate.Tag(func(s *sql.Selector) {
+		step := newProjectStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

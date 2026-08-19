@@ -18,6 +18,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
+	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -36,6 +37,7 @@ type ProjectQuery struct {
 	withStatusColumns *ProjectStatusColumnQuery
 	withSections      *SectionQuery
 	withTasks         *TaskQuery
+	withTags          *TagQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -197,6 +199,28 @@ func (_q *ProjectQuery) QueryTasks() *TaskQuery {
 			sqlgraph.From(project.Table, project.FieldID, selector),
 			sqlgraph.To(task.Table, task.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, true, project.TasksTable, project.TasksColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryTags chains the current query on the "tags" edge.
+func (_q *ProjectQuery) QueryTags() *TagQuery {
+	query := (&TagClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(project.Table, project.FieldID, selector),
+			sqlgraph.To(tag.Table, tag.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, project.TagsTable, project.TagsColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -402,6 +426,7 @@ func (_q *ProjectQuery) Clone() *ProjectQuery {
 		withStatusColumns: _q.withStatusColumns.Clone(),
 		withSections:      _q.withSections.Clone(),
 		withTasks:         _q.withTasks.Clone(),
+		withTags:          _q.withTags.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -471,6 +496,17 @@ func (_q *ProjectQuery) WithTasks(opts ...func(*TaskQuery)) *ProjectQuery {
 		opt(query)
 	}
 	_q.withTasks = query
+	return _q
+}
+
+// WithTags tells the query-builder to eager-load the nodes that are connected to
+// the "tags" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *ProjectQuery) WithTags(opts ...func(*TagQuery)) *ProjectQuery {
+	query := (&TagClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withTags = query
 	return _q
 }
 
@@ -552,13 +588,14 @@ func (_q *ProjectQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Proj
 	var (
 		nodes       = []*Project{}
 		_spec       = _q.querySpec()
-		loadedTypes = [6]bool{
+		loadedTypes = [7]bool{
 			_q.withWorkspace != nil,
 			_q.withCreator != nil,
 			_q.withMembers != nil,
 			_q.withStatusColumns != nil,
 			_q.withSections != nil,
 			_q.withTasks != nil,
+			_q.withTags != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -616,6 +653,13 @@ func (_q *ProjectQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Proj
 		if err := _q.loadTasks(ctx, query, nodes,
 			func(n *Project) { n.Edges.Tasks = []*Task{} },
 			func(n *Project, e *Task) { n.Edges.Tasks = append(n.Edges.Tasks, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withTags; query != nil {
+		if err := _q.loadTags(ctx, query, nodes,
+			func(n *Project) { n.Edges.Tags = []*Tag{} },
+			func(n *Project, e *Tag) { n.Edges.Tags = append(n.Edges.Tags, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -785,6 +829,39 @@ func (_q *ProjectQuery) loadTasks(ctx context.Context, query *TaskQuery, nodes [
 	}
 	query.Where(predicate.Task(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(project.TasksColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.ProjectID
+		if fk == nil {
+			return fmt.Errorf(`foreign-key "project_id" is nil for node %v`, n.ID)
+		}
+		node, ok := nodeids[*fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "project_id" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *ProjectQuery) loadTags(ctx context.Context, query *TagQuery, nodes []*Project, init func(*Project), assign func(*Project, *Tag)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Project)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(tag.FieldProjectID)
+	}
+	query.Where(predicate.Tag(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(project.TagsColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

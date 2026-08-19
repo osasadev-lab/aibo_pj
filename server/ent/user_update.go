@@ -163,6 +163,20 @@ func (_u *UserUpdate) ClearCalendarSyncMode() *UserUpdate {
 	return _u
 }
 
+// SetHoverHighlightMode sets the "hover_highlight_mode" field.
+func (_u *UserUpdate) SetHoverHighlightMode(v user.HoverHighlightMode) *UserUpdate {
+	_u.mutation.SetHoverHighlightMode(v)
+	return _u
+}
+
+// SetNillableHoverHighlightMode sets the "hover_highlight_mode" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableHoverHighlightMode(v *user.HoverHighlightMode) *UserUpdate {
+	if v != nil {
+		_u.SetHoverHighlightMode(*v)
+	}
+	return _u
+}
+
 // AddWorkspaceMemberIDs adds the "workspace_members" edge to the WorkspaceMember entity by IDs.
 func (_u *UserUpdate) AddWorkspaceMemberIDs(ids ...uuid.UUID) *UserUpdate {
 	_u.mutation.AddWorkspaceMemberIDs(ids...)
@@ -658,6 +672,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "calendar_sync_mode", err: fmt.Errorf(`ent: validator failed for field "User.calendar_sync_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.HoverHighlightMode(); ok {
+		if err := user.HoverHighlightModeValidator(v); err != nil {
+			return &ValidationError{Name: "hover_highlight_mode", err: fmt.Errorf(`ent: validator failed for field "User.hover_highlight_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -705,6 +724,9 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.CalendarSyncModeCleared() {
 		_spec.ClearField(user.FieldCalendarSyncMode, field.TypeEnum)
+	}
+	if value, ok := _u.mutation.HoverHighlightMode(); ok {
+		_spec.SetField(user.FieldHoverHighlightMode, field.TypeEnum, value)
 	}
 	if _u.mutation.WorkspaceMembersCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1388,6 +1410,20 @@ func (_u *UserUpdateOne) ClearCalendarSyncMode() *UserUpdateOne {
 	return _u
 }
 
+// SetHoverHighlightMode sets the "hover_highlight_mode" field.
+func (_u *UserUpdateOne) SetHoverHighlightMode(v user.HoverHighlightMode) *UserUpdateOne {
+	_u.mutation.SetHoverHighlightMode(v)
+	return _u
+}
+
+// SetNillableHoverHighlightMode sets the "hover_highlight_mode" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableHoverHighlightMode(v *user.HoverHighlightMode) *UserUpdateOne {
+	if v != nil {
+		_u.SetHoverHighlightMode(*v)
+	}
+	return _u
+}
+
 // AddWorkspaceMemberIDs adds the "workspace_members" edge to the WorkspaceMember entity by IDs.
 func (_u *UserUpdateOne) AddWorkspaceMemberIDs(ids ...uuid.UUID) *UserUpdateOne {
 	_u.mutation.AddWorkspaceMemberIDs(ids...)
@@ -1896,6 +1932,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "calendar_sync_mode", err: fmt.Errorf(`ent: validator failed for field "User.calendar_sync_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.HoverHighlightMode(); ok {
+		if err := user.HoverHighlightModeValidator(v); err != nil {
+			return &ValidationError{Name: "hover_highlight_mode", err: fmt.Errorf(`ent: validator failed for field "User.hover_highlight_mode": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1960,6 +2001,9 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if _u.mutation.CalendarSyncModeCleared() {
 		_spec.ClearField(user.FieldCalendarSyncMode, field.TypeEnum)
+	}
+	if value, ok := _u.mutation.HoverHighlightMode(); ok {
+		_spec.SetField(user.FieldHoverHighlightMode, field.TypeEnum, value)
 	}
 	if _u.mutation.WorkspaceMembersCleared() {
 		edge := &sqlgraph.EdgeSpec{

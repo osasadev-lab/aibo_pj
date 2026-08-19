@@ -307,6 +307,7 @@ var (
 		{Name: "name", Type: field.TypeString},
 		{Name: "color", Type: field.TypeString},
 		{Name: "workspace_id", Type: field.TypeUUID},
+		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
 	}
 	// TagsTable holds the schema information for the "tags" table.
 	TagsTable = &schema.Table{
@@ -320,12 +321,18 @@ var (
 				RefColumns: []*schema.Column{WorkspacesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
+			{
+				Symbol:     "tags_projects_project",
+				Columns:    []*schema.Column{TagsColumns[6]},
+				RefColumns: []*schema.Column{ProjectsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "tag_workspace_id_name",
+				Name:    "tag_workspace_id_project_id_name",
 				Unique:  true,
-				Columns: []*schema.Column{TagsColumns[5], TagsColumns[3]},
+				Columns: []*schema.Column{TagsColumns[5], TagsColumns[6], TagsColumns[3]},
 			},
 		},
 	}
@@ -597,6 +604,7 @@ var (
 		{Name: "google_refresh_token", Type: field.TypeString, Nullable: true},
 		{Name: "calendar_sync_enabled", Type: field.TypeBool, Default: false},
 		{Name: "calendar_sync_mode", Type: field.TypeEnum, Nullable: true, Enums: []string{"auto", "manual"}},
+		{Name: "hover_highlight_mode", Type: field.TypeEnum, Enums: []string{"off", "tag", "dependency", "subtask"}, Default: "off"},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
@@ -733,6 +741,7 @@ func init() {
 	ProjectStatusColumnsTable.ForeignKeys[0].RefTable = ProjectsTable
 	SectionsTable.ForeignKeys[0].RefTable = ProjectsTable
 	TagsTable.ForeignKeys[0].RefTable = WorkspacesTable
+	TagsTable.ForeignKeys[1].RefTable = ProjectsTable
 	TasksTable.ForeignKeys[0].RefTable = WorkspacesTable
 	TasksTable.ForeignKeys[1].RefTable = ProjectsTable
 	TasksTable.ForeignKeys[2].RefTable = SectionsTable

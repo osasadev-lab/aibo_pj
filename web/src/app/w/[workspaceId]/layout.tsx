@@ -3,13 +3,29 @@
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowLeftRight, Bell, Folder, Globe, ListChecks, Lock, LogOut, Trash2, Users } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Bell,
+  Check,
+  Folder,
+  Globe,
+  ListChecks,
+  Lock,
+  LogOut,
+  Pencil,
+  Settings,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth/useAuth";
 import Avatar from "@/components/ui/Avatar";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import IconButton from "@/components/ui/IconButton";
+import { Input } from "@/components/ui/fields";
 import MembersPanel from "@/components/MembersPanel";
 import NotificationsPanel from "@/components/NotificationsPanel";
 import { ProjectsProvider, useProjects } from "@/lib/workspace/ProjectsContext";
@@ -46,11 +62,16 @@ export default function WorkspaceLayout({ children }: { children: ReactNode }) {
 
 function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
   const params = useParams<{ workspaceId: string }>();
   const { projects } = useProjects();
 
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [editingWorkspaceName, setEditingWorkspaceName] = useState(false);
+  const [workspaceNameDraft, setWorkspaceNameDraft] = useState("");
+  const [showDeleteWorkspaceConfirm, setShowDeleteWorkspaceConfirm] = useState(false);
+  const [deleteWorkspaceError, setDeleteWorkspaceError] = useState<string | null>(null);
   // メンバー・通知は別ルートへ遷移せず、現在のページ（プロジェクトのカンバンや
   // マイタスク等）を残したまま右サイドバーに重ねて開く。ページ遷移だと直前の
   // 画面が丸ごとアンマウントされてタスクが見えなくなってしまうため。
@@ -78,29 +99,108 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
     refreshUnread();
   }, []);
 
+  const isWorkspaceOwner = workspace?.role === "owner";
+
+  async function handleRenameWorkspace(e: React.FormEvent) {
+    e.preventDefault();
+    if (!workspaceNameDraft.trim()) return;
+    try {
+      const updated = await apiFetch<Workspace>(`/workspaces/${params.workspaceId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: workspaceNameDraft.trim() }),
+      });
+      setWorkspace((prev) => (prev ? { ...prev, name: updated.name } : prev));
+      setEditingWorkspaceName(false);
+    } catch {
+      // 失敗時は編集フォームを残す（ユーザーが再試行できるように）。
+    }
+  }
+
+  async function handleDeleteWorkspace() {
+    setDeleteWorkspaceError(null);
+    try {
+      await apiFetch(`/workspaces/${params.workspaceId}`, { method: "DELETE" });
+      router.replace("/workspaces");
+    } catch {
+      setDeleteWorkspaceError("ワークスペースの削除に失敗しました");
+    }
+  }
+
   if (!user) return null;
 
   const projectsHref = `/w/${params.workspaceId}/projects`;
   const myTasksHref = `/w/${params.workspaceId}/my-tasks`;
+  const settingsHref = `/w/${params.workspaceId}/settings`;
 
   return (
     <div className="flex min-h-screen bg-background">
       <aside className="flex w-72 shrink-0 flex-col border-r border-border bg-surface">
-        <Link
-          href="/workspaces"
-          className="group flex items-center gap-2 border-b border-border px-4 py-4 transition-colors hover:bg-surface-muted"
-        >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-sm font-semibold text-white">
-            {workspace?.name?.slice(0, 1) ?? "…"}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-sm font-semibold text-foreground">{workspace?.name ?? "..."}</span>
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <ArrowLeftRight className="h-3 w-3" />
-              切替
+        {editingWorkspaceName ? (
+          <form
+            onSubmit={handleRenameWorkspace}
+            className="flex items-center gap-1.5 border-b border-border px-4 py-4"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-sm font-semibold text-white">
+              {workspace?.name?.slice(0, 1) ?? "…"}
             </span>
-          </span>
-        </Link>
+            <Input
+              autoFocus
+              value={workspaceNameDraft}
+              onChange={(e) => setWorkspaceNameDraft(e.target.value)}
+              className="h-8 min-w-0 flex-1 py-1 text-sm"
+            />
+            <IconButton size="sm" type="submit" title="保存">
+              <Check className="h-3.5 w-3.5" />
+            </IconButton>
+            <IconButton size="sm" type="button" title="取消" onClick={() => setEditingWorkspaceName(false)}>
+              <X className="h-3.5 w-3.5" />
+            </IconButton>
+          </form>
+        ) : (
+          <div className="group flex items-center gap-1 border-b border-border px-4 py-4">
+            <Link
+              href="/workspaces"
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-lg transition-colors hover:bg-surface-muted"
+            >
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-sm font-semibold text-white">
+                {workspace?.name?.slice(0, 1) ?? "…"}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-foreground">
+                  {workspace?.name ?? "..."}
+                </span>
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <ArrowLeftRight className="h-3 w-3" />
+                  切替
+                </span>
+              </span>
+            </Link>
+            {isWorkspaceOwner && (
+              <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                <IconButton
+                  size="sm"
+                  title="ワークスペース名を編集"
+                  onClick={() => {
+                    setWorkspaceNameDraft(workspace?.name ?? "");
+                    setEditingWorkspaceName(true);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </IconButton>
+                <IconButton
+                  size="sm"
+                  title="ワークスペースを削除"
+                  onClick={() => {
+                    setDeleteWorkspaceError(null);
+                    setShowDeleteWorkspaceConfirm(true);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5 hover:text-red-600" />
+                </IconButton>
+              </div>
+            )}
+          </div>
+        )}
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-3">
           <NavLink href={projectsHref} label="プロジェクト" icon={Folder} active={pathname === projectsHref} />
@@ -135,6 +235,7 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
             emphasize={hasUnread}
             onClick={() => setShowNotifications(true)}
           />
+          <NavLink href={settingsHref} label="設定" icon={Settings} active={pathname === settingsHref} />
         </nav>
 
         <div className="flex items-center gap-2 border-t border-border px-3 py-3">
@@ -160,6 +261,15 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={showDeleteWorkspaceConfirm}
+        title="ワークスペースを削除しますか？"
+        message={`「${workspace?.name ?? ""}」を削除すると、配下の全プロジェクト・タスク・メンバー・添付ファイル等がすべて削除されます。この操作は取り消せません。`}
+        error={deleteWorkspaceError}
+        onConfirm={handleDeleteWorkspace}
+        onCancel={() => setShowDeleteWorkspaceConfirm(false)}
+      />
     </div>
   );
 }

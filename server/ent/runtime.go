@@ -260,11 +260,11 @@ func init() {
 	// tag.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
 	tag.UpdateDefaultUpdatedAt = tagDescUpdatedAt.UpdateDefault.(func() time.Time)
 	// tagDescName is the schema descriptor for name field.
-	tagDescName := tagFields[1].Descriptor()
+	tagDescName := tagFields[2].Descriptor()
 	// tag.NameValidator is a validator for the "name" field. It is called by the builders before save.
 	tag.NameValidator = tagDescName.Validators[0].(func(string) error)
 	// tagDescColor is the schema descriptor for color field.
-	tagDescColor := tagFields[2].Descriptor()
+	tagDescColor := tagFields[3].Descriptor()
 	// tag.ColorValidator is a validator for the "color" field. It is called by the builders before save.
 	tag.ColorValidator = tagDescColor.Validators[0].(func(string) error)
 	// tagDescID is the schema descriptor for id field.

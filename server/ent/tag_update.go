@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/predicate"
+	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -51,6 +52,26 @@ func (_u *TagUpdate) SetNillableWorkspaceID(v *uuid.UUID) *TagUpdate {
 	return _u
 }
 
+// SetProjectID sets the "project_id" field.
+func (_u *TagUpdate) SetProjectID(v uuid.UUID) *TagUpdate {
+	_u.mutation.SetProjectID(v)
+	return _u
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (_u *TagUpdate) SetNillableProjectID(v *uuid.UUID) *TagUpdate {
+	if v != nil {
+		_u.SetProjectID(*v)
+	}
+	return _u
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (_u *TagUpdate) ClearProjectID() *TagUpdate {
+	_u.mutation.ClearProjectID()
+	return _u
+}
+
 // SetName sets the "name" field.
 func (_u *TagUpdate) SetName(v string) *TagUpdate {
 	_u.mutation.SetName(v)
@@ -84,6 +105,11 @@ func (_u *TagUpdate) SetWorkspace(v *Workspace) *TagUpdate {
 	return _u.SetWorkspaceID(v.ID)
 }
 
+// SetProject sets the "project" edge to the Project entity.
+func (_u *TagUpdate) SetProject(v *Project) *TagUpdate {
+	return _u.SetProjectID(v.ID)
+}
+
 // AddTaskIDs adds the "tasks" edge to the TaskTag entity by IDs.
 func (_u *TagUpdate) AddTaskIDs(ids ...uuid.UUID) *TagUpdate {
 	_u.mutation.AddTaskIDs(ids...)
@@ -107,6 +133,12 @@ func (_u *TagUpdate) Mutation() *TagMutation {
 // ClearWorkspace clears the "workspace" edge to the Workspace entity.
 func (_u *TagUpdate) ClearWorkspace() *TagUpdate {
 	_u.mutation.ClearWorkspace()
+	return _u
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (_u *TagUpdate) ClearProject() *TagUpdate {
+	_u.mutation.ClearProject()
 	return _u
 }
 
@@ -235,6 +267,35 @@ func (_u *TagUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.ProjectCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   tag.ProjectTable,
+			Columns: []string{tag.ProjectColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(project.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ProjectIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   tag.ProjectTable,
+			Columns: []string{tag.ProjectColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(project.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _u.mutation.TasksCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -320,6 +381,26 @@ func (_u *TagUpdateOne) SetNillableWorkspaceID(v *uuid.UUID) *TagUpdateOne {
 	return _u
 }
 
+// SetProjectID sets the "project_id" field.
+func (_u *TagUpdateOne) SetProjectID(v uuid.UUID) *TagUpdateOne {
+	_u.mutation.SetProjectID(v)
+	return _u
+}
+
+// SetNillableProjectID sets the "project_id" field if the given value is not nil.
+func (_u *TagUpdateOne) SetNillableProjectID(v *uuid.UUID) *TagUpdateOne {
+	if v != nil {
+		_u.SetProjectID(*v)
+	}
+	return _u
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (_u *TagUpdateOne) ClearProjectID() *TagUpdateOne {
+	_u.mutation.ClearProjectID()
+	return _u
+}
+
 // SetName sets the "name" field.
 func (_u *TagUpdateOne) SetName(v string) *TagUpdateOne {
 	_u.mutation.SetName(v)
@@ -353,6 +434,11 @@ func (_u *TagUpdateOne) SetWorkspace(v *Workspace) *TagUpdateOne {
 	return _u.SetWorkspaceID(v.ID)
 }
 
+// SetProject sets the "project" edge to the Project entity.
+func (_u *TagUpdateOne) SetProject(v *Project) *TagUpdateOne {
+	return _u.SetProjectID(v.ID)
+}
+
 // AddTaskIDs adds the "tasks" edge to the TaskTag entity by IDs.
 func (_u *TagUpdateOne) AddTaskIDs(ids ...uuid.UUID) *TagUpdateOne {
 	_u.mutation.AddTaskIDs(ids...)
@@ -376,6 +462,12 @@ func (_u *TagUpdateOne) Mutation() *TagMutation {
 // ClearWorkspace clears the "workspace" edge to the Workspace entity.
 func (_u *TagUpdateOne) ClearWorkspace() *TagUpdateOne {
 	_u.mutation.ClearWorkspace()
+	return _u
+}
+
+// ClearProject clears the "project" edge to the Project entity.
+func (_u *TagUpdateOne) ClearProject() *TagUpdateOne {
+	_u.mutation.ClearProject()
 	return _u
 }
 
@@ -527,6 +619,35 @@ func (_u *TagUpdateOne) sqlSave(ctx context.Context) (_node *Tag, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(workspace.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ProjectCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   tag.ProjectTable,
+			Columns: []string{tag.ProjectColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(project.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ProjectIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   tag.ProjectTable,
+			Columns: []string{tag.ProjectColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(project.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

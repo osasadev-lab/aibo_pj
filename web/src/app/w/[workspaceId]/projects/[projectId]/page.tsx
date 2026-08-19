@@ -2,15 +2,17 @@
 
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { Calendar, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Calendar, Check, CornerDownRight, Pencil, Plus, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 
 import { apiFetch, ApiError } from "@/lib/apiClient";
 import KanbanBoard from "@/components/kanban/KanbanBoard";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import Button from "@/components/ui/Button";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import IconButton from "@/components/ui/IconButton";
 import Avatar from "@/components/ui/Avatar";
+import Badge from "@/components/ui/Badge";
 import { Input, Select, Textarea } from "@/components/ui/fields";
 import { useProjects } from "@/lib/workspace/ProjectsContext";
 import { useCurrentProject } from "@/lib/workspace/CurrentProjectContext";
@@ -34,7 +36,12 @@ type Task = {
   priority: "low" | "medium" | "high" | null;
   due_date: string | null;
   assignee_ids?: string[];
+  has_incomplete_dependencies?: boolean;
+  tags?: { id: string; name: string; color: string }[];
+  depends_on_task_ids?: string[];
 };
+
+type HoverMode = "off" | "tag" | "dependency" | "subtask";
 
 const MAPS_TO_STATUS_OPTIONS = [
   { value: "not_started", label: "未対応" },
@@ -62,6 +69,9 @@ export default function ProjectDetailPage() {
   const [members, setMembers] = useState<MemberSummary[]>([]);
   const [columns, setColumns] = useState<StatusColumn[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [hoverMode, setHoverMode] = useState<HoverMode>("off");
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
+  const [pendingDoneDrop, setPendingDoneDrop] = useState<{ taskId: string; columnId: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [addingToColumn, setAddingToColumn] = useState<string | null>(null);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -88,7 +98,63 @@ export default function ProjectDetailPage() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    apiFetch<{ mode: HoverMode }>("/me/hover-settings")
+      .then((res) => setHoverMode(res.mode))
+      .catch(() => {});
+  }, []);
+
   const nameFor = (userId: string) => members.find((m) => m.user_id === userId)?.name ?? "?";
+
+  // ホバー中カードと関連する（同じ画面内の）カードのidセット。tagモード＝
+  // タグが1つ以上一致、dependencyモード＝先行/後続タスク、subtaskモード＝
+  // 親タスク/子タスクの関係。offなら空集合。
+  const highlightedTaskIds = (() => {
+    if (hoverMode === "off" || !hoveredTaskId) return new Set<string>();
+    const hovered = tasks.find((t) => t.id === hoveredTaskId);
+    if (!hovered) return new Set<string>();
+    if (hoverMode === "tag") {
+      const hoveredTagIds = new Set((hovered.tags ?? []).map((tag) => tag.id));
+      if (hoveredTagIds.size === 0) return new Set<string>();
+      return new Set(
+        tasks
+          .filter((t) => t.id !== hovered.id && (t.tags ?? []).some((tag) => hoveredTagIds.has(tag.id)))
+          .map((t) => t.id),
+      );
+    }
+    if (hoverMode === "subtask") {
+      // 親タスクをホバー＝その子タスク群を強調、子タスクをホバー＝親タスクを強調。
+      const related = new Set<string>();
+      if (hovered.parent_task_id) related.add(hovered.parent_task_id);
+      tasks.forEach((t) => {
+        if (t.parent_task_id === hovered.id) related.add(t.id);
+      });
+      return related;
+    }
+    // 「後続タスク」はサーバーからは配られない（往復削減のため）。他タスクの
+    // depends_on_task_idsにこのタスクのidが含まれるかで逆引きする。
+    const related = new Set(hovered.depends_on_task_ids ?? []);
+    tasks.forEach((t) => {
+      if ((t.depends_on_task_ids ?? []).includes(hovered.id)) related.add(t.id);
+    });
+    return new Set(tasks.filter((t) => related.has(t.id)).map((t) => t.id));
+  })();
+
+  // D&D後、ローカルのtasks状態だけを見てhas_incomplete_dependenciesを再計算する
+  // （サーバー再取得なしで、移動したタスクを先行タスクに持つ他カードのバッジを
+  // 即座に更新するため）。先行タスクの一部が画面外（別プロジェクト等）で解決
+  // できない場合は判定不能として現状の値を維持する（誤ってバッジを消さないため）。
+  function recomputeIncompleteFlags(list: Task[]): Task[] {
+    const byId = new Map(list.map((t) => [t.id, t]));
+    return list.map((t) => {
+      const deps = t.depends_on_task_ids ?? [];
+      if (deps.length === 0) return t;
+      const resolved = deps.map((id) => byId.get(id));
+      if (resolved.some((d) => !d)) return t;
+      const incomplete = resolved.some((d) => d!.status !== "done");
+      return t.has_incomplete_dependencies === incomplete ? t : { ...t, has_incomplete_dependencies: incomplete };
+    });
+  }
 
   function openTask(id: string) {
     const p = new URLSearchParams(searchParams);
@@ -123,25 +189,39 @@ export default function ProjectDetailPage() {
   // status_column_idだけでなくstatusも移動先列のmaps_to_statusに合わせて更新する
   // （サーバー側のUpdateハンドラと同じ同期ロジック）。ここでstatusを更新しないと、
   // 「対応済にする」ボタンの表示条件（status!=="done"）などstatusを見ているUIが
-  // 列移動後も古いstatusのまま取り残される。
-  async function handleDrop(taskId: string, columnId: string) {
+  // 列移動後も古いstatusのまま取り残される。移動後は他タスクのバッジも
+  // recomputeIncompleteFlagsでローカル再計算する。
+  function applyDrop(taskId: string, columnId: string) {
     const targetColumn = columns.find((c) => c.id === columnId);
     setTasks((prev) =>
-      prev.map((t) =>
-        t.id === taskId
-          ? { ...t, status_column_id: columnId, status: targetColumn?.maps_to_status ?? t.status }
-          : t,
+      recomputeIncompleteFlags(
+        prev.map((t) =>
+          t.id === taskId
+            ? { ...t, status_column_id: columnId, status: targetColumn?.maps_to_status ?? t.status }
+            : t,
+        ),
       ),
     );
-    try {
-      await apiFetch(`/tasks/${taskId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status_column_id: columnId }),
-      });
-    } catch {
+    apiFetch(`/tasks/${taskId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status_column_id: columnId }),
+    }).catch(() => {
       setError("タスクの移動に失敗しました");
       load();
+    });
+  }
+
+  // 先行タスクが未完了のままカンバンD&Dで「対応済」列へ移動しようとした場合、
+  // TaskDetailPanelの「対応済にする」ボタンと同様に確認ダイアログを挟む
+  // （spec.md 4.6、強制ブロックはしない）。
+  function handleDrop(taskId: string, columnId: string) {
+    const targetColumn = columns.find((c) => c.id === columnId);
+    const task = tasks.find((t) => t.id === taskId);
+    if (targetColumn?.maps_to_status === "done" && task?.has_incomplete_dependencies) {
+      setPendingDoneDrop({ taskId, columnId });
+      return;
     }
+    applyDrop(taskId, columnId);
   }
 
   async function handleAddColumn(e: React.FormEvent) {
@@ -253,8 +333,6 @@ export default function ProjectDetailPage() {
     return <div className="px-6 py-10 text-sm text-muted-foreground">{error ?? "読み込み中..."}</div>;
   }
 
-  const topLevelTasks = tasks.filter((t) => !t.parent_task_id);
-
   return (
     <div className="flex max-w-full flex-col gap-6 px-6 py-8 lg:px-10">
       <header className="flex flex-wrap items-start justify-between gap-3">
@@ -349,9 +427,12 @@ export default function ProjectDetailPage() {
       <KanbanBoard
         columns={columns.map((c) => ({ id: c.id, label: c.name }))}
         itemsByColumn={Object.fromEntries(
-          columns.map((c) => [c.id, topLevelTasks.filter((t) => t.status_column_id === c.id)]),
+          columns.map((c) => [c.id, tasks.filter((t) => t.status_column_id === c.id)]),
         )}
         getItemId={(t) => t.id}
+        cardClassName={(t) =>
+          highlightedTaskIds.has(t.id) ? "ring-2 ring-indigo-500 dark:ring-indigo-400" : undefined
+        }
         onDrop={handleDrop}
         onReorderColumns={isManager ? handleReorderColumns : undefined}
         renderColumnLabel={(columnId, label) => {
@@ -400,7 +481,7 @@ export default function ProjectDetailPage() {
         }}
         renderColumnHeaderExtra={(columnId) => {
           const col = columns.find((c) => c.id === columnId);
-          const count = topLevelTasks.filter((t) => t.status_column_id === columnId).length;
+          const count = tasks.filter((t) => t.status_column_id === columnId).length;
           return (
             <div className="flex items-center gap-1">
               <span className="rounded-full bg-surface px-1.5 py-0.5 text-xs text-muted-foreground">{count}</span>
@@ -413,13 +494,39 @@ export default function ProjectDetailPage() {
           );
         }}
         renderCard={(t) => (
-          <button type="button" onClick={() => openTask(t.id)} className="flex w-full flex-col items-start gap-2 text-left">
+          <button
+            type="button"
+            onClick={() => openTask(t.id)}
+            onMouseEnter={() => hoverMode !== "off" && setHoveredTaskId(t.id)}
+            onMouseLeave={() => setHoveredTaskId((id) => (id === t.id ? null : id))}
+            className="flex w-full flex-col items-start gap-2 text-left"
+          >
+            {t.parent_task_id && (
+              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                <CornerDownRight className="h-3 w-3 shrink-0" />
+                {tasks.find((p) => p.id === t.parent_task_id)?.title ?? "親タスク"}
+              </span>
+            )}
             <div className="flex w-full items-start justify-between gap-2">
-              <span className="text-sm font-medium text-foreground">{t.title}</span>
+              <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-foreground">
+                {t.has_incomplete_dependencies && (
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                )}
+                <span className="truncate">{t.title}</span>
+              </span>
               {t.priority && (
                 <span className={clsx("mt-1.5 h-2 w-2 shrink-0 rounded-full", PRIORITY_DOT[t.priority])} />
               )}
             </div>
+            {t.tags && t.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {t.tags.map((tag) => (
+                  <Badge key={tag.id} tone={tag.color as "zinc" | "red" | "amber" | "green" | "indigo"}>
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
             {(t.due_date || (t.assignee_ids && t.assignee_ids.length > 0)) && (
               <div className="flex w-full items-center justify-between gap-2">
                 {t.due_date ? (
@@ -515,6 +622,18 @@ export default function ProjectDetailPage() {
           onChanged={load}
         />
       )}
+
+      <ConfirmDialog
+        open={!!pendingDoneDrop}
+        title="未完了の先行タスクがあります"
+        message="先行タスクが未完了のままですが、このタスクを対応済にしますか？"
+        confirmLabel="対応済にする"
+        onConfirm={() => {
+          if (pendingDoneDrop) applyDrop(pendingDoneDrop.taskId, pendingDoneDrop.columnId);
+          setPendingDoneDrop(null);
+        }}
+        onCancel={() => setPendingDoneDrop(null)}
+      />
     </div>
   );
 }

@@ -43,5 +43,6 @@ func (Project) Edges() []ent.Edge {
 		edge.From("status_columns", ProjectStatusColumn.Type).Ref("project"),
 		edge.From("sections", Section.Type).Ref("project"),
 		edge.From("tasks", Task.Type).Ref("project"),
+		edge.From("tags", Tag.Type).Ref("project"),
 	}
 }

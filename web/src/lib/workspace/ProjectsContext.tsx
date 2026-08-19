@@ -10,6 +10,9 @@ export type WorkspaceProject = {
   description: string | null;
   visibility: "public" | "private";
   created_by: string;
+  // 自分がこのプロジェクトの責任者(manager)かworkspace Ownerかどうか
+  // （バックエンド側で判定済み）。設定画面でのタグ管理対象プロジェクトの絞り込みに使う。
+  is_manager: boolean;
 };
 
 type ProjectsContextValue = {

@@ -3939,6 +3939,9 @@ type ProjectMutation struct {
 	tasks                 map[uuid.UUID]struct{}
 	removedtasks          map[uuid.UUID]struct{}
 	clearedtasks          bool
+	tags                  map[uuid.UUID]struct{}
+	removedtags           map[uuid.UUID]struct{}
+	clearedtags           bool
 	done                  bool
 	oldValue              func(context.Context) (*Project, error)
 	predicates            []predicate.Project
@@ -4596,6 +4599,60 @@ func (m *ProjectMutation) ResetTasks() {
 	m.removedtasks = nil
 }
 
+// AddTagIDs adds the "tags" edge to the Tag entity by ids.
+func (m *ProjectMutation) AddTagIDs(ids ...uuid.UUID) {
+	if m.tags == nil {
+		m.tags = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		m.tags[ids[i]] = struct{}{}
+	}
+}
+
+// ClearTags clears the "tags" edge to the Tag entity.
+func (m *ProjectMutation) ClearTags() {
+	m.clearedtags = true
+}
+
+// TagsCleared reports if the "tags" edge to the Tag entity was cleared.
+func (m *ProjectMutation) TagsCleared() bool {
+	return m.clearedtags
+}
+
+// RemoveTagIDs removes the "tags" edge to the Tag entity by IDs.
+func (m *ProjectMutation) RemoveTagIDs(ids ...uuid.UUID) {
+	if m.removedtags == nil {
+		m.removedtags = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		delete(m.tags, ids[i])
+		m.removedtags[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedTags returns the removed IDs of the "tags" edge to the Tag entity.
+func (m *ProjectMutation) RemovedTagsIDs() (ids []uuid.UUID) {
+	for id := range m.removedtags {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// TagsIDs returns the "tags" edge IDs in the mutation.
+func (m *ProjectMutation) TagsIDs() (ids []uuid.UUID) {
+	for id := range m.tags {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetTags resets all changes to the "tags" edge.
+func (m *ProjectMutation) ResetTags() {
+	m.tags = nil
+	m.clearedtags = false
+	m.removedtags = nil
+}
+
 // Where appends a list predicates to the ProjectMutation builder.
 func (m *ProjectMutation) Where(ps ...predicate.Project) {
 	m.predicates = append(m.predicates, ps...)
@@ -4840,7 +4897,7 @@ func (m *ProjectMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *ProjectMutation) AddedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.workspace != nil {
 		edges = append(edges, project.EdgeWorkspace)
 	}
@@ -4858,6 +4915,9 @@ func (m *ProjectMutation) AddedEdges() []string {
 	}
 	if m.tasks != nil {
 		edges = append(edges, project.EdgeTasks)
+	}
+	if m.tags != nil {
+		edges = append(edges, project.EdgeTags)
 	}
 	return edges
 }
@@ -4898,13 +4958,19 @@ func (m *ProjectMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case project.EdgeTags:
+		ids := make([]ent.Value, 0, len(m.tags))
+		for id := range m.tags {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *ProjectMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.removedmembers != nil {
 		edges = append(edges, project.EdgeMembers)
 	}
@@ -4916,6 +4982,9 @@ func (m *ProjectMutation) RemovedEdges() []string {
 	}
 	if m.removedtasks != nil {
 		edges = append(edges, project.EdgeTasks)
+	}
+	if m.removedtags != nil {
+		edges = append(edges, project.EdgeTags)
 	}
 	return edges
 }
@@ -4948,13 +5017,19 @@ func (m *ProjectMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case project.EdgeTags:
+		ids := make([]ent.Value, 0, len(m.removedtags))
+		for id := range m.removedtags {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *ProjectMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.clearedworkspace {
 		edges = append(edges, project.EdgeWorkspace)
 	}
@@ -4972,6 +5047,9 @@ func (m *ProjectMutation) ClearedEdges() []string {
 	}
 	if m.clearedtasks {
 		edges = append(edges, project.EdgeTasks)
+	}
+	if m.clearedtags {
+		edges = append(edges, project.EdgeTags)
 	}
 	return edges
 }
@@ -4992,6 +5070,8 @@ func (m *ProjectMutation) EdgeCleared(name string) bool {
 		return m.clearedsections
 	case project.EdgeTasks:
 		return m.clearedtasks
+	case project.EdgeTags:
+		return m.clearedtags
 	}
 	return false
 }
@@ -5031,6 +5111,9 @@ func (m *ProjectMutation) ResetEdge(name string) error {
 		return nil
 	case project.EdgeTasks:
 		m.ResetTasks()
+		return nil
+	case project.EdgeTags:
+		m.ResetTags()
 		return nil
 	}
 	return fmt.Errorf("unknown Project edge %s", name)
@@ -7251,6 +7334,8 @@ type TagMutation struct {
 	clearedFields    map[string]struct{}
 	workspace        *uuid.UUID
 	clearedworkspace bool
+	project          *uuid.UUID
+	clearedproject   bool
 	tasks            map[uuid.UUID]struct{}
 	removedtasks     map[uuid.UUID]struct{}
 	clearedtasks     bool
@@ -7471,6 +7556,55 @@ func (m *TagMutation) ResetWorkspaceID() {
 	m.workspace = nil
 }
 
+// SetProjectID sets the "project_id" field.
+func (m *TagMutation) SetProjectID(u uuid.UUID) {
+	m.project = &u
+}
+
+// ProjectID returns the value of the "project_id" field in the mutation.
+func (m *TagMutation) ProjectID() (r uuid.UUID, exists bool) {
+	v := m.project
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldProjectID returns the old "project_id" field's value of the Tag entity.
+// If the Tag object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TagMutation) OldProjectID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldProjectID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldProjectID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldProjectID: %w", err)
+	}
+	return oldValue.ProjectID, nil
+}
+
+// ClearProjectID clears the value of the "project_id" field.
+func (m *TagMutation) ClearProjectID() {
+	m.project = nil
+	m.clearedFields[tag.FieldProjectID] = struct{}{}
+}
+
+// ProjectIDCleared returns if the "project_id" field was cleared in this mutation.
+func (m *TagMutation) ProjectIDCleared() bool {
+	_, ok := m.clearedFields[tag.FieldProjectID]
+	return ok
+}
+
+// ResetProjectID resets all changes to the "project_id" field.
+func (m *TagMutation) ResetProjectID() {
+	m.project = nil
+	delete(m.clearedFields, tag.FieldProjectID)
+}
+
 // SetName sets the "name" field.
 func (m *TagMutation) SetName(s string) {
 	m.name = &s
@@ -7570,6 +7704,33 @@ func (m *TagMutation) ResetWorkspace() {
 	m.clearedworkspace = false
 }
 
+// ClearProject clears the "project" edge to the Project entity.
+func (m *TagMutation) ClearProject() {
+	m.clearedproject = true
+	m.clearedFields[tag.FieldProjectID] = struct{}{}
+}
+
+// ProjectCleared reports if the "project" edge to the Project entity was cleared.
+func (m *TagMutation) ProjectCleared() bool {
+	return m.ProjectIDCleared() || m.clearedproject
+}
+
+// ProjectIDs returns the "project" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// ProjectID instead. It exists only for internal usage by the builders.
+func (m *TagMutation) ProjectIDs() (ids []uuid.UUID) {
+	if id := m.project; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetProject resets all changes to the "project" edge.
+func (m *TagMutation) ResetProject() {
+	m.project = nil
+	m.clearedproject = false
+}
+
 // AddTaskIDs adds the "tasks" edge to the TaskTag entity by ids.
 func (m *TagMutation) AddTaskIDs(ids ...uuid.UUID) {
 	if m.tasks == nil {
@@ -7658,7 +7819,7 @@ func (m *TagMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TagMutation) Fields() []string {
-	fields := make([]string, 0, 5)
+	fields := make([]string, 0, 6)
 	if m.created_at != nil {
 		fields = append(fields, tag.FieldCreatedAt)
 	}
@@ -7667,6 +7828,9 @@ func (m *TagMutation) Fields() []string {
 	}
 	if m.workspace != nil {
 		fields = append(fields, tag.FieldWorkspaceID)
+	}
+	if m.project != nil {
+		fields = append(fields, tag.FieldProjectID)
 	}
 	if m.name != nil {
 		fields = append(fields, tag.FieldName)
@@ -7688,6 +7852,8 @@ func (m *TagMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case tag.FieldWorkspaceID:
 		return m.WorkspaceID()
+	case tag.FieldProjectID:
+		return m.ProjectID()
 	case tag.FieldName:
 		return m.Name()
 	case tag.FieldColor:
@@ -7707,6 +7873,8 @@ func (m *TagMutation) OldField(ctx context.Context, name string) (ent.Value, err
 		return m.OldUpdatedAt(ctx)
 	case tag.FieldWorkspaceID:
 		return m.OldWorkspaceID(ctx)
+	case tag.FieldProjectID:
+		return m.OldProjectID(ctx)
 	case tag.FieldName:
 		return m.OldName(ctx)
 	case tag.FieldColor:
@@ -7740,6 +7908,13 @@ func (m *TagMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetWorkspaceID(v)
+		return nil
+	case tag.FieldProjectID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetProjectID(v)
 		return nil
 	case tag.FieldName:
 		v, ok := value.(string)
@@ -7784,7 +7959,11 @@ func (m *TagMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *TagMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(tag.FieldProjectID) {
+		fields = append(fields, tag.FieldProjectID)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -7797,6 +7976,11 @@ func (m *TagMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *TagMutation) ClearField(name string) error {
+	switch name {
+	case tag.FieldProjectID:
+		m.ClearProjectID()
+		return nil
+	}
 	return fmt.Errorf("unknown Tag nullable field %s", name)
 }
 
@@ -7813,6 +7997,9 @@ func (m *TagMutation) ResetField(name string) error {
 	case tag.FieldWorkspaceID:
 		m.ResetWorkspaceID()
 		return nil
+	case tag.FieldProjectID:
+		m.ResetProjectID()
+		return nil
 	case tag.FieldName:
 		m.ResetName()
 		return nil
@@ -7825,9 +8012,12 @@ func (m *TagMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *TagMutation) AddedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.workspace != nil {
 		edges = append(edges, tag.EdgeWorkspace)
+	}
+	if m.project != nil {
+		edges = append(edges, tag.EdgeProject)
 	}
 	if m.tasks != nil {
 		edges = append(edges, tag.EdgeTasks)
@@ -7843,6 +8033,10 @@ func (m *TagMutation) AddedIDs(name string) []ent.Value {
 		if id := m.workspace; id != nil {
 			return []ent.Value{*id}
 		}
+	case tag.EdgeProject:
+		if id := m.project; id != nil {
+			return []ent.Value{*id}
+		}
 	case tag.EdgeTasks:
 		ids := make([]ent.Value, 0, len(m.tasks))
 		for id := range m.tasks {
@@ -7855,7 +8049,7 @@ func (m *TagMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *TagMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.removedtasks != nil {
 		edges = append(edges, tag.EdgeTasks)
 	}
@@ -7878,9 +8072,12 @@ func (m *TagMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *TagMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 2)
+	edges := make([]string, 0, 3)
 	if m.clearedworkspace {
 		edges = append(edges, tag.EdgeWorkspace)
+	}
+	if m.clearedproject {
+		edges = append(edges, tag.EdgeProject)
 	}
 	if m.clearedtasks {
 		edges = append(edges, tag.EdgeTasks)
@@ -7894,6 +8091,8 @@ func (m *TagMutation) EdgeCleared(name string) bool {
 	switch name {
 	case tag.EdgeWorkspace:
 		return m.clearedworkspace
+	case tag.EdgeProject:
+		return m.clearedproject
 	case tag.EdgeTasks:
 		return m.clearedtasks
 	}
@@ -7907,6 +8106,9 @@ func (m *TagMutation) ClearEdge(name string) error {
 	case tag.EdgeWorkspace:
 		m.ClearWorkspace()
 		return nil
+	case tag.EdgeProject:
+		m.ClearProject()
+		return nil
 	}
 	return fmt.Errorf("unknown Tag unique edge %s", name)
 }
@@ -7917,6 +8119,9 @@ func (m *TagMutation) ResetEdge(name string) error {
 	switch name {
 	case tag.EdgeWorkspace:
 		m.ResetWorkspace()
+		return nil
+	case tag.EdgeProject:
+		m.ResetProject()
 		return nil
 	case tag.EdgeTasks:
 		m.ResetTasks()
@@ -13279,6 +13484,7 @@ type UserMutation struct {
 	google_refresh_token     *string
 	calendar_sync_enabled    *bool
 	calendar_sync_mode       *user.CalendarSyncMode
+	hover_highlight_mode     *user.HoverHighlightMode
 	clearedFields            map[string]struct{}
 	workspace_members        map[uuid.UUID]struct{}
 	removedworkspace_members map[uuid.UUID]struct{}
@@ -13786,6 +13992,42 @@ func (m *UserMutation) CalendarSyncModeCleared() bool {
 func (m *UserMutation) ResetCalendarSyncMode() {
 	m.calendar_sync_mode = nil
 	delete(m.clearedFields, user.FieldCalendarSyncMode)
+}
+
+// SetHoverHighlightMode sets the "hover_highlight_mode" field.
+func (m *UserMutation) SetHoverHighlightMode(uhm user.HoverHighlightMode) {
+	m.hover_highlight_mode = &uhm
+}
+
+// HoverHighlightMode returns the value of the "hover_highlight_mode" field in the mutation.
+func (m *UserMutation) HoverHighlightMode() (r user.HoverHighlightMode, exists bool) {
+	v := m.hover_highlight_mode
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldHoverHighlightMode returns the old "hover_highlight_mode" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldHoverHighlightMode(ctx context.Context) (v user.HoverHighlightMode, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldHoverHighlightMode is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldHoverHighlightMode requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldHoverHighlightMode: %w", err)
+	}
+	return oldValue.HoverHighlightMode, nil
+}
+
+// ResetHoverHighlightMode resets all changes to the "hover_highlight_mode" field.
+func (m *UserMutation) ResetHoverHighlightMode() {
+	m.hover_highlight_mode = nil
 }
 
 // AddWorkspaceMemberIDs adds the "workspace_members" edge to the WorkspaceMember entity by ids.
@@ -14470,7 +14712,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 9)
+	fields := make([]string, 0, 10)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -14498,6 +14740,9 @@ func (m *UserMutation) Fields() []string {
 	if m.calendar_sync_mode != nil {
 		fields = append(fields, user.FieldCalendarSyncMode)
 	}
+	if m.hover_highlight_mode != nil {
+		fields = append(fields, user.FieldHoverHighlightMode)
+	}
 	return fields
 }
 
@@ -14524,6 +14769,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.CalendarSyncEnabled()
 	case user.FieldCalendarSyncMode:
 		return m.CalendarSyncMode()
+	case user.FieldHoverHighlightMode:
+		return m.HoverHighlightMode()
 	}
 	return nil, false
 }
@@ -14551,6 +14798,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldCalendarSyncEnabled(ctx)
 	case user.FieldCalendarSyncMode:
 		return m.OldCalendarSyncMode(ctx)
+	case user.FieldHoverHighlightMode:
+		return m.OldHoverHighlightMode(ctx)
 	}
 	return nil, fmt.Errorf("unknown User field %s", name)
 }
@@ -14622,6 +14871,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCalendarSyncMode(v)
+		return nil
+	case user.FieldHoverHighlightMode:
+		v, ok := value.(user.HoverHighlightMode)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetHoverHighlightMode(v)
 		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)
@@ -14719,6 +14975,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldCalendarSyncMode:
 		m.ResetCalendarSyncMode()
+		return nil
+	case user.FieldHoverHighlightMode:
+		m.ResetHoverHighlightMode()
 		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)

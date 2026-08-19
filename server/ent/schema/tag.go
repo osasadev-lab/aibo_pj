@@ -21,6 +21,9 @@ func (Tag) Mixin() []ent.Mixin {
 func (Tag) Fields() []ent.Field {
 	return []ent.Field{
 		field.UUID("workspace_id", uuid.UUID{}),
+		// nilはワークスペース共通タグ（project非依存、単体タスクや全プロジェクトのタスクから使える）。
+		// 非nilはそのプロジェクト専用タグ（そのプロジェクトのタスクからのみ使える）。
+		field.UUID("project_id", uuid.UUID{}).Optional().Nillable(),
 		field.String("name").NotEmpty(),
 		field.String("color").NotEmpty(),
 	}
@@ -33,6 +36,9 @@ func (Tag) Edges() []ent.Edge {
 			Field("workspace_id").
 			Unique().
 			Required(),
+		edge.To("project", Project.Type).
+			Field("project_id").
+			Unique(),
 		edge.From("tasks", TaskTag.Type).Ref("tag"),
 	}
 }
@@ -40,6 +46,8 @@ func (Tag) Edges() []ent.Edge {
 // Indexes of the Tag.
 func (Tag) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("workspace_id", "name").Unique(),
+		// PostgresのUNIQUE INDEXはNULLを区別しないため、project_idがnull同士（共通タグ）の
+		// 重複名はこの制約では検出できない。共通タグの重複チェックはアプリ層で行う。
+		index.Fields("workspace_id", "project_id", "name").Unique(),
 	}
 }

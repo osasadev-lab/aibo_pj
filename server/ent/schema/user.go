@@ -39,6 +39,13 @@ func (User) Fields() []ent.Field {
 			Values("auto", "manual").
 			Optional().
 			Nillable(),
+		// プロジェクトのカンバンでタスクカードをホバーした際の強調表示モード
+		// （M4追加）。off=何もしない、tag=タグが1つ以上一致するカードを強調、
+		// dependency=先行/後続タスクにあたるカードを強調、subtask=親タスク/子タスク
+		// の関係にあたるカードを強調。個人設定、default off。
+		field.Enum("hover_highlight_mode").
+			Values("off", "tag", "dependency", "subtask").
+			Default("off"),
 	}
 }
 

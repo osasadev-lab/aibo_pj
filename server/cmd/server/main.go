@@ -13,6 +13,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/internal/db"
 	"github.com/osasadev-lab/aibo_pj/server/internal/handler"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 )
 
 func main() {
@@ -46,13 +47,17 @@ func main() {
 	// ローカルのhttp開発ではSecure Cookie（state用）を付けない。
 	cookieSecure := strings.HasPrefix(cfg.GoogleOAuthRedirectURL, "https://")
 
-	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure)
-	workspaceHandler := handler.NewWorkspaceHandler(client)
+	r2Client := storage.NewR2Client(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2BucketName)
+
+	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure, r2Client)
+	workspaceHandler := handler.NewWorkspaceHandler(client, r2Client)
 	memberHandler := handler.NewMemberHandler(client)
-	projectHandler := handler.NewProjectHandler(client)
-	taskHandler := handler.NewTaskHandler(client)
+	projectHandler := handler.NewProjectHandler(client, r2Client)
+	taskHandler := handler.NewTaskHandler(client, r2Client)
 	commentHandler := handler.NewCommentHandler(client)
 	notificationHandler := handler.NewNotificationHandler(client)
+	tagHandler := handler.NewTagHandler(client)
+	attachmentHandler := handler.NewAttachmentHandler(client, r2Client)
 
 	requireAuth := middleware.RequireAuth(client, cfg.JWTSecret)
 	requireWorkspaceMember := middleware.RequireWorkspaceMember(client)
@@ -87,6 +92,7 @@ func main() {
 			{
 				withMember.GET("", workspaceHandler.Get)
 				withMember.PATCH("", requireOwner, workspaceHandler.Update)
+				withMember.DELETE("", requireOwner, workspaceHandler.Delete)
 
 				withMember.GET("/members", memberHandler.List)
 				withMember.POST("/members/invite", requireOwner, memberHandler.Invite)
@@ -98,6 +104,11 @@ func main() {
 				withMember.GET("/tasks", taskHandler.Search)
 				withMember.POST("/tasks", taskHandler.Create)
 				withMember.GET("/my-tasks", taskHandler.MyTasks)
+
+				withMember.GET("/common-tags", tagHandler.ListCommonTags)
+				withMember.POST("/common-tags", requireOwner, tagHandler.CreateCommonTag)
+				withMember.PATCH("/common-tags/:tag_id", requireOwner, tagHandler.UpdateCommonTag)
+				withMember.DELETE("/common-tags/:tag_id", requireOwner, tagHandler.DeleteCommonTag)
 			}
 		}
 
@@ -119,6 +130,11 @@ func main() {
 				withProject.POST("/status-columns", requireProjectManager, projectHandler.CreateStatusColumn)
 				withProject.PATCH("/status-columns/:column_id", requireProjectManager, projectHandler.UpdateStatusColumn)
 				withProject.DELETE("/status-columns/:column_id", requireProjectManager, projectHandler.DeleteStatusColumn)
+
+				withProject.GET("/tags", tagHandler.ListProjectTags)
+				withProject.POST("/tags", requireProjectManager, tagHandler.CreateProjectTag)
+				withProject.PATCH("/tags/:tag_id", requireProjectManager, tagHandler.UpdateProjectTag)
+				withProject.DELETE("/tags/:tag_id", requireProjectManager, tagHandler.DeleteProjectTag)
 			}
 		}
 
@@ -135,6 +151,14 @@ func main() {
 				withTask.GET("/subtasks", taskHandler.ListSubtasks)
 				withTask.PUT("/assignees", taskHandler.PutAssignees)
 				withTask.PUT("/tags", taskHandler.PutTags)
+				withTask.GET("/assignable-tags", taskHandler.ListAssignableTags)
+
+				withTask.GET("/dependencies", taskHandler.ListDependencies)
+				withTask.POST("/dependencies", taskHandler.CreateDependency)
+				withTask.DELETE("/dependencies/:dependency_id", taskHandler.DeleteDependency)
+
+				withTask.GET("/attachments", attachmentHandler.ListAttachments)
+				withTask.POST("/attachments", attachmentHandler.CreateAttachment)
 
 				withTask.GET("/mentionable-members", commentHandler.MentionableMembers)
 				withTask.POST("/comments", commentHandler.CreateComment)
@@ -142,10 +166,18 @@ func main() {
 			}
 		}
 
+		// 添付ファイル系エンドポイント（:task_idを含まないパス）
+		attachments := api.Group("/attachments", requireAuth)
+		{
+			attachments.DELETE("/:attachment_id", attachmentHandler.DeleteAttachment)
+		}
+
 		// 自分自身に関するエンドポイント
 		me := api.Group("/me", requireAuth)
 		{
 			me.GET("/supabase-token", authHandler.SupabaseToken)
+			me.GET("/hover-settings", authHandler.GetHoverSettings)
+			me.PATCH("/hover-settings", authHandler.UpdateHoverSettings)
 		}
 
 		// 通知系エンドポイント

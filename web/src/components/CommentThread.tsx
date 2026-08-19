@@ -5,8 +5,10 @@ import { Send } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiClient";
 import { getSupabaseClient } from "@/lib/supabaseClient";
+import { renderMarkdown } from "@/lib/markdown";
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
+import MarkdownToolbar from "@/components/ui/MarkdownToolbar";
 import { Textarea } from "@/components/ui/fields";
 import type { MemberSummary } from "@/lib/types";
 
@@ -33,6 +35,7 @@ export default function CommentThread({ taskId }: { taskId: string }) {
   // 常に最新値を読めるようrefにも保持する（effectのクロージャが古い値を
   // 参照してしまうのを避けるため）。
   const mentionableRef = useRef<MemberSummary[]>([]);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     let ignore = false;
@@ -112,19 +115,23 @@ export default function CommentThread({ taskId }: { taskId: string }) {
                 <span className="text-xs font-medium text-foreground">{c.user_name ?? "?"}</span>
                 <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString()}</span>
               </div>
-              <p className="whitespace-pre-wrap text-sm text-foreground">{c.body}</p>
+              <div className="text-sm text-foreground">{renderMarkdown(c.body)}</div>
             </div>
           </li>
         ))}
       </ul>
       <form onSubmit={handleSubmit} className="relative flex flex-col gap-2">
-        <Textarea
-          value={body}
-          onChange={(e) => handleBodyChange(e.target.value)}
-          placeholder="コメントを入力（@でメンション）"
-          rows={2}
-          className="text-sm"
-        />
+        <div>
+          <MarkdownToolbar textareaRef={composerRef} value={body} onChange={handleBodyChange} />
+          <Textarea
+            ref={composerRef}
+            value={body}
+            onChange={(e) => handleBodyChange(e.target.value)}
+            placeholder="コメントを入力（@でメンション）"
+            rows={2}
+            className="text-sm"
+          />
+        </div>
         {showMentions && mentionable.length > 0 && (
           <ul className="absolute bottom-full z-10 mb-1 max-h-32 w-full overflow-y-auto rounded-lg border border-border bg-surface text-xs shadow-lg">
             {mentionable.map((m) => (

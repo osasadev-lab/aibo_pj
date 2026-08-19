@@ -9,6 +9,9 @@ export type User = {
   email: string;
   name: string;
   avatar_url: string | null;
+  // R2（添付ファイル）が未設定（ローカル開発でR2を無効化中等）かどうか。
+  // falseの場合、フロントは添付ファイルUI自体を出さずエラーを起こさせない。
+  storage_enabled: boolean;
 };
 
 type AuthContextValue = {

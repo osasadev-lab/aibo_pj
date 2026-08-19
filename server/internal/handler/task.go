@@ -11,6 +11,7 @@ import (
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
+	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
@@ -26,6 +27,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 )
 
 const dateLayout = "2006-01-02"
@@ -35,10 +37,11 @@ var errInvalidIDs = errors.New("one or more ids are invalid")
 // TaskHandler は /tasks, /workspaces/:workspace_id/tasks 配下を扱う。
 type TaskHandler struct {
 	client *ent.Client
+	r2     *storage.R2Client
 }
 
-func NewTaskHandler(client *ent.Client) *TaskHandler {
-	return &TaskHandler{client: client}
+func NewTaskHandler(client *ent.Client, r2 *storage.R2Client) *TaskHandler {
+	return &TaskHandler{client: client, r2: r2}
 }
 
 func taskJSON(t *ent.Task) gin.H {
@@ -72,6 +75,37 @@ func taskJSON(t *ent.Task) gin.H {
 			ids = append(ids, tm.MentionedUserID)
 		}
 		row["mentioned_user_ids"] = ids
+	}
+	// tagsがeager-load済み（WithTags(func(q){ q.WithTag() })）の場合のみtagsを含める。
+	if t.Edges.Tags != nil {
+		tags := make([]gin.H, 0, len(t.Edges.Tags))
+		for _, tt := range t.Edges.Tags {
+			if tt.Edges.Tag == nil {
+				continue
+			}
+			tags = append(tags, tagJSON(tt.Edges.Tag))
+		}
+		row["tags"] = tags
+	}
+	// dependenciesがeager-load済み（WithDependencies(func(q){ q.WithDependsOn() })）の
+	// 場合のみhas_incomplete_dependenciesを含める（先行タスクにstatus!=doneが1件でも
+	// あればtrue。カンバンカード・タスク詳細のバッジ表示用、spec.md 4.6）。
+	if t.Edges.Dependencies != nil {
+		incomplete := false
+		ids := make([]uuid.UUID, 0, len(t.Edges.Dependencies))
+		for _, d := range t.Edges.Dependencies {
+			ids = append(ids, d.DependsOnTaskID)
+			if d.Edges.DependsOn != nil && d.Edges.DependsOn.Status != task.StatusDone {
+				incomplete = true
+			}
+		}
+		row["has_incomplete_dependencies"] = incomplete
+		// depends_on_task_idsはプロジェクトカンバンのホバー強調（個人設定、
+		// docs/aibo/m4-implementation-plan.md 4章）がAPIを追加で叩かずクライアント側
+		// だけで先行/後続関係を判定できるようにするための付随情報。「後続」側は
+		// このtask_idを他タスクのdepends_on_task_idsから逆引きすればよいため、
+		// パフォーマンス上の理由でDependentsは別途eager-loadしない（往復が1回減る）。
+		row["depends_on_task_ids"] = ids
 	}
 	return row
 }
@@ -136,7 +170,15 @@ func (h *TaskHandler) Search(c *gin.Context) {
 		query = query.Where(task.DueDateLT(d))
 	}
 
-	tasks, err := query.WithAssignees().All(ctx)
+	tasks, err := query.
+		WithAssignees().
+		WithDependencies(func(q *ent.TaskDependencyQuery) { q.WithDependsOn() }).
+		// Tagsはプロジェクトカンバンのタグバッジ・ホバー強調（tagモード）用。
+		// MyTasksでは対象外（ユーザー確認済み）のためSearchのみ追加する。Dependentsは
+		// あえてeager-loadしない（他タスクのdepends_on_task_idsから逆引きできるため、
+		// 往復を1回減らすパフォーマンス上の判断）。
+		WithTags(func(q *ent.TaskTagQuery) { q.WithTag() }).
+		All(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search tasks"})
 		return
@@ -183,7 +225,10 @@ func (h *TaskHandler) MyTasks(c *gin.Context) {
 		query = query.Where(task.DueDateLTE(d))
 	}
 
-	tasks, err := query.WithAssignees().All(ctx)
+	tasks, err := query.
+		WithAssignees().
+		WithDependencies(func(q *ent.TaskDependencyQuery) { q.WithDependsOn() }).
+		All(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list my-tasks"})
 		return
@@ -269,9 +314,13 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "assignee_ids must all be workspace members"})
 		return
 	}
-	tagIDs, err := h.validWorkspaceTagIDs(ctx, m.WorkspaceID, req.TagIDs)
+	var projID *uuid.UUID
+	if proj != nil {
+		projID = &proj.ID
+	}
+	tagIDs, err := h.validTaskTagIDs(ctx, m.WorkspaceID, projID, req.TagIDs)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must all belong to this workspace"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must be assignable to this task"})
 		return
 	}
 
@@ -352,8 +401,22 @@ func (h *TaskHandler) Create(c *gin.Context) {
 }
 
 // Get は GET /tasks/:task_id。RequireTaskAccessで可視性確認済み。
+// Get は GET /tasks/:task_id。assignee_ids/mentioned_user_ids/tagsを含めるための
+// eager-loadはここでだけ行う（RequireTaskAccessは全タスク系エンドポイント共通のため
+// 意図的に軽量化してある）。
 func (h *TaskHandler) Get(c *gin.Context) {
-	c.JSON(http.StatusOK, taskJSON(middleware.CurrentTask(c)))
+	t := middleware.CurrentTask(c)
+	full, err := h.client.Task.Query().
+		Where(task.IDEQ(t.ID)).
+		WithAssignees().
+		WithMentions().
+		WithTags(func(q *ent.TaskTagQuery) { q.WithTag() }).
+		Only(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load task"})
+		return
+	}
+	c.JSON(http.StatusOK, taskJSON(full))
 }
 
 type updateTaskRequest struct {
@@ -557,6 +620,7 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 	u := middleware.CurrentUser(c)
 	ctx := c.Request.Context()
 
+	var attachmentKeys []string
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		childIDs, err := tx.Task.Query().Where(task.ParentTaskIDEQ(t.ID)).IDs(ctx)
 		if err != nil {
@@ -589,6 +653,18 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		if _, err := tx.Comment.Delete().Where(comment.TaskIDIn(ids...)).Exec(ctx); err != nil {
 			return err
 		}
+		// R2オブジェクトはDBコミットが確定してから削除する（トランザクション内で
+		// 外部API呼び出しをしない）。ここではキーだけ収集しておく。
+		attachments, err := tx.Attachment.Query().Where(attachment.TaskIDIn(ids...)).All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, a := range attachments {
+			attachmentKeys = append(attachmentKeys, a.StorageKey)
+		}
+		if _, err := tx.Attachment.Delete().Where(attachment.TaskIDIn(ids...)).Exec(ctx); err != nil {
+			return err
+		}
 		if _, err := tx.ActivityLog.Delete().Where(activitylog.TaskIDIn(ids...)).Exec(ctx); err != nil {
 			return err
 		}
@@ -605,6 +681,7 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete task"})
 		return
 	}
+	deleteR2Objects(ctx, h.r2, attachmentKeys)
 	c.Status(http.StatusNoContent)
 }
 
@@ -653,9 +730,9 @@ func (h *TaskHandler) CreateSubtask(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "assignee_ids must all be workspace members"})
 		return
 	}
-	tagIDs, err := h.validWorkspaceTagIDs(ctx, parent.WorkspaceID, req.TagIDs)
+	tagIDs, err := h.validTaskTagIDs(ctx, parent.WorkspaceID, parent.ProjectID, req.TagIDs)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must all belong to this workspace"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must be assignable to this task"})
 		return
 	}
 
@@ -852,6 +929,205 @@ type putTagsRequest struct {
 	TagIDs []uuid.UUID `json:"tag_ids" binding:"required"`
 }
 
+func dependencyTaskJSON(t *ent.Task) gin.H {
+	return gin.H{"id": t.ID, "title": t.Title, "status": t.Status, "project_id": t.ProjectID}
+}
+
+// ListDependencies は GET /tasks/:task_id/dependencies。
+// predecessors=このタスクが依存している先行タスク、successors=このタスクに
+// 依存している後続タスク。
+func (h *TaskHandler) ListDependencies(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+	ctx := c.Request.Context()
+
+	preds, err := h.client.TaskDependency.Query().
+		Where(taskdependency.TaskIDEQ(t.ID)).
+		WithDependsOn().
+		All(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list dependencies"})
+		return
+	}
+	succs, err := h.client.TaskDependency.Query().
+		Where(taskdependency.DependsOnTaskIDEQ(t.ID)).
+		WithTask().
+		All(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list dependencies"})
+		return
+	}
+
+	predecessors := make([]gin.H, 0, len(preds))
+	for _, d := range preds {
+		if d.Edges.DependsOn == nil {
+			continue
+		}
+		predecessors = append(predecessors, gin.H{"id": d.ID, "task": dependencyTaskJSON(d.Edges.DependsOn)})
+	}
+	successors := make([]gin.H, 0, len(succs))
+	for _, d := range succs {
+		if d.Edges.Task == nil {
+			continue
+		}
+		successors = append(successors, gin.H{"id": d.ID, "task": dependencyTaskJSON(d.Edges.Task)})
+	}
+	c.JSON(http.StatusOK, gin.H{"predecessors": predecessors, "successors": successors})
+}
+
+// wouldCreateCycle は、taskIDがdependsOnTaskIDに依存する辺を追加した場合に
+// 循環依存が生じるかを判定する。dependsOnTaskIDを起点に既存のdepends_on辺を
+// 辿って（＝depends_on_task_idがさらに依存している先行タスクを辿って）taskIDに
+// 到達できれば、新しい辺を足すと閉路になる。
+func (h *TaskHandler) wouldCreateCycle(ctx context.Context, taskID, dependsOnTaskID uuid.UUID) (bool, error) {
+	visited := map[uuid.UUID]struct{}{}
+	queue := []uuid.UUID{dependsOnTaskID}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		if current == taskID {
+			return true, nil
+		}
+		if _, ok := visited[current]; ok {
+			continue
+		}
+		visited[current] = struct{}{}
+
+		preds, err := h.client.TaskDependency.Query().Where(taskdependency.TaskIDEQ(current)).All(ctx)
+		if err != nil {
+			return false, err
+		}
+		for _, d := range preds {
+			queue = append(queue, d.DependsOnTaskID)
+		}
+	}
+	return false, nil
+}
+
+type createDependencyRequest struct {
+	DependsOnTaskID uuid.UUID `json:"depends_on_task_id" binding:"required"`
+}
+
+// CreateDependency は POST /tasks/:task_id/dependencies。先行タスクを追加する。
+// 自己参照・ワークスペース跨ぎ・循環依存を拒否する。
+func (h *TaskHandler) CreateDependency(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+	u := middleware.CurrentUser(c)
+
+	var req createDependencyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "depends_on_task_id is required"})
+		return
+	}
+	if req.DependsOnTaskID == t.ID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "task cannot depend on itself"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	target, err := h.client.Task.Get(ctx, req.DependsOnTaskID)
+	if err != nil || target.WorkspaceID != t.WorkspaceID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "depends_on_task_id must be in the same workspace"})
+		return
+	}
+
+	cyclic, err := h.wouldCreateCycle(ctx, t.ID, req.DependsOnTaskID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check circular dependency"})
+		return
+	}
+	if cyclic {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "circular_dependency"})
+		return
+	}
+
+	var created *ent.TaskDependency
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		var txErr error
+		created, txErr = tx.TaskDependency.Create().
+			SetTaskID(t.ID).
+			SetDependsOnTaskID(req.DependsOnTaskID).
+			Save(ctx)
+		if txErr != nil {
+			return txErr
+		}
+		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.dependency_added",
+			map[string]any{"depends_on_task_id": req.DependsOnTaskID})
+	})
+	if ent.IsConstraintError(err) {
+		c.JSON(http.StatusConflict, gin.H{"error": "already_depends_on"})
+		return
+	}
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create dependency"})
+		return
+	}
+	c.JSON(http.StatusCreated, gin.H{"id": created.ID, "task": dependencyTaskJSON(target)})
+}
+
+// DeleteDependency は DELETE /tasks/:task_id/dependencies/:dependency_id。
+// このタスクの先行タスク一覧からの解除のみを扱う（＝task_idがこのタスクである行に限定）。
+func (h *TaskHandler) DeleteDependency(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+	u := middleware.CurrentUser(c)
+
+	depID, err := uuid.Parse(c.Param("dependency_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dependency not found"})
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	existing, err := h.client.TaskDependency.Query().
+		Where(taskdependency.IDEQ(depID), taskdependency.TaskIDEQ(t.ID)).
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dependency not found"})
+		return
+	}
+
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		if err := tx.TaskDependency.DeleteOneID(existing.ID).Exec(ctx); err != nil {
+			return err
+		}
+		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.dependency_removed",
+			map[string]any{"depends_on_task_id": existing.DependsOnTaskID})
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete dependency"})
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+// ListAssignableTags は GET /tasks/:task_id/assignable-tags。
+// このタスクに付与可能なタグ一覧（プロジェクト所属タスクならそのプロジェクト専用タグ＋
+// ワークスペース共通タグ、単体タスクなら共通タグのみ）を返す。タスク詳細のタグピッカー用。
+func (h *TaskHandler) ListAssignableTags(c *gin.Context) {
+	t := middleware.CurrentTask(c)
+
+	scope := tag.ProjectIDIsNil()
+	if t.ProjectID != nil {
+		scope = tag.Or(tag.ProjectIDEQ(*t.ProjectID), tag.ProjectIDIsNil())
+	}
+
+	tags, err := h.client.Tag.Query().
+		Where(tag.WorkspaceIDEQ(t.WorkspaceID), scope).
+		Order(tag.ByName()).
+		All(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list assignable tags"})
+		return
+	}
+
+	out := make([]gin.H, 0, len(tags))
+	for _, tg := range tags {
+		out = append(out, tagJSON(tg))
+	}
+	c.JSON(http.StatusOK, out)
+}
+
 // PutTags は PUT /tasks/:task_id/tags。タグを入れ替える。
 func (h *TaskHandler) PutTags(c *gin.Context) {
 	t := middleware.CurrentTask(c)
@@ -864,9 +1140,9 @@ func (h *TaskHandler) PutTags(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	ids, err := h.validWorkspaceTagIDs(ctx, t.WorkspaceID, req.TagIDs)
+	ids, err := h.validTaskTagIDs(ctx, t.WorkspaceID, t.ProjectID, req.TagIDs)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must all belong to this workspace"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must be assignable to this task"})
 		return
 	}
 
@@ -923,13 +1199,20 @@ func (h *TaskHandler) validWorkspaceUserIDs(ctx context.Context, workspaceID uui
 	return deduped, nil
 }
 
-func (h *TaskHandler) validWorkspaceTagIDs(ctx context.Context, workspaceID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
+// validTaskTagIDs はtag_idsが、このタスクに付与可能なタグ（projectIDが非nilなら
+// そのプロジェクト専用タグ＋ワークスペース共通タグ、nilなら共通タグのみ）に
+// すべて属することを検証する。
+func (h *TaskHandler) validTaskTagIDs(ctx context.Context, workspaceID uuid.UUID, projectID *uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
 	deduped := dedupUUIDs(ids)
+	scope := tag.ProjectIDIsNil()
+	if projectID != nil {
+		scope = tag.Or(tag.ProjectIDEQ(*projectID), tag.ProjectIDIsNil())
+	}
 	count, err := h.client.Tag.Query().
-		Where(tag.WorkspaceIDEQ(workspaceID), tag.IDIn(deduped...)).
+		Where(tag.WorkspaceIDEQ(workspaceID), tag.IDIn(deduped...), scope).
 		Count(ctx)
 	if err != nil {
 		return nil, err
