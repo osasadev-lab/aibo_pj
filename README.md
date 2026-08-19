@@ -52,6 +52,15 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - [x] `@`メンション・通知（メンション時に`notifications`作成、`/notifications`画面で確認・既読化）
 - 実装詳細・設計判断・スモークテスト結果は`docs/aibo/m3-implementation-plan.md`参照
 
+### M4：依存関係・タグ・添付ファイル
+
+- [x] タスク依存関係（先行タスク設定、循環依存チェック、同一ワークスペース内チェック、未完了バッジ・確認ダイアログ）
+- [x] タグ管理（プロジェクト専用タグ／ワークスペース共通タグ、責任者・Owner限定のCRUD、タスクへの付与は全メンバー可）・左サイドバー「設定」画面
+- [x] 添付ファイル（Cloudflare R2、署名付きURLアップロード、25MB上限チェック。R2未設定時はアップロードUI自体を非表示にしグレースフルに動作）
+- [x] ワークスペース削除機能（元々未実装だったため新規実装。Owner限定）、タスク/プロジェクト/ワークスペース削除時のR2オブジェクト連動削除
+- [x] 追加UI：子タスクのカンバン表示、Slack風マークダウンツールバー（説明・コメント）、タスク詳細のリンクコピー、ホバー強調（タグ一致/依存関係/親子関係、個人設定）
+- 実装詳細・設計判断は`docs/aibo/m4-implementation-plan.md`参照
+
 ## セットアップ
 
 ### 前提
@@ -79,6 +88,12 @@ Googleログインを試すには、GCPコンソールでOAuth 2.0 Webクライ�
 
 ent スキーマを変更したら `go generate ./ent` でコード再生成してから `go run ./cmd/migrate` を実行する。
 
+添付ファイル機能（M4）を試すには、Cloudflare R2でバケットを作成しAccount API Tokenを発行して
+`R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET_NAME` を設定する
+必要がある（ブラウザから直接R2へPUTするため、バケットのCORS設定でフロントのオリジンからの
+PUT/GETを許可すること）。**未設定でもサーバーは起動し、他機能は問題なく動作する**（アップロード
+UI自体が表示されなくなるだけ。詳細は`docs/aibo/m4-implementation-plan.md`参照）。
+
 ### web/
 
 ```sh
@@ -102,4 +117,4 @@ npm run deploy    # ビルド + Cloudflare Workersへ実デプロイ
 
 ## 次のマイルストーン
 
-M4（依存関係・タグ・添付ファイル）以降は `docs/aibo/execution-plan.md` を参照。
+M5（カレンダー画面・進捗画面）以降は `docs/aibo/execution-plan.md` を参照。
