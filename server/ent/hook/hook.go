@@ -33,6 +33,18 @@ func (f AttachmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.AttachmentMutation", m)
 }
 
+// The CalendarWatchedMemberFunc type is an adapter to allow the use of ordinary
+// function as CalendarWatchedMember mutator.
+type CalendarWatchedMemberFunc func(context.Context, *ent.CalendarWatchedMemberMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f CalendarWatchedMemberFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.CalendarWatchedMemberMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CalendarWatchedMemberMutation", m)
+}
+
 // The CommentFunc type is an adapter to allow the use of ordinary
 // function as Comment mutator.
 type CommentFunc func(context.Context, *ent.CommentMutation) (ent.Value, error)

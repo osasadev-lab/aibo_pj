@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
@@ -341,6 +342,21 @@ func (_c *UserCreate) AddSentInvitations(v ...*WorkspaceInvitation) *UserCreate 
 		ids[i] = v[i].ID
 	}
 	return _c.AddSentInvitationIDs(ids...)
+}
+
+// AddCalendarWatchIDs adds the "calendar_watches" edge to the CalendarWatchedMember entity by IDs.
+func (_c *UserCreate) AddCalendarWatchIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddCalendarWatchIDs(ids...)
+	return _c
+}
+
+// AddCalendarWatches adds the "calendar_watches" edges to the CalendarWatchedMember entity.
+func (_c *UserCreate) AddCalendarWatches(v ...*CalendarWatchedMember) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddCalendarWatchIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -708,6 +724,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.CalendarWatchesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CalendarWatchesTable,
+			Columns: []string{user.CalendarWatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

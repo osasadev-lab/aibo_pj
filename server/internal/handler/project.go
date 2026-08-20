@@ -480,9 +480,17 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 			}
 		}
 		// project.deleted自体は削除対象のproject_idを参照できない（削除後に外部キー
-		// 違反になる）ため、project_idを付けずpayloadにだけ残す。
+		// 違反になる）ため、project_idを付けずpayloadにだけ残す。ハイライト機能
+		// （GET /workspaces/:id/activity、M5）は削除後のDB状態からこの行の可視性を
+		// 判定できないため、可視性判定に必要な情報（visibility・private時のメンバー
+		// 一覧）をpayloadにも複製しておく。recipientIDsは上でnotifyProjectLifecycle用に
+		// 算出済み（actor自身は含まない）のものを再利用する。
+		deletedPayload := map[string]any{"name": p.Name, "project_id": p.ID, "visibility": string(p.Visibility)}
+		if p.Visibility == project.VisibilityPrivate {
+			deletedPayload["member_user_ids"] = recipientIDs
+		}
 		if err := activity.Record(ctx, tx, p.WorkspaceID, nil, nil, u.ID, "project.deleted",
-			map[string]any{"name": p.Name, "project_id": p.ID}); err != nil {
+			deletedPayload); err != nil {
 			return err
 		}
 		return tx.Project.DeleteOneID(p.ID).Exec(ctx)

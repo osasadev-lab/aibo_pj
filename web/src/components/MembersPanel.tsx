@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Crown, Mail, Trash2, UserPlus } from "lucide-react";
 
@@ -19,6 +19,7 @@ import type { WorkspaceMember } from "@/lib/types";
 // /w/[workspaceId]/members への直接アクセス用にpage.tsxからも使う。
 export default function MembersPanel({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
+  const router = useRouter();
   const params = useParams<{ workspaceId: string }>();
   const workspaceId = params.workspaceId;
 
@@ -43,6 +44,14 @@ export default function MembersPanel({ onClose }: { onClose: () => void }) {
 
   const me = members.find((m) => m.user_id === user?.id);
   const isOwner = me?.role === "owner";
+
+  // メンバー名クリックでその人の担当タスク一覧・進捗にドリルダウンする
+  // （進捗画面の個人版、spec.md 4.7）。member_idはworkspace_members.id
+  // （GET .../members/:member_id/tasksと同じ解決方法、m.user_idとは別物）。
+  function openDrilldown(memberId: string) {
+    onClose();
+    router.push(`/w/${workspaceId}/progress?member_id=${memberId}`);
+  }
 
   async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
@@ -119,7 +128,12 @@ export default function MembersPanel({ onClose }: { onClose: () => void }) {
                 key={m.id}
                 className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3"
               >
-                <div className="flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => openDrilldown(m.id)}
+                  title="担当タスク一覧・進捗を見る"
+                  className="flex min-w-0 items-center gap-3 rounded-lg text-left transition-colors hover:bg-surface-muted"
+                >
                   <Avatar name={m.name} seed={m.user_id} />
                   <div className="min-w-0">
                     <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
@@ -128,7 +142,7 @@ export default function MembersPanel({ onClose }: { onClose: () => void }) {
                     </span>
                     <span className="block truncate text-xs text-muted-foreground">{m.email}</span>
                   </div>
-                </div>
+                </button>
                 {isOwner ? (
                   <div className="flex shrink-0 items-center gap-2">
                     <Select

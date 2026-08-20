@@ -37,3 +37,19 @@ export type Tag = {
   name: string;
   color: string;
 };
+
+// ハイライト機能（GET /workspaces/:id/activity、M5）の1行。
+// project.deleted/task.deletedはproject_id/task_idがnullになる
+// （対象が既に存在しないため）。その場合はpayload内の情報で表示を補う。
+export type ActivityLogEntry = {
+  id: string;
+  action_type: string;
+  actor_id: string;
+  actor_name?: string;
+  project_id: string | null;
+  project_name?: string;
+  task_id: string | null;
+  task_title?: string;
+  payload: Record<string, unknown> | null;
+  created_at: string;
+};

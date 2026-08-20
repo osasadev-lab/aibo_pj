@@ -60,6 +60,8 @@ const (
 	EdgeNotifications = "notifications"
 	// EdgeSentInvitations holds the string denoting the sent_invitations edge name in mutations.
 	EdgeSentInvitations = "sent_invitations"
+	// EdgeCalendarWatches holds the string denoting the calendar_watches edge name in mutations.
+	EdgeCalendarWatches = "calendar_watches"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// WorkspaceMembersTable is the table that holds the workspace_members relation/edge.
@@ -146,6 +148,13 @@ const (
 	SentInvitationsInverseTable = "workspace_invitations"
 	// SentInvitationsColumn is the table column denoting the sent_invitations relation/edge.
 	SentInvitationsColumn = "invited_by"
+	// CalendarWatchesTable is the table that holds the calendar_watches relation/edge.
+	CalendarWatchesTable = "calendar_watched_members"
+	// CalendarWatchesInverseTable is the table name for the CalendarWatchedMember entity.
+	// It exists in this package in order to avoid circular dependency with the "calendarwatchedmember" package.
+	CalendarWatchesInverseTable = "calendar_watched_members"
+	// CalendarWatchesColumn is the table column denoting the calendar_watches relation/edge.
+	CalendarWatchesColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -468,6 +477,20 @@ func BySentInvitations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newSentInvitationsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByCalendarWatchesCount orders the results by calendar_watches count.
+func ByCalendarWatchesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCalendarWatchesStep(), opts...)
+	}
+}
+
+// ByCalendarWatches orders the results by calendar_watches terms.
+func ByCalendarWatches(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCalendarWatchesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newWorkspaceMembersStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -550,5 +573,12 @@ func newSentInvitationsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(SentInvitationsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, SentInvitationsTable, SentInvitationsColumn),
+	)
+}
+func newCalendarWatchesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CalendarWatchesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, CalendarWatchesTable, CalendarWatchesColumn),
 	)
 }

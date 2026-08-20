@@ -58,6 +58,9 @@ func main() {
 	notificationHandler := handler.NewNotificationHandler(client)
 	tagHandler := handler.NewTagHandler(client)
 	attachmentHandler := handler.NewAttachmentHandler(client, r2Client)
+	calendarHandler := handler.NewCalendarHandler(client)
+	progressHandler := handler.NewProgressHandler(client)
+	activityHandler := handler.NewActivityHandler(client)
 
 	requireAuth := middleware.RequireAuth(client, cfg.JWTSecret)
 	requireWorkspaceMember := middleware.RequireWorkspaceMember(client)
@@ -104,6 +107,13 @@ func main() {
 				withMember.GET("/tasks", taskHandler.Search)
 				withMember.POST("/tasks", taskHandler.Create)
 				withMember.GET("/my-tasks", taskHandler.MyTasks)
+
+				withMember.GET("/calendar", calendarHandler.GetCalendar)
+				withMember.GET("/calendar-watched-users", calendarHandler.GetWatchedMembers)
+				withMember.PUT("/calendar-watched-users", calendarHandler.PutWatchedMembers)
+				withMember.GET("/progress", progressHandler.GetProgress)
+				withMember.GET("/activity", activityHandler.List)
+				withMember.GET("/members/:member_id/tasks", memberHandler.MemberTasks)
 
 				withMember.GET("/common-tags", tagHandler.ListCommonTags)
 				withMember.POST("/common-tags", requireOwner, tagHandler.CreateCommonTag)

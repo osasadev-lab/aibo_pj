@@ -18,6 +18,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
@@ -47,6 +48,8 @@ type Client struct {
 	ActivityLog *ActivityLogClient
 	// Attachment is the client for interacting with the Attachment builders.
 	Attachment *AttachmentClient
+	// CalendarWatchedMember is the client for interacting with the CalendarWatchedMember builders.
+	CalendarWatchedMember *CalendarWatchedMemberClient
 	// Comment is the client for interacting with the Comment builders.
 	Comment *CommentClient
 	// CommentMention is the client for interacting with the CommentMention builders.
@@ -96,6 +99,7 @@ func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.ActivityLog = NewActivityLogClient(c.config)
 	c.Attachment = NewAttachmentClient(c.config)
+	c.CalendarWatchedMember = NewCalendarWatchedMemberClient(c.config)
 	c.Comment = NewCommentClient(c.config)
 	c.CommentMention = NewCommentMentionClient(c.config)
 	c.Notification = NewNotificationClient(c.config)
@@ -204,28 +208,29 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:                 ctx,
-		config:              cfg,
-		ActivityLog:         NewActivityLogClient(cfg),
-		Attachment:          NewAttachmentClient(cfg),
-		Comment:             NewCommentClient(cfg),
-		CommentMention:      NewCommentMentionClient(cfg),
-		Notification:        NewNotificationClient(cfg),
-		Project:             NewProjectClient(cfg),
-		ProjectMember:       NewProjectMemberClient(cfg),
-		ProjectStatusColumn: NewProjectStatusColumnClient(cfg),
-		Section:             NewSectionClient(cfg),
-		Tag:                 NewTagClient(cfg),
-		Task:                NewTaskClient(cfg),
-		TaskAssignee:        NewTaskAssigneeClient(cfg),
-		TaskCalendarEvent:   NewTaskCalendarEventClient(cfg),
-		TaskDependency:      NewTaskDependencyClient(cfg),
-		TaskMention:         NewTaskMentionClient(cfg),
-		TaskTag:             NewTaskTagClient(cfg),
-		User:                NewUserClient(cfg),
-		Workspace:           NewWorkspaceClient(cfg),
-		WorkspaceInvitation: NewWorkspaceInvitationClient(cfg),
-		WorkspaceMember:     NewWorkspaceMemberClient(cfg),
+		ctx:                   ctx,
+		config:                cfg,
+		ActivityLog:           NewActivityLogClient(cfg),
+		Attachment:            NewAttachmentClient(cfg),
+		CalendarWatchedMember: NewCalendarWatchedMemberClient(cfg),
+		Comment:               NewCommentClient(cfg),
+		CommentMention:        NewCommentMentionClient(cfg),
+		Notification:          NewNotificationClient(cfg),
+		Project:               NewProjectClient(cfg),
+		ProjectMember:         NewProjectMemberClient(cfg),
+		ProjectStatusColumn:   NewProjectStatusColumnClient(cfg),
+		Section:               NewSectionClient(cfg),
+		Tag:                   NewTagClient(cfg),
+		Task:                  NewTaskClient(cfg),
+		TaskAssignee:          NewTaskAssigneeClient(cfg),
+		TaskCalendarEvent:     NewTaskCalendarEventClient(cfg),
+		TaskDependency:        NewTaskDependencyClient(cfg),
+		TaskMention:           NewTaskMentionClient(cfg),
+		TaskTag:               NewTaskTagClient(cfg),
+		User:                  NewUserClient(cfg),
+		Workspace:             NewWorkspaceClient(cfg),
+		WorkspaceInvitation:   NewWorkspaceInvitationClient(cfg),
+		WorkspaceMember:       NewWorkspaceMemberClient(cfg),
 	}, nil
 }
 
@@ -243,28 +248,29 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:                 ctx,
-		config:              cfg,
-		ActivityLog:         NewActivityLogClient(cfg),
-		Attachment:          NewAttachmentClient(cfg),
-		Comment:             NewCommentClient(cfg),
-		CommentMention:      NewCommentMentionClient(cfg),
-		Notification:        NewNotificationClient(cfg),
-		Project:             NewProjectClient(cfg),
-		ProjectMember:       NewProjectMemberClient(cfg),
-		ProjectStatusColumn: NewProjectStatusColumnClient(cfg),
-		Section:             NewSectionClient(cfg),
-		Tag:                 NewTagClient(cfg),
-		Task:                NewTaskClient(cfg),
-		TaskAssignee:        NewTaskAssigneeClient(cfg),
-		TaskCalendarEvent:   NewTaskCalendarEventClient(cfg),
-		TaskDependency:      NewTaskDependencyClient(cfg),
-		TaskMention:         NewTaskMentionClient(cfg),
-		TaskTag:             NewTaskTagClient(cfg),
-		User:                NewUserClient(cfg),
-		Workspace:           NewWorkspaceClient(cfg),
-		WorkspaceInvitation: NewWorkspaceInvitationClient(cfg),
-		WorkspaceMember:     NewWorkspaceMemberClient(cfg),
+		ctx:                   ctx,
+		config:                cfg,
+		ActivityLog:           NewActivityLogClient(cfg),
+		Attachment:            NewAttachmentClient(cfg),
+		CalendarWatchedMember: NewCalendarWatchedMemberClient(cfg),
+		Comment:               NewCommentClient(cfg),
+		CommentMention:        NewCommentMentionClient(cfg),
+		Notification:          NewNotificationClient(cfg),
+		Project:               NewProjectClient(cfg),
+		ProjectMember:         NewProjectMemberClient(cfg),
+		ProjectStatusColumn:   NewProjectStatusColumnClient(cfg),
+		Section:               NewSectionClient(cfg),
+		Tag:                   NewTagClient(cfg),
+		Task:                  NewTaskClient(cfg),
+		TaskAssignee:          NewTaskAssigneeClient(cfg),
+		TaskCalendarEvent:     NewTaskCalendarEventClient(cfg),
+		TaskDependency:        NewTaskDependencyClient(cfg),
+		TaskMention:           NewTaskMentionClient(cfg),
+		TaskTag:               NewTaskTagClient(cfg),
+		User:                  NewUserClient(cfg),
+		Workspace:             NewWorkspaceClient(cfg),
+		WorkspaceInvitation:   NewWorkspaceInvitationClient(cfg),
+		WorkspaceMember:       NewWorkspaceMemberClient(cfg),
 	}, nil
 }
 
@@ -294,10 +300,11 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
-		c.ActivityLog, c.Attachment, c.Comment, c.CommentMention, c.Notification,
-		c.Project, c.ProjectMember, c.ProjectStatusColumn, c.Section, c.Tag, c.Task,
-		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
-		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
+		c.CommentMention, c.Notification, c.Project, c.ProjectMember,
+		c.ProjectStatusColumn, c.Section, c.Tag, c.Task, c.TaskAssignee,
+		c.TaskCalendarEvent, c.TaskDependency, c.TaskMention, c.TaskTag, c.User,
+		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Use(hooks...)
 	}
@@ -307,10 +314,11 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
-		c.ActivityLog, c.Attachment, c.Comment, c.CommentMention, c.Notification,
-		c.Project, c.ProjectMember, c.ProjectStatusColumn, c.Section, c.Tag, c.Task,
-		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
-		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
+		c.CommentMention, c.Notification, c.Project, c.ProjectMember,
+		c.ProjectStatusColumn, c.Section, c.Tag, c.Task, c.TaskAssignee,
+		c.TaskCalendarEvent, c.TaskDependency, c.TaskMention, c.TaskTag, c.User,
+		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -323,6 +331,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ActivityLog.mutate(ctx, m)
 	case *AttachmentMutation:
 		return c.Attachment.mutate(ctx, m)
+	case *CalendarWatchedMemberMutation:
+		return c.CalendarWatchedMember.mutate(ctx, m)
 	case *CommentMutation:
 		return c.Comment.mutate(ctx, m)
 	case *CommentMentionMutation:
@@ -723,6 +733,187 @@ func (c *AttachmentClient) mutate(ctx context.Context, m *AttachmentMutation) (V
 		return (&AttachmentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Attachment mutation op: %q", m.Op())
+	}
+}
+
+// CalendarWatchedMemberClient is a client for the CalendarWatchedMember schema.
+type CalendarWatchedMemberClient struct {
+	config
+}
+
+// NewCalendarWatchedMemberClient returns a client for the CalendarWatchedMember from the given config.
+func NewCalendarWatchedMemberClient(c config) *CalendarWatchedMemberClient {
+	return &CalendarWatchedMemberClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `calendarwatchedmember.Hooks(f(g(h())))`.
+func (c *CalendarWatchedMemberClient) Use(hooks ...Hook) {
+	c.hooks.CalendarWatchedMember = append(c.hooks.CalendarWatchedMember, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `calendarwatchedmember.Intercept(f(g(h())))`.
+func (c *CalendarWatchedMemberClient) Intercept(interceptors ...Interceptor) {
+	c.inters.CalendarWatchedMember = append(c.inters.CalendarWatchedMember, interceptors...)
+}
+
+// Create returns a builder for creating a CalendarWatchedMember entity.
+func (c *CalendarWatchedMemberClient) Create() *CalendarWatchedMemberCreate {
+	mutation := newCalendarWatchedMemberMutation(c.config, OpCreate)
+	return &CalendarWatchedMemberCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of CalendarWatchedMember entities.
+func (c *CalendarWatchedMemberClient) CreateBulk(builders ...*CalendarWatchedMemberCreate) *CalendarWatchedMemberCreateBulk {
+	return &CalendarWatchedMemberCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *CalendarWatchedMemberClient) MapCreateBulk(slice any, setFunc func(*CalendarWatchedMemberCreate, int)) *CalendarWatchedMemberCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &CalendarWatchedMemberCreateBulk{err: fmt.Errorf("calling to CalendarWatchedMemberClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*CalendarWatchedMemberCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &CalendarWatchedMemberCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for CalendarWatchedMember.
+func (c *CalendarWatchedMemberClient) Update() *CalendarWatchedMemberUpdate {
+	mutation := newCalendarWatchedMemberMutation(c.config, OpUpdate)
+	return &CalendarWatchedMemberUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *CalendarWatchedMemberClient) UpdateOne(_m *CalendarWatchedMember) *CalendarWatchedMemberUpdateOne {
+	mutation := newCalendarWatchedMemberMutation(c.config, OpUpdateOne, withCalendarWatchedMember(_m))
+	return &CalendarWatchedMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *CalendarWatchedMemberClient) UpdateOneID(id uuid.UUID) *CalendarWatchedMemberUpdateOne {
+	mutation := newCalendarWatchedMemberMutation(c.config, OpUpdateOne, withCalendarWatchedMemberID(id))
+	return &CalendarWatchedMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for CalendarWatchedMember.
+func (c *CalendarWatchedMemberClient) Delete() *CalendarWatchedMemberDelete {
+	mutation := newCalendarWatchedMemberMutation(c.config, OpDelete)
+	return &CalendarWatchedMemberDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *CalendarWatchedMemberClient) DeleteOne(_m *CalendarWatchedMember) *CalendarWatchedMemberDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *CalendarWatchedMemberClient) DeleteOneID(id uuid.UUID) *CalendarWatchedMemberDeleteOne {
+	builder := c.Delete().Where(calendarwatchedmember.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &CalendarWatchedMemberDeleteOne{builder}
+}
+
+// Query returns a query builder for CalendarWatchedMember.
+func (c *CalendarWatchedMemberClient) Query() *CalendarWatchedMemberQuery {
+	return &CalendarWatchedMemberQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeCalendarWatchedMember},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a CalendarWatchedMember entity by its id.
+func (c *CalendarWatchedMemberClient) Get(ctx context.Context, id uuid.UUID) (*CalendarWatchedMember, error) {
+	return c.Query().Where(calendarwatchedmember.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *CalendarWatchedMemberClient) GetX(ctx context.Context, id uuid.UUID) *CalendarWatchedMember {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryWorkspace queries the workspace edge of a CalendarWatchedMember.
+func (c *CalendarWatchedMemberClient) QueryWorkspace(_m *CalendarWatchedMember) *WorkspaceQuery {
+	query := (&WorkspaceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(calendarwatchedmember.Table, calendarwatchedmember.FieldID, id),
+			sqlgraph.To(workspace.Table, workspace.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, calendarwatchedmember.WorkspaceTable, calendarwatchedmember.WorkspaceColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a CalendarWatchedMember.
+func (c *CalendarWatchedMemberClient) QueryUser(_m *CalendarWatchedMember) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(calendarwatchedmember.Table, calendarwatchedmember.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, calendarwatchedmember.UserTable, calendarwatchedmember.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryWatchedUser queries the watched_user edge of a CalendarWatchedMember.
+func (c *CalendarWatchedMemberClient) QueryWatchedUser(_m *CalendarWatchedMember) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(calendarwatchedmember.Table, calendarwatchedmember.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, calendarwatchedmember.WatchedUserTable, calendarwatchedmember.WatchedUserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *CalendarWatchedMemberClient) Hooks() []Hook {
+	return c.hooks.CalendarWatchedMember
+}
+
+// Interceptors returns the client interceptors.
+func (c *CalendarWatchedMemberClient) Interceptors() []Interceptor {
+	return c.inters.CalendarWatchedMember
+}
+
+func (c *CalendarWatchedMemberClient) mutate(ctx context.Context, m *CalendarWatchedMemberMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&CalendarWatchedMemberCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&CalendarWatchedMemberUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&CalendarWatchedMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&CalendarWatchedMemberDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown CalendarWatchedMember mutation op: %q", m.Op())
 	}
 }
 
@@ -3640,6 +3831,22 @@ func (c *UserClient) QuerySentInvitations(_m *User) *WorkspaceInvitationQuery {
 	return query
 }
 
+// QueryCalendarWatches queries the calendar_watches edge of a User.
+func (c *UserClient) QueryCalendarWatches(_m *User) *CalendarWatchedMemberQuery {
+	query := (&CalendarWatchedMemberClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(calendarwatchedmember.Table, calendarwatchedmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.CalendarWatchesTable, user.CalendarWatchesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -4227,15 +4434,15 @@ func (c *WorkspaceMemberClient) mutate(ctx context.Context, m *WorkspaceMemberMu
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		ActivityLog, Attachment, Comment, CommentMention, Notification, Project,
-		ProjectMember, ProjectStatusColumn, Section, Tag, Task, TaskAssignee,
-		TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User, Workspace,
-		WorkspaceInvitation, WorkspaceMember []ent.Hook
+		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
+		Notification, Project, ProjectMember, ProjectStatusColumn, Section, Tag, Task,
+		TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User,
+		Workspace, WorkspaceInvitation, WorkspaceMember []ent.Hook
 	}
 	inters struct {
-		ActivityLog, Attachment, Comment, CommentMention, Notification, Project,
-		ProjectMember, ProjectStatusColumn, Section, Tag, Task, TaskAssignee,
-		TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User, Workspace,
-		WorkspaceInvitation, WorkspaceMember []ent.Interceptor
+		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
+		Notification, Project, ProjectMember, ProjectStatusColumn, Section, Tag, Task,
+		TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User,
+		Workspace, WorkspaceInvitation, WorkspaceMember []ent.Interceptor
 	}
 )

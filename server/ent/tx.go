@@ -16,6 +16,8 @@ type Tx struct {
 	ActivityLog *ActivityLogClient
 	// Attachment is the client for interacting with the Attachment builders.
 	Attachment *AttachmentClient
+	// CalendarWatchedMember is the client for interacting with the CalendarWatchedMember builders.
+	CalendarWatchedMember *CalendarWatchedMemberClient
 	// Comment is the client for interacting with the Comment builders.
 	Comment *CommentClient
 	// CommentMention is the client for interacting with the CommentMention builders.
@@ -185,6 +187,7 @@ func (tx *Tx) Client() *Client {
 func (tx *Tx) init() {
 	tx.ActivityLog = NewActivityLogClient(tx.config)
 	tx.Attachment = NewAttachmentClient(tx.config)
+	tx.CalendarWatchedMember = NewCalendarWatchedMemberClient(tx.config)
 	tx.Comment = NewCommentClient(tx.config)
 	tx.CommentMention = NewCommentMentionClient(tx.config)
 	tx.Notification = NewNotificationClient(tx.config)

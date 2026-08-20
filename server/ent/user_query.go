@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
@@ -48,6 +49,7 @@ type UserQuery struct {
 	withActivityLogs     *ActivityLogQuery
 	withNotifications    *NotificationQuery
 	withSentInvitations  *WorkspaceInvitationQuery
+	withCalendarWatches  *CalendarWatchedMemberQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -348,6 +350,28 @@ func (_q *UserQuery) QuerySentInvitations() *WorkspaceInvitationQuery {
 	return query
 }
 
+// QueryCalendarWatches chains the current query on the "calendar_watches" edge.
+func (_q *UserQuery) QueryCalendarWatches() *CalendarWatchedMemberQuery {
+	query := (&CalendarWatchedMemberClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(calendarwatchedmember.Table, calendarwatchedmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.CalendarWatchesTable, user.CalendarWatchesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -552,6 +576,7 @@ func (_q *UserQuery) Clone() *UserQuery {
 		withActivityLogs:     _q.withActivityLogs.Clone(),
 		withNotifications:    _q.withNotifications.Clone(),
 		withSentInvitations:  _q.withSentInvitations.Clone(),
+		withCalendarWatches:  _q.withCalendarWatches.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -690,6 +715,17 @@ func (_q *UserQuery) WithSentInvitations(opts ...func(*WorkspaceInvitationQuery)
 	return _q
 }
 
+// WithCalendarWatches tells the query-builder to eager-load the nodes that are connected to
+// the "calendar_watches" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithCalendarWatches(opts ...func(*CalendarWatchedMemberQuery)) *UserQuery {
+	query := (&CalendarWatchedMemberClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withCalendarWatches = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -768,7 +804,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [12]bool{
+		loadedTypes = [13]bool{
 			_q.withWorkspaceMembers != nil,
 			_q.withProjectMembers != nil,
 			_q.withCreatedProjects != nil,
@@ -781,6 +817,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withActivityLogs != nil,
 			_q.withNotifications != nil,
 			_q.withSentInvitations != nil,
+			_q.withCalendarWatches != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -882,6 +919,13 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadSentInvitations(ctx, query, nodes,
 			func(n *User) { n.Edges.SentInvitations = []*WorkspaceInvitation{} },
 			func(n *User, e *WorkspaceInvitation) { n.Edges.SentInvitations = append(n.Edges.SentInvitations, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withCalendarWatches; query != nil {
+		if err := _q.loadCalendarWatches(ctx, query, nodes,
+			func(n *User) { n.Edges.CalendarWatches = []*CalendarWatchedMember{} },
+			func(n *User, e *CalendarWatchedMember) { n.Edges.CalendarWatches = append(n.Edges.CalendarWatches, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1243,6 +1287,36 @@ func (_q *UserQuery) loadSentInvitations(ctx context.Context, query *WorkspaceIn
 		node, ok := nodeids[fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "invited_by" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadCalendarWatches(ctx context.Context, query *CalendarWatchedMemberQuery, nodes []*User, init func(*User), assign func(*User, *CalendarWatchedMember)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(calendarwatchedmember.FieldUserID)
+	}
+	query.Where(predicate.CalendarWatchedMember(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.CalendarWatchesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

@@ -62,6 +62,11 @@ var (
 				Unique:  false,
 				Columns: []*schema.Column{ActivityLogsColumns[6]},
 			},
+			{
+				Name:    "activitylog_workspace_id_actor_id",
+				Unique:  false,
+				Columns: []*schema.Column{ActivityLogsColumns[5], ActivityLogsColumns[8]},
+			},
 		},
 	}
 	// AttachmentsColumns holds the columns for the "attachments" table.
@@ -93,6 +98,48 @@ var (
 				Columns:    []*schema.Column{AttachmentsColumns[8]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
+			},
+		},
+	}
+	// CalendarWatchedMembersColumns holds the columns for the "calendar_watched_members" table.
+	CalendarWatchedMembersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "workspace_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+		{Name: "watched_user_id", Type: field.TypeUUID},
+	}
+	// CalendarWatchedMembersTable holds the schema information for the "calendar_watched_members" table.
+	CalendarWatchedMembersTable = &schema.Table{
+		Name:       "calendar_watched_members",
+		Columns:    CalendarWatchedMembersColumns,
+		PrimaryKey: []*schema.Column{CalendarWatchedMembersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "calendar_watched_members_workspaces_workspace",
+				Columns:    []*schema.Column{CalendarWatchedMembersColumns[3]},
+				RefColumns: []*schema.Column{WorkspacesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "calendar_watched_members_users_user",
+				Columns:    []*schema.Column{CalendarWatchedMembersColumns[4]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "calendar_watched_members_users_watched_user",
+				Columns:    []*schema.Column{CalendarWatchedMembersColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "calendarwatchedmember_workspace_id_user_id_watched_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{CalendarWatchedMembersColumns[3], CalendarWatchedMembersColumns[4], CalendarWatchedMembersColumns[5]},
 			},
 		},
 	}
@@ -701,6 +748,7 @@ var (
 	Tables = []*schema.Table{
 		ActivityLogsTable,
 		AttachmentsTable,
+		CalendarWatchedMembersTable,
 		CommentsTable,
 		CommentMentionsTable,
 		NotificationsTable,
@@ -729,6 +777,9 @@ func init() {
 	ActivityLogsTable.ForeignKeys[3].RefTable = UsersTable
 	AttachmentsTable.ForeignKeys[0].RefTable = TasksTable
 	AttachmentsTable.ForeignKeys[1].RefTable = UsersTable
+	CalendarWatchedMembersTable.ForeignKeys[0].RefTable = WorkspacesTable
+	CalendarWatchedMembersTable.ForeignKeys[1].RefTable = UsersTable
+	CalendarWatchedMembersTable.ForeignKeys[2].RefTable = UsersTable
 	CommentsTable.ForeignKeys[0].RefTable = TasksTable
 	CommentsTable.ForeignKeys[1].RefTable = UsersTable
 	CommentMentionsTable.ForeignKeys[0].RefTable = CommentsTable

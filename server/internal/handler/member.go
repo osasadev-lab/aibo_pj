@@ -9,6 +9,10 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
+	"github.com/osasadev-lab/aibo_pj/server/ent/project"
+	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/task"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
@@ -219,6 +223,73 @@ func (h *MemberHandler) Remove(c *gin.Context) {
 	default:
 		c.Status(http.StatusNoContent)
 	}
+}
+
+// MemberTasks は GET /workspaces/:workspace_id/members/:member_id/tasks。
+// 対象メンバーの担当タスク一覧・進捗状況（進捗画面の個人版、spec.md 4.7）を返す。
+// :member_idはworkspace_members.id（ChangeRole/Removeと同じ解決方法）。
+func (h *MemberHandler) MemberTasks(c *gin.Context) {
+	m := middleware.CurrentMembership(c)
+	ctx := c.Request.Context()
+
+	memberID, err := uuid.Parse(c.Param("member_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "member not found"})
+		return
+	}
+
+	target, err := h.client.WorkspaceMember.Query().
+		Where(workspacemember.IDEQ(memberID), workspacemember.WorkspaceIDEQ(m.WorkspaceID)).
+		WithUser().
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "member not found"})
+		return
+	}
+
+	tasks, err := h.client.Task.Query().
+		Where(
+			task.WorkspaceIDEQ(m.WorkspaceID),
+			task.HasAssigneesWith(taskassignee.UserIDEQ(target.UserID)),
+			task.Or(
+				task.ProjectIDIsNil(),
+				task.HasProjectWith(project.VisibilityEQ(project.VisibilityPublic)),
+				task.HasProjectWith(project.HasMembersWith(projectmember.UserIDEQ(m.UserID))),
+			),
+		).
+		WithAssignees().
+		All(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load member tasks"})
+		return
+	}
+
+	byStatus := map[string]int{"not_started": 0, "in_progress": 0, "done": 0, "on_hold": 0}
+	out := make([]gin.H, 0, len(tasks))
+	for _, t := range tasks {
+		byStatus[string(t.Status)]++
+		out = append(out, taskJSON(t))
+	}
+
+	var memberName, memberEmail string
+	if target.Edges.User != nil {
+		memberName = target.Edges.User.Name
+		memberEmail = target.Edges.User.Email
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"member": gin.H{
+			"id":      target.ID,
+			"user_id": target.UserID,
+			"name":    memberName,
+			"email":   memberEmail,
+		},
+		"tasks": out,
+		"summary": gin.H{
+			"total":     len(tasks),
+			"by_status": byStatus,
+		},
+	})
 }
 
 // ensureNotLastOwner は、targetMemberIDを除いた残りOwner数が0なら

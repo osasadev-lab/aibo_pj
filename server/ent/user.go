@@ -70,9 +70,11 @@ type UserEdges struct {
 	Notifications []*Notification `json:"notifications,omitempty"`
 	// SentInvitations holds the value of the sent_invitations edge.
 	SentInvitations []*WorkspaceInvitation `json:"sent_invitations,omitempty"`
+	// CalendarWatches holds the value of the calendar_watches edge.
+	CalendarWatches []*CalendarWatchedMember `json:"calendar_watches,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [12]bool
+	loadedTypes [13]bool
 }
 
 // WorkspaceMembersOrErr returns the WorkspaceMembers value or an error if the edge
@@ -181,6 +183,15 @@ func (e UserEdges) SentInvitationsOrErr() ([]*WorkspaceInvitation, error) {
 		return e.SentInvitations, nil
 	}
 	return nil, &NotLoadedError{edge: "sent_invitations"}
+}
+
+// CalendarWatchesOrErr returns the CalendarWatches value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) CalendarWatchesOrErr() ([]*CalendarWatchedMember, error) {
+	if e.loadedTypes[12] {
+		return e.CalendarWatches, nil
+	}
+	return nil, &NotLoadedError{edge: "calendar_watches"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -351,6 +362,11 @@ func (_m *User) QueryNotifications() *NotificationQuery {
 // QuerySentInvitations queries the "sent_invitations" edge of the User entity.
 func (_m *User) QuerySentInvitations() *WorkspaceInvitationQuery {
 	return NewUserClient(_m.config).QuerySentInvitations(_m)
+}
+
+// QueryCalendarWatches queries the "calendar_watches" edge of the User entity.
+func (_m *User) QueryCalendarWatches() *CalendarWatchedMemberQuery {
+	return NewUserClient(_m.config).QueryCalendarWatches(_m)
 }
 
 // Update returns a builder for updating this User.

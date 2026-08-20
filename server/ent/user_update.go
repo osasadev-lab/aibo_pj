@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
@@ -357,6 +358,21 @@ func (_u *UserUpdate) AddSentInvitations(v ...*WorkspaceInvitation) *UserUpdate 
 	return _u.AddSentInvitationIDs(ids...)
 }
 
+// AddCalendarWatchIDs adds the "calendar_watches" edge to the CalendarWatchedMember entity by IDs.
+func (_u *UserUpdate) AddCalendarWatchIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.AddCalendarWatchIDs(ids...)
+	return _u
+}
+
+// AddCalendarWatches adds the "calendar_watches" edges to the CalendarWatchedMember entity.
+func (_u *UserUpdate) AddCalendarWatches(v ...*CalendarWatchedMember) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCalendarWatchIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdate) Mutation() *UserMutation {
 	return _u.mutation
@@ -612,6 +628,27 @@ func (_u *UserUpdate) RemoveSentInvitations(v ...*WorkspaceInvitation) *UserUpda
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSentInvitationIDs(ids...)
+}
+
+// ClearCalendarWatches clears all "calendar_watches" edges to the CalendarWatchedMember entity.
+func (_u *UserUpdate) ClearCalendarWatches() *UserUpdate {
+	_u.mutation.ClearCalendarWatches()
+	return _u
+}
+
+// RemoveCalendarWatchIDs removes the "calendar_watches" edge to CalendarWatchedMember entities by IDs.
+func (_u *UserUpdate) RemoveCalendarWatchIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.RemoveCalendarWatchIDs(ids...)
+	return _u
+}
+
+// RemoveCalendarWatches removes "calendar_watches" edges to CalendarWatchedMember entities.
+func (_u *UserUpdate) RemoveCalendarWatches(v ...*CalendarWatchedMember) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCalendarWatchIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -1268,6 +1305,51 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.CalendarWatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CalendarWatchesTable,
+			Columns: []string{user.CalendarWatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCalendarWatchesIDs(); len(nodes) > 0 && !_u.mutation.CalendarWatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CalendarWatchesTable,
+			Columns: []string{user.CalendarWatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CalendarWatchesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CalendarWatchesTable,
+			Columns: []string{user.CalendarWatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1604,6 +1686,21 @@ func (_u *UserUpdateOne) AddSentInvitations(v ...*WorkspaceInvitation) *UserUpda
 	return _u.AddSentInvitationIDs(ids...)
 }
 
+// AddCalendarWatchIDs adds the "calendar_watches" edge to the CalendarWatchedMember entity by IDs.
+func (_u *UserUpdateOne) AddCalendarWatchIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.AddCalendarWatchIDs(ids...)
+	return _u
+}
+
+// AddCalendarWatches adds the "calendar_watches" edges to the CalendarWatchedMember entity.
+func (_u *UserUpdateOne) AddCalendarWatches(v ...*CalendarWatchedMember) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddCalendarWatchIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_u *UserUpdateOne) Mutation() *UserMutation {
 	return _u.mutation
@@ -1859,6 +1956,27 @@ func (_u *UserUpdateOne) RemoveSentInvitations(v ...*WorkspaceInvitation) *UserU
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveSentInvitationIDs(ids...)
+}
+
+// ClearCalendarWatches clears all "calendar_watches" edges to the CalendarWatchedMember entity.
+func (_u *UserUpdateOne) ClearCalendarWatches() *UserUpdateOne {
+	_u.mutation.ClearCalendarWatches()
+	return _u
+}
+
+// RemoveCalendarWatchIDs removes the "calendar_watches" edge to CalendarWatchedMember entities by IDs.
+func (_u *UserUpdateOne) RemoveCalendarWatchIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.RemoveCalendarWatchIDs(ids...)
+	return _u
+}
+
+// RemoveCalendarWatches removes "calendar_watches" edges to CalendarWatchedMember entities.
+func (_u *UserUpdateOne) RemoveCalendarWatches(v ...*CalendarWatchedMember) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveCalendarWatchIDs(ids...)
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -2538,6 +2656,51 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.CalendarWatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CalendarWatchesTable,
+			Columns: []string{user.CalendarWatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedCalendarWatchesIDs(); len(nodes) > 0 && !_u.mutation.CalendarWatchesCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CalendarWatchesTable,
+			Columns: []string{user.CalendarWatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.CalendarWatchesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CalendarWatchesTable,
+			Columns: []string{user.CalendarWatchesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

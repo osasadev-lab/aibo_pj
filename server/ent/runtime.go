@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
@@ -87,6 +88,25 @@ func init() {
 	attachmentDescID := attachmentMixinFields0[0].Descriptor()
 	// attachment.DefaultID holds the default value on creation for the id field.
 	attachment.DefaultID = attachmentDescID.Default.(func() uuid.UUID)
+	calendarwatchedmemberMixin := schema.CalendarWatchedMember{}.Mixin()
+	calendarwatchedmemberMixinFields0 := calendarwatchedmemberMixin[0].Fields()
+	_ = calendarwatchedmemberMixinFields0
+	calendarwatchedmemberFields := schema.CalendarWatchedMember{}.Fields()
+	_ = calendarwatchedmemberFields
+	// calendarwatchedmemberDescCreatedAt is the schema descriptor for created_at field.
+	calendarwatchedmemberDescCreatedAt := calendarwatchedmemberMixinFields0[1].Descriptor()
+	// calendarwatchedmember.DefaultCreatedAt holds the default value on creation for the created_at field.
+	calendarwatchedmember.DefaultCreatedAt = calendarwatchedmemberDescCreatedAt.Default.(func() time.Time)
+	// calendarwatchedmemberDescUpdatedAt is the schema descriptor for updated_at field.
+	calendarwatchedmemberDescUpdatedAt := calendarwatchedmemberMixinFields0[2].Descriptor()
+	// calendarwatchedmember.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	calendarwatchedmember.DefaultUpdatedAt = calendarwatchedmemberDescUpdatedAt.Default.(func() time.Time)
+	// calendarwatchedmember.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	calendarwatchedmember.UpdateDefaultUpdatedAt = calendarwatchedmemberDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// calendarwatchedmemberDescID is the schema descriptor for id field.
+	calendarwatchedmemberDescID := calendarwatchedmemberMixinFields0[0].Descriptor()
+	// calendarwatchedmember.DefaultID holds the default value on creation for the id field.
+	calendarwatchedmember.DefaultID = calendarwatchedmemberDescID.Default.(func() uuid.UUID)
 	commentMixin := schema.Comment{}.Mixin()
 	commentMixinFields0 := commentMixin[0].Fields()
 	_ = commentMixinFields0

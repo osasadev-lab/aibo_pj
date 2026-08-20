@@ -61,6 +61,14 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - [x] 追加UI：子タスクのカンバン表示、Slack風マークダウンツールバー（説明・コメント）、タスク詳細のリンクコピー、ホバー強調（タグ一致/依存関係/親子関係、個人設定）
 - 実装詳細・設計判断は`docs/aibo/m4-implementation-plan.md`参照
 
+### M5：カレンダー画面・進捗画面
+
+- [x] 月タイル表示カレンダー（既定は自分のタスクのみ、他メンバーを追加すると重ねて表示。`calendar_watched_members`テーブル）
+- [x] 進捗画面：プロジェクト別・担当者別の棒グラフ（自前実装、外部チャートライブラリ不使用）。Supabase Realtimeで`tasks`テーブルを購読しステータス変更にリアルタイム追随
+- [x] メンバー画面のタスクドリルダウン（`GET /workspaces/:id/members/:member_id/tasks`、進捗画面に`?member_id=`で遷移）
+- [x] ハイライト機能（プロジェクト/タスクの作成・削除・変更・ステータス変更をactorで絞り込める右サイドバーパネル。追加要望）
+- 実装詳細・設計判断は`docs/aibo/m5-implementation-plan.md`参照（Supabase側の`tasks`テーブルRLS/Realtime publication設定も適用済み）
+
 ## セットアップ
 
 ### 前提
@@ -117,4 +125,4 @@ npm run deploy    # ビルド + Cloudflare Workersへ実デプロイ
 
 ## 次のマイルストーン
 
-M5（カレンダー画面・進捗画面）以降は `docs/aibo/execution-plan.md` を参照。
+M6（Googleカレンダー連携）以降は `docs/aibo/execution-plan.md` を参照。

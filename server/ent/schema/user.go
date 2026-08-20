@@ -64,5 +64,6 @@ func (User) Edges() []ent.Edge {
 		edge.From("activity_logs", ActivityLog.Type).Ref("actor"),
 		edge.From("notifications", Notification.Type).Ref("user"),
 		edge.From("sent_invitations", WorkspaceInvitation.Type).Ref("inviter"),
+		edge.From("calendar_watches", CalendarWatchedMember.Type).Ref("user"),
 	}
 }

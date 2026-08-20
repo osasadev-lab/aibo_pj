@@ -55,5 +55,7 @@ func (ActivityLog) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("workspace_id", "created_at"),
 		index.Fields("task_id"),
+		// M5のハイライト機能（GET /workspaces/:id/activity）のactor絞り込み用。
+		index.Fields("workspace_id", "actor_id"),
 	}
 }

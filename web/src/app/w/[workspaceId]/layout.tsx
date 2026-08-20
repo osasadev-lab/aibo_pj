@@ -4,8 +4,11 @@ import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+  Activity,
   ArrowLeftRight,
+  BarChart3,
   Bell,
+  Calendar,
   Check,
   Folder,
   Globe,
@@ -26,6 +29,7 @@ import Avatar from "@/components/ui/Avatar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import IconButton from "@/components/ui/IconButton";
 import { Input } from "@/components/ui/fields";
+import ActivityPanel from "@/components/ActivityPanel";
 import MembersPanel from "@/components/MembersPanel";
 import NotificationsPanel from "@/components/NotificationsPanel";
 import { ProjectsProvider, useProjects } from "@/lib/workspace/ProjectsContext";
@@ -77,6 +81,7 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
   // 画面が丸ごとアンマウントされてタスクが見えなくなってしまうため。
   const [showMembers, setShowMembers] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showActivity, setShowActivity] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
 
   useEffect(() => {
@@ -129,7 +134,9 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
   if (!user) return null;
 
   const projectsHref = `/w/${params.workspaceId}/projects`;
+  const calendarHref = `/w/${params.workspaceId}/calendar`;
   const myTasksHref = `/w/${params.workspaceId}/my-tasks`;
+  const progressHref = `/w/${params.workspaceId}/progress`;
   const settingsHref = `/w/${params.workspaceId}/settings`;
 
   return (
@@ -222,10 +229,22 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
             </ul>
           )}
           <NavLink
+            href={calendarHref}
+            label="カレンダー"
+            icon={Calendar}
+            active={pathname === calendarHref || pathname.startsWith(`${calendarHref}/`)}
+          />
+          <NavLink
             href={myTasksHref}
             label="マイタスク"
             icon={ListChecks}
             active={pathname === myTasksHref || pathname.startsWith(`${myTasksHref}/`)}
+          />
+          <NavLink
+            href={progressHref}
+            label="進捗"
+            icon={BarChart3}
+            active={pathname === progressHref || pathname.startsWith(`${progressHref}/`)}
           />
           <NavButton label="メンバー" icon={Users} active={showMembers} onClick={() => setShowMembers(true)} />
           <NavButton
@@ -235,6 +254,7 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
             emphasize={hasUnread}
             onClick={() => setShowNotifications(true)}
           />
+          <NavButton label="ハイライト" icon={Activity} active={showActivity} onClick={() => setShowActivity(true)} />
           <NavLink href={settingsHref} label="設定" icon={Settings} active={pathname === settingsHref} />
         </nav>
 
@@ -261,6 +281,7 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
           }}
         />
       )}
+      {showActivity && <ActivityPanel onClose={() => setShowActivity(false)} />}
 
       <ConfirmDialog
         open={showDeleteWorkspaceConfirm}

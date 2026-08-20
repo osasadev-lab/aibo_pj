@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
@@ -44,26 +45,27 @@ const (
 	OpUpdateOne = ent.OpUpdateOne
 
 	// Node types.
-	TypeActivityLog         = "ActivityLog"
-	TypeAttachment          = "Attachment"
-	TypeComment             = "Comment"
-	TypeCommentMention      = "CommentMention"
-	TypeNotification        = "Notification"
-	TypeProject             = "Project"
-	TypeProjectMember       = "ProjectMember"
-	TypeProjectStatusColumn = "ProjectStatusColumn"
-	TypeSection             = "Section"
-	TypeTag                 = "Tag"
-	TypeTask                = "Task"
-	TypeTaskAssignee        = "TaskAssignee"
-	TypeTaskCalendarEvent   = "TaskCalendarEvent"
-	TypeTaskDependency      = "TaskDependency"
-	TypeTaskMention         = "TaskMention"
-	TypeTaskTag             = "TaskTag"
-	TypeUser                = "User"
-	TypeWorkspace           = "Workspace"
-	TypeWorkspaceInvitation = "WorkspaceInvitation"
-	TypeWorkspaceMember     = "WorkspaceMember"
+	TypeActivityLog           = "ActivityLog"
+	TypeAttachment            = "Attachment"
+	TypeCalendarWatchedMember = "CalendarWatchedMember"
+	TypeComment               = "Comment"
+	TypeCommentMention        = "CommentMention"
+	TypeNotification          = "Notification"
+	TypeProject               = "Project"
+	TypeProjectMember         = "ProjectMember"
+	TypeProjectStatusColumn   = "ProjectStatusColumn"
+	TypeSection               = "Section"
+	TypeTag                   = "Tag"
+	TypeTask                  = "Task"
+	TypeTaskAssignee          = "TaskAssignee"
+	TypeTaskCalendarEvent     = "TaskCalendarEvent"
+	TypeTaskDependency        = "TaskDependency"
+	TypeTaskMention           = "TaskMention"
+	TypeTaskTag               = "TaskTag"
+	TypeUser                  = "User"
+	TypeWorkspace             = "Workspace"
+	TypeWorkspaceInvitation   = "WorkspaceInvitation"
+	TypeWorkspaceMember       = "WorkspaceMember"
 )
 
 // ActivityLogMutation represents an operation that mutates the ActivityLog nodes in the graph.
@@ -1885,6 +1887,700 @@ func (m *AttachmentMutation) ResetEdge(name string) error {
 		return nil
 	}
 	return fmt.Errorf("unknown Attachment edge %s", name)
+}
+
+// CalendarWatchedMemberMutation represents an operation that mutates the CalendarWatchedMember nodes in the graph.
+type CalendarWatchedMemberMutation struct {
+	config
+	op                  Op
+	typ                 string
+	id                  *uuid.UUID
+	created_at          *time.Time
+	updated_at          *time.Time
+	clearedFields       map[string]struct{}
+	workspace           *uuid.UUID
+	clearedworkspace    bool
+	user                *uuid.UUID
+	cleareduser         bool
+	watched_user        *uuid.UUID
+	clearedwatched_user bool
+	done                bool
+	oldValue            func(context.Context) (*CalendarWatchedMember, error)
+	predicates          []predicate.CalendarWatchedMember
+}
+
+var _ ent.Mutation = (*CalendarWatchedMemberMutation)(nil)
+
+// calendarwatchedmemberOption allows management of the mutation configuration using functional options.
+type calendarwatchedmemberOption func(*CalendarWatchedMemberMutation)
+
+// newCalendarWatchedMemberMutation creates new mutation for the CalendarWatchedMember entity.
+func newCalendarWatchedMemberMutation(c config, op Op, opts ...calendarwatchedmemberOption) *CalendarWatchedMemberMutation {
+	m := &CalendarWatchedMemberMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeCalendarWatchedMember,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withCalendarWatchedMemberID sets the ID field of the mutation.
+func withCalendarWatchedMemberID(id uuid.UUID) calendarwatchedmemberOption {
+	return func(m *CalendarWatchedMemberMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *CalendarWatchedMember
+		)
+		m.oldValue = func(ctx context.Context) (*CalendarWatchedMember, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().CalendarWatchedMember.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withCalendarWatchedMember sets the old CalendarWatchedMember of the mutation.
+func withCalendarWatchedMember(node *CalendarWatchedMember) calendarwatchedmemberOption {
+	return func(m *CalendarWatchedMemberMutation) {
+		m.oldValue = func(context.Context) (*CalendarWatchedMember, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m CalendarWatchedMemberMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m CalendarWatchedMemberMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of CalendarWatchedMember entities.
+func (m *CalendarWatchedMemberMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *CalendarWatchedMemberMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *CalendarWatchedMemberMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().CalendarWatchedMember.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *CalendarWatchedMemberMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *CalendarWatchedMemberMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the CalendarWatchedMember entity.
+// If the CalendarWatchedMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CalendarWatchedMemberMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *CalendarWatchedMemberMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *CalendarWatchedMemberMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *CalendarWatchedMemberMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the CalendarWatchedMember entity.
+// If the CalendarWatchedMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CalendarWatchedMemberMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *CalendarWatchedMemberMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetWorkspaceID sets the "workspace_id" field.
+func (m *CalendarWatchedMemberMutation) SetWorkspaceID(u uuid.UUID) {
+	m.workspace = &u
+}
+
+// WorkspaceID returns the value of the "workspace_id" field in the mutation.
+func (m *CalendarWatchedMemberMutation) WorkspaceID() (r uuid.UUID, exists bool) {
+	v := m.workspace
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWorkspaceID returns the old "workspace_id" field's value of the CalendarWatchedMember entity.
+// If the CalendarWatchedMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CalendarWatchedMemberMutation) OldWorkspaceID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWorkspaceID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWorkspaceID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWorkspaceID: %w", err)
+	}
+	return oldValue.WorkspaceID, nil
+}
+
+// ResetWorkspaceID resets all changes to the "workspace_id" field.
+func (m *CalendarWatchedMemberMutation) ResetWorkspaceID() {
+	m.workspace = nil
+}
+
+// SetUserID sets the "user_id" field.
+func (m *CalendarWatchedMemberMutation) SetUserID(u uuid.UUID) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *CalendarWatchedMemberMutation) UserID() (r uuid.UUID, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the CalendarWatchedMember entity.
+// If the CalendarWatchedMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CalendarWatchedMemberMutation) OldUserID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *CalendarWatchedMemberMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetWatchedUserID sets the "watched_user_id" field.
+func (m *CalendarWatchedMemberMutation) SetWatchedUserID(u uuid.UUID) {
+	m.watched_user = &u
+}
+
+// WatchedUserID returns the value of the "watched_user_id" field in the mutation.
+func (m *CalendarWatchedMemberMutation) WatchedUserID() (r uuid.UUID, exists bool) {
+	v := m.watched_user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldWatchedUserID returns the old "watched_user_id" field's value of the CalendarWatchedMember entity.
+// If the CalendarWatchedMember object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *CalendarWatchedMemberMutation) OldWatchedUserID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldWatchedUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldWatchedUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldWatchedUserID: %w", err)
+	}
+	return oldValue.WatchedUserID, nil
+}
+
+// ResetWatchedUserID resets all changes to the "watched_user_id" field.
+func (m *CalendarWatchedMemberMutation) ResetWatchedUserID() {
+	m.watched_user = nil
+}
+
+// ClearWorkspace clears the "workspace" edge to the Workspace entity.
+func (m *CalendarWatchedMemberMutation) ClearWorkspace() {
+	m.clearedworkspace = true
+	m.clearedFields[calendarwatchedmember.FieldWorkspaceID] = struct{}{}
+}
+
+// WorkspaceCleared reports if the "workspace" edge to the Workspace entity was cleared.
+func (m *CalendarWatchedMemberMutation) WorkspaceCleared() bool {
+	return m.clearedworkspace
+}
+
+// WorkspaceIDs returns the "workspace" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// WorkspaceID instead. It exists only for internal usage by the builders.
+func (m *CalendarWatchedMemberMutation) WorkspaceIDs() (ids []uuid.UUID) {
+	if id := m.workspace; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetWorkspace resets all changes to the "workspace" edge.
+func (m *CalendarWatchedMemberMutation) ResetWorkspace() {
+	m.workspace = nil
+	m.clearedworkspace = false
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *CalendarWatchedMemberMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[calendarwatchedmember.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *CalendarWatchedMemberMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *CalendarWatchedMemberMutation) UserIDs() (ids []uuid.UUID) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *CalendarWatchedMemberMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// ClearWatchedUser clears the "watched_user" edge to the User entity.
+func (m *CalendarWatchedMemberMutation) ClearWatchedUser() {
+	m.clearedwatched_user = true
+	m.clearedFields[calendarwatchedmember.FieldWatchedUserID] = struct{}{}
+}
+
+// WatchedUserCleared reports if the "watched_user" edge to the User entity was cleared.
+func (m *CalendarWatchedMemberMutation) WatchedUserCleared() bool {
+	return m.clearedwatched_user
+}
+
+// WatchedUserIDs returns the "watched_user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// WatchedUserID instead. It exists only for internal usage by the builders.
+func (m *CalendarWatchedMemberMutation) WatchedUserIDs() (ids []uuid.UUID) {
+	if id := m.watched_user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetWatchedUser resets all changes to the "watched_user" edge.
+func (m *CalendarWatchedMemberMutation) ResetWatchedUser() {
+	m.watched_user = nil
+	m.clearedwatched_user = false
+}
+
+// Where appends a list predicates to the CalendarWatchedMemberMutation builder.
+func (m *CalendarWatchedMemberMutation) Where(ps ...predicate.CalendarWatchedMember) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the CalendarWatchedMemberMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *CalendarWatchedMemberMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.CalendarWatchedMember, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *CalendarWatchedMemberMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *CalendarWatchedMemberMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (CalendarWatchedMember).
+func (m *CalendarWatchedMemberMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *CalendarWatchedMemberMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.created_at != nil {
+		fields = append(fields, calendarwatchedmember.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, calendarwatchedmember.FieldUpdatedAt)
+	}
+	if m.workspace != nil {
+		fields = append(fields, calendarwatchedmember.FieldWorkspaceID)
+	}
+	if m.user != nil {
+		fields = append(fields, calendarwatchedmember.FieldUserID)
+	}
+	if m.watched_user != nil {
+		fields = append(fields, calendarwatchedmember.FieldWatchedUserID)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *CalendarWatchedMemberMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case calendarwatchedmember.FieldCreatedAt:
+		return m.CreatedAt()
+	case calendarwatchedmember.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case calendarwatchedmember.FieldWorkspaceID:
+		return m.WorkspaceID()
+	case calendarwatchedmember.FieldUserID:
+		return m.UserID()
+	case calendarwatchedmember.FieldWatchedUserID:
+		return m.WatchedUserID()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *CalendarWatchedMemberMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case calendarwatchedmember.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case calendarwatchedmember.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case calendarwatchedmember.FieldWorkspaceID:
+		return m.OldWorkspaceID(ctx)
+	case calendarwatchedmember.FieldUserID:
+		return m.OldUserID(ctx)
+	case calendarwatchedmember.FieldWatchedUserID:
+		return m.OldWatchedUserID(ctx)
+	}
+	return nil, fmt.Errorf("unknown CalendarWatchedMember field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CalendarWatchedMemberMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case calendarwatchedmember.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case calendarwatchedmember.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case calendarwatchedmember.FieldWorkspaceID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWorkspaceID(v)
+		return nil
+	case calendarwatchedmember.FieldUserID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case calendarwatchedmember.FieldWatchedUserID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetWatchedUserID(v)
+		return nil
+	}
+	return fmt.Errorf("unknown CalendarWatchedMember field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *CalendarWatchedMemberMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *CalendarWatchedMemberMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *CalendarWatchedMemberMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown CalendarWatchedMember numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *CalendarWatchedMemberMutation) ClearedFields() []string {
+	return nil
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *CalendarWatchedMemberMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *CalendarWatchedMemberMutation) ClearField(name string) error {
+	return fmt.Errorf("unknown CalendarWatchedMember nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *CalendarWatchedMemberMutation) ResetField(name string) error {
+	switch name {
+	case calendarwatchedmember.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case calendarwatchedmember.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case calendarwatchedmember.FieldWorkspaceID:
+		m.ResetWorkspaceID()
+		return nil
+	case calendarwatchedmember.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case calendarwatchedmember.FieldWatchedUserID:
+		m.ResetWatchedUserID()
+		return nil
+	}
+	return fmt.Errorf("unknown CalendarWatchedMember field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *CalendarWatchedMemberMutation) AddedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.workspace != nil {
+		edges = append(edges, calendarwatchedmember.EdgeWorkspace)
+	}
+	if m.user != nil {
+		edges = append(edges, calendarwatchedmember.EdgeUser)
+	}
+	if m.watched_user != nil {
+		edges = append(edges, calendarwatchedmember.EdgeWatchedUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *CalendarWatchedMemberMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case calendarwatchedmember.EdgeWorkspace:
+		if id := m.workspace; id != nil {
+			return []ent.Value{*id}
+		}
+	case calendarwatchedmember.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	case calendarwatchedmember.EdgeWatchedUser:
+		if id := m.watched_user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *CalendarWatchedMemberMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 3)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *CalendarWatchedMemberMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *CalendarWatchedMemberMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 3)
+	if m.clearedworkspace {
+		edges = append(edges, calendarwatchedmember.EdgeWorkspace)
+	}
+	if m.cleareduser {
+		edges = append(edges, calendarwatchedmember.EdgeUser)
+	}
+	if m.clearedwatched_user {
+		edges = append(edges, calendarwatchedmember.EdgeWatchedUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *CalendarWatchedMemberMutation) EdgeCleared(name string) bool {
+	switch name {
+	case calendarwatchedmember.EdgeWorkspace:
+		return m.clearedworkspace
+	case calendarwatchedmember.EdgeUser:
+		return m.cleareduser
+	case calendarwatchedmember.EdgeWatchedUser:
+		return m.clearedwatched_user
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *CalendarWatchedMemberMutation) ClearEdge(name string) error {
+	switch name {
+	case calendarwatchedmember.EdgeWorkspace:
+		m.ClearWorkspace()
+		return nil
+	case calendarwatchedmember.EdgeUser:
+		m.ClearUser()
+		return nil
+	case calendarwatchedmember.EdgeWatchedUser:
+		m.ClearWatchedUser()
+		return nil
+	}
+	return fmt.Errorf("unknown CalendarWatchedMember unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *CalendarWatchedMemberMutation) ResetEdge(name string) error {
+	switch name {
+	case calendarwatchedmember.EdgeWorkspace:
+		m.ResetWorkspace()
+		return nil
+	case calendarwatchedmember.EdgeUser:
+		m.ResetUser()
+		return nil
+	case calendarwatchedmember.EdgeWatchedUser:
+		m.ResetWatchedUser()
+		return nil
+	}
+	return fmt.Errorf("unknown CalendarWatchedMember edge %s", name)
 }
 
 // CommentMutation represents an operation that mutates the Comment nodes in the graph.
@@ -13522,6 +14218,9 @@ type UserMutation struct {
 	sent_invitations         map[uuid.UUID]struct{}
 	removedsent_invitations  map[uuid.UUID]struct{}
 	clearedsent_invitations  bool
+	calendar_watches         map[uuid.UUID]struct{}
+	removedcalendar_watches  map[uuid.UUID]struct{}
+	clearedcalendar_watches  bool
 	done                     bool
 	oldValue                 func(context.Context) (*User, error)
 	predicates               []predicate.User
@@ -14678,6 +15377,60 @@ func (m *UserMutation) ResetSentInvitations() {
 	m.removedsent_invitations = nil
 }
 
+// AddCalendarWatchIDs adds the "calendar_watches" edge to the CalendarWatchedMember entity by ids.
+func (m *UserMutation) AddCalendarWatchIDs(ids ...uuid.UUID) {
+	if m.calendar_watches == nil {
+		m.calendar_watches = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		m.calendar_watches[ids[i]] = struct{}{}
+	}
+}
+
+// ClearCalendarWatches clears the "calendar_watches" edge to the CalendarWatchedMember entity.
+func (m *UserMutation) ClearCalendarWatches() {
+	m.clearedcalendar_watches = true
+}
+
+// CalendarWatchesCleared reports if the "calendar_watches" edge to the CalendarWatchedMember entity was cleared.
+func (m *UserMutation) CalendarWatchesCleared() bool {
+	return m.clearedcalendar_watches
+}
+
+// RemoveCalendarWatchIDs removes the "calendar_watches" edge to the CalendarWatchedMember entity by IDs.
+func (m *UserMutation) RemoveCalendarWatchIDs(ids ...uuid.UUID) {
+	if m.removedcalendar_watches == nil {
+		m.removedcalendar_watches = make(map[uuid.UUID]struct{})
+	}
+	for i := range ids {
+		delete(m.calendar_watches, ids[i])
+		m.removedcalendar_watches[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedCalendarWatches returns the removed IDs of the "calendar_watches" edge to the CalendarWatchedMember entity.
+func (m *UserMutation) RemovedCalendarWatchesIDs() (ids []uuid.UUID) {
+	for id := range m.removedcalendar_watches {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// CalendarWatchesIDs returns the "calendar_watches" edge IDs in the mutation.
+func (m *UserMutation) CalendarWatchesIDs() (ids []uuid.UUID) {
+	for id := range m.calendar_watches {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetCalendarWatches resets all changes to the "calendar_watches" edge.
+func (m *UserMutation) ResetCalendarWatches() {
+	m.calendar_watches = nil
+	m.clearedcalendar_watches = false
+	m.removedcalendar_watches = nil
+}
+
 // Where appends a list predicates to the UserMutation builder.
 func (m *UserMutation) Where(ps ...predicate.User) {
 	m.predicates = append(m.predicates, ps...)
@@ -14985,7 +15738,7 @@ func (m *UserMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *UserMutation) AddedEdges() []string {
-	edges := make([]string, 0, 12)
+	edges := make([]string, 0, 13)
 	if m.workspace_members != nil {
 		edges = append(edges, user.EdgeWorkspaceMembers)
 	}
@@ -15021,6 +15774,9 @@ func (m *UserMutation) AddedEdges() []string {
 	}
 	if m.sent_invitations != nil {
 		edges = append(edges, user.EdgeSentInvitations)
+	}
+	if m.calendar_watches != nil {
+		edges = append(edges, user.EdgeCalendarWatches)
 	}
 	return edges
 }
@@ -15101,13 +15857,19 @@ func (m *UserMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeCalendarWatches:
+		ids := make([]ent.Value, 0, len(m.calendar_watches))
+		for id := range m.calendar_watches {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *UserMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 12)
+	edges := make([]string, 0, 13)
 	if m.removedworkspace_members != nil {
 		edges = append(edges, user.EdgeWorkspaceMembers)
 	}
@@ -15143,6 +15905,9 @@ func (m *UserMutation) RemovedEdges() []string {
 	}
 	if m.removedsent_invitations != nil {
 		edges = append(edges, user.EdgeSentInvitations)
+	}
+	if m.removedcalendar_watches != nil {
+		edges = append(edges, user.EdgeCalendarWatches)
 	}
 	return edges
 }
@@ -15223,13 +15988,19 @@ func (m *UserMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case user.EdgeCalendarWatches:
+		ids := make([]ent.Value, 0, len(m.removedcalendar_watches))
+		for id := range m.removedcalendar_watches {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *UserMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 12)
+	edges := make([]string, 0, 13)
 	if m.clearedworkspace_members {
 		edges = append(edges, user.EdgeWorkspaceMembers)
 	}
@@ -15266,6 +16037,9 @@ func (m *UserMutation) ClearedEdges() []string {
 	if m.clearedsent_invitations {
 		edges = append(edges, user.EdgeSentInvitations)
 	}
+	if m.clearedcalendar_watches {
+		edges = append(edges, user.EdgeCalendarWatches)
+	}
 	return edges
 }
 
@@ -15297,6 +16071,8 @@ func (m *UserMutation) EdgeCleared(name string) bool {
 		return m.clearednotifications
 	case user.EdgeSentInvitations:
 		return m.clearedsent_invitations
+	case user.EdgeCalendarWatches:
+		return m.clearedcalendar_watches
 	}
 	return false
 }
@@ -15348,6 +16124,9 @@ func (m *UserMutation) ResetEdge(name string) error {
 		return nil
 	case user.EdgeSentInvitations:
 		m.ResetSentInvitations()
+		return nil
+	case user.EdgeCalendarWatches:
+		m.ResetCalendarWatches()
 		return nil
 	}
 	return fmt.Errorf("unknown User edge %s", name)

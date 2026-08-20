@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
@@ -92,26 +93,27 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			activitylog.Table:         activitylog.ValidColumn,
-			attachment.Table:          attachment.ValidColumn,
-			comment.Table:             comment.ValidColumn,
-			commentmention.Table:      commentmention.ValidColumn,
-			notification.Table:        notification.ValidColumn,
-			project.Table:             project.ValidColumn,
-			projectmember.Table:       projectmember.ValidColumn,
-			projectstatuscolumn.Table: projectstatuscolumn.ValidColumn,
-			section.Table:             section.ValidColumn,
-			tag.Table:                 tag.ValidColumn,
-			task.Table:                task.ValidColumn,
-			taskassignee.Table:        taskassignee.ValidColumn,
-			taskcalendarevent.Table:   taskcalendarevent.ValidColumn,
-			taskdependency.Table:      taskdependency.ValidColumn,
-			taskmention.Table:         taskmention.ValidColumn,
-			tasktag.Table:             tasktag.ValidColumn,
-			user.Table:                user.ValidColumn,
-			workspace.Table:           workspace.ValidColumn,
-			workspaceinvitation.Table: workspaceinvitation.ValidColumn,
-			workspacemember.Table:     workspacemember.ValidColumn,
+			activitylog.Table:           activitylog.ValidColumn,
+			attachment.Table:            attachment.ValidColumn,
+			calendarwatchedmember.Table: calendarwatchedmember.ValidColumn,
+			comment.Table:               comment.ValidColumn,
+			commentmention.Table:        commentmention.ValidColumn,
+			notification.Table:          notification.ValidColumn,
+			project.Table:               project.ValidColumn,
+			projectmember.Table:         projectmember.ValidColumn,
+			projectstatuscolumn.Table:   projectstatuscolumn.ValidColumn,
+			section.Table:               section.ValidColumn,
+			tag.Table:                   tag.ValidColumn,
+			task.Table:                  task.ValidColumn,
+			taskassignee.Table:          taskassignee.ValidColumn,
+			taskcalendarevent.Table:     taskcalendarevent.ValidColumn,
+			taskdependency.Table:        taskdependency.ValidColumn,
+			taskmention.Table:           taskmention.ValidColumn,
+			tasktag.Table:               tasktag.ValidColumn,
+			user.Table:                  user.ValidColumn,
+			workspace.Table:             workspace.ValidColumn,
+			workspaceinvitation.Table:   workspaceinvitation.ValidColumn,
+			workspacemember.Table:       workspacemember.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)

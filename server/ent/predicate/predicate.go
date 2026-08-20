@@ -12,6 +12,9 @@ type ActivityLog func(*sql.Selector)
 // Attachment is the predicate function for attachment builders.
 type Attachment func(*sql.Selector)
 
+// CalendarWatchedMember is the predicate function for calendarwatchedmember builders.
+type CalendarWatchedMember func(*sql.Selector)
+
 // Comment is the predicate function for comment builders.
 type Comment func(*sql.Selector)
 

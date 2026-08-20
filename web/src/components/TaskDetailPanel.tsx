@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   Flag,
+  Folder,
   Link as LinkIcon,
   Paperclip,
   Plus,
@@ -31,11 +32,13 @@ import DatePicker from "@/components/ui/DatePicker";
 import MarkdownToolbar from "@/components/ui/MarkdownToolbar";
 import SidePanel from "@/components/ui/SidePanel";
 import { Input, Select, Textarea } from "@/components/ui/fields";
+import { useProjects } from "@/lib/workspace/ProjectsContext";
 import type { MemberSummary } from "@/lib/types";
 
 type Task = {
   id: string;
   parent_task_id: string | null;
+  project_id: string | null;
   status: "not_started" | "in_progress" | "done" | "on_hold";
   title: string;
   description: string | null;
@@ -83,6 +86,7 @@ type Props = {
 // （呼び出し元の一覧が持つタスクの形が画面ごとに異なるため）。
 export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChanged }: Props) {
   const { user } = useAuth();
+  const { projects } = useProjects();
   const storageEnabled = user?.storage_enabled ?? false;
   const [task, setTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<Task[]>([]);
@@ -372,6 +376,12 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
         <p className="text-sm text-muted-foreground">読み込み中...</p>
       ) : (
         <div className="flex flex-col gap-4">
+          {task.project_id && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Folder className="h-3 w-3" />
+              {projects.find((p) => p.id === task.project_id)?.name ?? "..."}
+            </div>
+          )}
           <div className="flex items-center gap-1.5">
             <Input
               value={title}
