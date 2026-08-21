@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 
+	internalauth "github.com/osasadev-lab/aibo_pj/server/internal/auth"
 	"github.com/osasadev-lab/aibo_pj/server/internal/config"
 	"github.com/osasadev-lab/aibo_pj/server/internal/db"
 	"github.com/osasadev-lab/aibo_pj/server/internal/handler"
@@ -49,11 +50,20 @@ func main() {
 
 	r2Client := storage.NewR2Client(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2BucketName)
 
-	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure, r2Client)
-	workspaceHandler := handler.NewWorkspaceHandler(client, r2Client)
+	// M6（Googleカレンダー連携）。encKeyはusers.google_refresh_tokenの暗号化に、
+	// calendarOAuthConfigはcalendar.eventsスコープの同意フロー・Calendar API呼び出しに使う。
+	encKey, err := internalauth.DecodeEncryptionKey(cfg.TokenEncryptionKey)
+	if err != nil {
+		log.Fatalf("invalid TOKEN_ENCRYPTION_KEY: %v", err)
+	}
+	calendarOAuthConfig := internalauth.NewGoogleCalendarOAuthConfig(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleCalendarRedirectURL)
+
+	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure, r2Client, calendarOAuthConfig, encKey)
+	calendarConnectHandler := handler.NewCalendarConnectHandler(client, calendarOAuthConfig, cfg.JWTSecret, encKey, cfg.FrontendURL)
+	workspaceHandler := handler.NewWorkspaceHandler(client, r2Client, calendarOAuthConfig, encKey)
 	memberHandler := handler.NewMemberHandler(client)
-	projectHandler := handler.NewProjectHandler(client, r2Client)
-	taskHandler := handler.NewTaskHandler(client, r2Client)
+	projectHandler := handler.NewProjectHandler(client, r2Client, calendarOAuthConfig, encKey)
+	taskHandler := handler.NewTaskHandler(client, r2Client, calendarOAuthConfig, encKey, cfg.FrontendURL)
 	commentHandler := handler.NewCommentHandler(client)
 	notificationHandler := handler.NewNotificationHandler(client)
 	tagHandler := handler.NewTagHandler(client)
@@ -83,6 +93,11 @@ func main() {
 			authGroup.GET("/google/callback", authHandler.GoogleCallback)
 			authGroup.POST("/logout", requireAuth, authHandler.Logout)
 			authGroup.GET("/me", requireAuth, authHandler.Me)
+
+			// Googleカレンダー連携の同意フロー（M6）。tokenをクエリパラメータで受け取る
+			// 専用経路のためrequireAuthミドルウェアは使わない（docs/aibo/m6-implementation-plan.md参照）。
+			authGroup.GET("/google/calendar/connect", calendarConnectHandler.Connect)
+			authGroup.GET("/google/calendar/callback", calendarConnectHandler.Callback)
 		}
 
 		// ワークスペース系エンドポイント
@@ -188,6 +203,9 @@ func main() {
 			me.GET("/supabase-token", authHandler.SupabaseToken)
 			me.GET("/hover-settings", authHandler.GetHoverSettings)
 			me.PATCH("/hover-settings", authHandler.UpdateHoverSettings)
+			me.GET("/calendar-settings", authHandler.GetCalendarSettings)
+			me.PATCH("/calendar-settings", authHandler.UpdateCalendarSettings)
+			me.POST("/calendar-sync", authHandler.ManualCalendarSync)
 		}
 
 		// 通知系エンドポイント

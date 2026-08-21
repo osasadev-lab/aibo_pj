@@ -69,6 +69,14 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - [x] ハイライト機能（プロジェクト/タスクの作成・削除・変更・ステータス変更をactorで絞り込める右サイドバーパネル。追加要望）
 - 実装詳細・設計判断は`docs/aibo/m5-implementation-plan.md`参照（Supabase側の`tasks`テーブルRLS/Realtime publication設定も適用済み）
 
+### M6：Googleカレンダー連携
+
+- [x] メンバー個人設定（連携ON/OFF・自動/手動モード切り替え）。左サイドバー「設定」画面の個人設定区画に配置（M4のホバー強調設定と同じ場所）
+- [x] 同意フロー（`GET /auth/google/calendar/connect`〜`/callback`）：Bearer JWT方式のためaibo JWTをGoogleの`state`パラメータに載せて本人確認する専用経路。refresh tokenはAES-256-GCMで暗号化して保存
+- [x] 自動モード：タスクのcreate/イベント内容に影響する更新（タイトル・開始日・期限）/担当者変更のたびに同期。手動モード：`POST /me/calendar-sync`で日付指定バッチ連携（最大50件）
+- [x] タスク/プロジェクト/ワークスペース削除時のイベント削除（モード問わず）、連携OFF時の一括削除
+- 実装詳細・設計判断は`docs/aibo/m6-implementation-plan.md`参照。**Google Cloud Console側の作業（Calendar API有効化、OAuth同意画面への`calendar.events`スコープ追加、テストユーザー登録）が未実施のため、実アカウントでの実機確認は未了**
+
 ## セットアップ
 
 ### 前提
@@ -81,7 +89,7 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 
 ```sh
 cd server
-cp .env.example .env   # DATABASE_URL・JWT_SECRET・GOOGLE_OAUTH_*・FRONTEND_URL・SUPABASE_JWT_SECRET を設定する
+cp .env.example .env   # DATABASE_URL・JWT_SECRET・GOOGLE_OAUTH_*・FRONTEND_URL・SUPABASE_JWT_SECRET・GOOGLE_CALENDAR_REDIRECT_URL・TOKEN_ENCRYPTION_KEY を設定する
 go run ./cmd/migrate   # entスキーマをDBに適用（テーブル作成 + pgvector拡張の有効化）
 go run ./cmd/server    # http://localhost:8080
 ```
@@ -123,6 +131,12 @@ npm run preview   # ビルド + wranglerローカルプレビュー
 npm run deploy    # ビルド + Cloudflare Workersへ実デプロイ
 ```
 
+Googleカレンダー連携（M6）を試すには、GCPコンソールでCalendar APIを有効化し、OAuth同意画面に
+`https://www.googleapis.com/auth/calendar.events`スコープを追加した上で、`GOOGLE_CALENDAR_REDIRECT_URL`
+（承認済みリダイレクトURIにも登録）・`TOKEN_ENCRYPTION_KEY`（`openssl rand -base64 32`等で生成）を
+設定する必要がある。未実施の場合、連携設定画面で「連携する」ボタンを押してもGoogle側の同意画面で
+エラーになる（サーバー自体は起動する）。
+
 ## 次のマイルストーン
 
-M6（Googleカレンダー連携）以降は `docs/aibo/execution-plan.md` を参照。
+M7（通知・検索）以降は `docs/aibo/execution-plan.md` を参照。

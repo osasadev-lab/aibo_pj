@@ -21,13 +21,17 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
+	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
+
+	"golang.org/x/oauth2"
 )
 
 const dateLayout = "2006-01-02"
@@ -38,10 +42,15 @@ var errInvalidIDs = errors.New("one or more ids are invalid")
 type TaskHandler struct {
 	client *ent.Client
 	r2     *storage.R2Client
+	// calCfg/encKey/frontendURLはM6（Googleカレンダー自動同期）用。
+	// タスクのcreate/update/delete/担当者変更のたびにcalendarsync.SyncTask系を呼ぶ。
+	calCfg      *oauth2.Config
+	encKey      []byte
+	frontendURL string
 }
 
-func NewTaskHandler(client *ent.Client, r2 *storage.R2Client) *TaskHandler {
-	return &TaskHandler{client: client, r2: r2}
+func NewTaskHandler(client *ent.Client, r2 *storage.R2Client, calCfg *oauth2.Config, encKey []byte, frontendURL string) *TaskHandler {
+	return &TaskHandler{client: client, r2: r2, calCfg: calCfg, encKey: encKey, frontendURL: frontendURL}
 }
 
 func taskJSON(t *ent.Task) gin.H {
@@ -397,6 +406,13 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Googleカレンダー自動同期（M6）。token refresh + Calendar API呼び出しで数秒
+	// かかることがあり、レスポンスを待たせると体感速度を損なうためバックグラウンド化
+	// している（2026-08-21、実機で確認の上、同期呼び出しから変更した）。
+	calendarsync.Async(func(ctx context.Context) {
+		calendarsync.SyncTask(ctx, h.client, h.calCfg, h.encKey, created, h.frontendURL)
+	})
+
 	c.JSON(http.StatusCreated, taskJSON(created))
 }
 
@@ -608,6 +624,17 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		c.JSON(status, gin.H{"error": "failed to update task"})
 		return
 	}
+
+	// Googleカレンダー自動同期（M6）。イベント内容（タイトル・期間）に影響する
+	// フィールドの変更時のみ同期する（無条件に同期すると外部API呼び出しが過剰になる
+	// ため。docs/aibo/m6-implementation-plan.md 設計判断4）。バックグラウンド化の
+	// 理由はCreateと同じ（体感速度対策、2026-08-21）。
+	if req.Title != nil || startDate != nil || dueDate != nil {
+		calendarsync.Async(func(ctx context.Context) {
+			calendarsync.SyncTask(ctx, h.client, h.calCfg, h.encKey, updated, h.frontendURL)
+		})
+	}
+
 	c.JSON(http.StatusOK, taskJSON(updated))
 }
 
@@ -621,12 +648,28 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	var attachmentKeys []string
+	var calendarEventRefs []calendarsync.EventRef
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		childIDs, err := tx.Task.Query().Where(task.ParentTaskIDEQ(t.ID)).IDs(ctx)
 		if err != nil {
 			return err
 		}
 		ids := append(childIDs, t.ID)
+
+		// Googleカレンダー連携イベント（M6）もtask_idを参照しているため、他のedge
+		// テーブルと同様に先に削除する必要がある。Google側の実イベント削除は
+		// DBコミット確定後にベストエフォートで行う（R2オブジェクトと同じ方針）ため、
+		// ここでは削除対象の参照だけ収集しておく。
+		calendarEvents, err := tx.TaskCalendarEvent.Query().Where(taskcalendarevent.TaskIDIn(ids...)).WithUser().All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, e := range calendarEvents {
+			calendarEventRefs = append(calendarEventRefs, calendarsync.EventRef{User: e.Edges.User, GoogleEventID: e.GoogleEventID})
+		}
+		if _, err := tx.TaskCalendarEvent.Delete().Where(taskcalendarevent.TaskIDIn(ids...)).Exec(ctx); err != nil {
+			return err
+		}
 
 		if _, err := tx.TaskDependency.Delete().
 			Where(taskdependency.Or(
@@ -682,6 +725,11 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		return
 	}
 	deleteR2Objects(ctx, h.r2, attachmentKeys)
+	// Googleカレンダー側のイベント削除（M6、モードに関わらず。spec.md 5章）。
+	// バックグラウンド化の理由はCreate/Updateと同じ（体感速度対策、2026-08-21）。
+	calendarsync.Async(func(ctx context.Context) {
+		calendarsync.DeleteGoogleEventsOnly(ctx, h.calCfg, h.encKey, calendarEventRefs)
+	})
 	c.Status(http.StatusNoContent)
 }
 
@@ -851,6 +899,7 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 		return
 	}
 
+	var addedIDs, removedIDs []uuid.UUID
 	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
 		existing, err := tx.TaskAssignee.Query().Where(taskassignee.TaskIDEQ(t.ID)).All(ctx)
 		if err != nil {
@@ -863,6 +912,16 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 		newSet := make(map[uuid.UUID]struct{}, len(ids))
 		for _, id := range ids {
 			newSet[id] = struct{}{}
+		}
+		for _, id := range ids {
+			if _, was := oldSet[id]; !was {
+				addedIDs = append(addedIDs, id)
+			}
+		}
+		for id := range oldSet {
+			if _, still := newSet[id]; !still {
+				removedIDs = append(removedIDs, id)
+			}
 		}
 
 		if _, err := tx.TaskAssignee.Delete().Where(taskassignee.TaskIDEQ(t.ID)).Exec(ctx); err != nil {
@@ -922,6 +981,21 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update assignees"})
 		return
 	}
+
+	// Googleカレンダー自動同期（M6）。新規追加された担当者にはイベントを作成、
+	// 外れた担当者のイベントは削除する（他の担当者には影響しない）。
+	// バックグラウンド化の理由はCreate/Updateと同じ（体感速度対策、2026-08-21）。
+	for _, id := range addedIDs {
+		calendarsync.Async(func(ctx context.Context) {
+			calendarsync.SyncTaskForUser(ctx, h.client, h.calCfg, h.encKey, t, id, h.frontendURL)
+		})
+	}
+	for _, id := range removedIDs {
+		calendarsync.Async(func(ctx context.Context) {
+			calendarsync.SyncTaskForUserOnUnassign(ctx, h.client, h.calCfg, h.encKey, t.ID, id)
+		})
+	}
+
 	c.Status(http.StatusNoContent)
 }
 

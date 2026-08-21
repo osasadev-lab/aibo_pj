@@ -20,23 +20,31 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
+	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
+
+	"golang.org/x/oauth2"
 )
 
 // ProjectHandler は /projects, /workspaces/:workspace_id/projects 配下を扱う。
 type ProjectHandler struct {
 	client *ent.Client
 	r2     *storage.R2Client
+	// calCfg/encKeyはM6用。プロジェクト削除時、配下タスクのGoogleカレンダー
+	// 連携イベントもベストエフォートで削除する。
+	calCfg *oauth2.Config
+	encKey []byte
 }
 
-func NewProjectHandler(client *ent.Client, r2 *storage.R2Client) *ProjectHandler {
-	return &ProjectHandler{client: client, r2: r2}
+func NewProjectHandler(client *ent.Client, r2 *storage.R2Client, calCfg *oauth2.Config, encKey []byte) *ProjectHandler {
+	return &ProjectHandler{client: client, r2: r2, calCfg: calCfg, encKey: encKey}
 }
 
 // defaultStatusColumns はプロジェクト作成時に自動投入する既定4列（db-schema.md）。
@@ -361,6 +369,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	var attachmentKeys []string
+	var calendarEventRefs []calendarsync.EventRef
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		taskIDs, err := tx.Task.Query().
 			Where(task.ProjectIDEQ(p.ID)).
@@ -370,6 +379,20 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		}
 
 		if len(taskIDs) > 0 {
+			// Googleカレンダー連携イベント（M6）。Google側の実削除はコミット後に
+			// ベストエフォートで行うため、ここでは参照だけ収集する（task.goのDeleteと
+			// 同じ理由でDB行自体は先に消す必要がある）。
+			calendarEvents, err := tx.TaskCalendarEvent.Query().Where(taskcalendarevent.TaskIDIn(taskIDs...)).WithUser().All(ctx)
+			if err != nil {
+				return err
+			}
+			for _, e := range calendarEvents {
+				calendarEventRefs = append(calendarEventRefs, calendarsync.EventRef{User: e.Edges.User, GoogleEventID: e.GoogleEventID})
+			}
+			if _, err := tx.TaskCalendarEvent.Delete().Where(taskcalendarevent.TaskIDIn(taskIDs...)).Exec(ctx); err != nil {
+				return err
+			}
+
 			if _, err := tx.TaskDependency.Delete().
 				Where(taskdependency.Or(
 					taskdependency.TaskIDIn(taskIDs...),
@@ -500,6 +523,10 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 		return
 	}
 	deleteR2Objects(ctx, h.r2, attachmentKeys)
+	// バックグラウンド化の理由はtask.goと同じ（体感速度対策、2026-08-21）。
+	calendarsync.Async(func(ctx context.Context) {
+		calendarsync.DeleteGoogleEventsOnly(ctx, h.calCfg, h.encKey, calendarEventRefs)
+	})
 	c.Status(http.StatusNoContent)
 }
 

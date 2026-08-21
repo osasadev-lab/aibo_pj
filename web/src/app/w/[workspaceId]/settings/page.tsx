@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/apiClient";
 import HoverSettingsSection from "@/components/settings/HoverSettingsSection";
+import CalendarSyncSection from "@/components/settings/CalendarSyncSection";
 import TagSection from "@/components/settings/TagSection";
 import { Select } from "@/components/ui/fields";
 import { useProjects } from "@/lib/workspace/ProjectsContext";
@@ -55,6 +56,7 @@ export default function SettingsPage() {
       <div className="flex flex-col gap-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">個人設定</h2>
         <HoverSettingsSection />
+        <CalendarSyncSection />
       </div>
 
       {targets.length > 0 && (

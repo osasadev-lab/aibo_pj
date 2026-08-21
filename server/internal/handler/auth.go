@@ -3,15 +3,19 @@ package handler
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/oauth2"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
+	"github.com/osasadev-lab/aibo_pj/server/ent/task"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	internalauth "github.com/osasadev-lab/aibo_pj/server/internal/auth"
+	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 )
@@ -25,21 +29,29 @@ type AuthHandler struct {
 	frontendURL       string
 	cookieSecure      bool
 	r2                *storage.R2Client
+	// calendarOAuthConfig/tokenEncryptionKeyはM6（Googleカレンダー連携）用。
+	// /me/calendar-settings・/me/calendar-syncで使う。
+	calendarOAuthConfig *oauth2.Config
+	tokenEncryptionKey  []byte
 }
 
 // NewAuthHandler はAuthHandlerを構築する。cookieSecureは本番(HTTPS)ではtrue、
 // ローカルのhttp開発ではfalseを渡す。r2はGET /auth/meのstorage_enabledフラグに
 // 使う（未設定＝ローカル開発でR2を無効化中でも、フロントが添付ファイルUIを
-// 出さないようにするための情報。ユーザー確認済みの方針）。
-func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, supabaseJWTSecret, frontendURL string, cookieSecure bool, r2 *storage.R2Client) *AuthHandler {
+// 出さないようにするための情報。ユーザー確認済みの方針）。calendarOAuthConfig/
+// tokenEncryptionKeyはM6用（internal/auth.NewGoogleCalendarOAuthConfig・
+// DecodeEncryptionKeyで作ったものを渡す）。
+func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, supabaseJWTSecret, frontendURL string, cookieSecure bool, r2 *storage.R2Client, calendarOAuthConfig *oauth2.Config, tokenEncryptionKey []byte) *AuthHandler {
 	return &AuthHandler{
-		client:            client,
-		oauthConfig:       internalauth.NewGoogleOAuthConfig(clientID, clientSecret, redirectURL),
-		jwtSecret:         jwtSecret,
-		supabaseJWTSecret: supabaseJWTSecret,
-		frontendURL:       frontendURL,
-		cookieSecure:      cookieSecure,
-		r2:                r2,
+		client:              client,
+		oauthConfig:         internalauth.NewGoogleOAuthConfig(clientID, clientSecret, redirectURL),
+		jwtSecret:           jwtSecret,
+		supabaseJWTSecret:   supabaseJWTSecret,
+		frontendURL:         frontendURL,
+		cookieSecure:        cookieSecure,
+		r2:                  r2,
+		calendarOAuthConfig: calendarOAuthConfig,
+		tokenEncryptionKey:  tokenEncryptionKey,
 	}
 }
 
@@ -210,4 +222,122 @@ func (h *AuthHandler) SupabaseToken(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"token": token})
+}
+
+// GetCalendarSettings は GET /me/calendar-settings（M6追加）。
+// connectedはgoogle_refresh_tokenを保持しているか（＝一度でもGoogle同意フローを
+// 完了しているか）を表す。フロントはこれを見て「連携する」ボタンと
+// ON/OFFトグルのどちらを出すか判断する。
+func (h *AuthHandler) GetCalendarSettings(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	c.JSON(http.StatusOK, gin.H{
+		"enabled":   u.CalendarSyncEnabled,
+		"mode":      u.CalendarSyncMode,
+		"connected": u.GoogleRefreshToken != nil,
+	})
+}
+
+type updateCalendarSettingsRequest struct {
+	Enabled bool    `json:"enabled"`
+	Mode    *string `json:"mode" binding:"omitempty,oneof=auto manual"`
+}
+
+// UpdateCalendarSettings は PATCH /me/calendar-settings（M6追加）。
+// enabled=trueにするにはGoogle側の同意（GET /auth/google/calendar/connect）が
+// 完了しrefresh_tokenを保持している必要がある。enabled=falseにする場合は、
+// 連携済みイベントを全削除する（連携OFF＝カレンダーに残骸を残さない方針、
+// docs/aibo/m6-implementation-plan.md 設計判断6参照）。
+func (h *AuthHandler) UpdateCalendarSettings(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	ctx := c.Request.Context()
+
+	var req updateCalendarSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if req.Enabled && u.GoogleRefreshToken == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "google_calendar_not_connected"})
+		return
+	}
+	if req.Enabled && req.Mode == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "mode is required when enabling"})
+		return
+	}
+
+	builder := h.client.User.UpdateOneID(u.ID).SetCalendarSyncEnabled(req.Enabled)
+	if req.Enabled {
+		builder = builder.SetCalendarSyncMode(user.CalendarSyncMode(*req.Mode))
+	} else {
+		builder = builder.ClearCalendarSyncMode()
+	}
+	updated, err := builder.Save(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update calendar settings"})
+		return
+	}
+
+	if !req.Enabled {
+		// バックグラウンド化の理由はtask.goと同じ（体感速度対策、2026-08-21）。
+		userID := u.ID
+		calendarsync.Async(func(ctx context.Context) {
+			calendarsync.DeleteAllEventsForUser(ctx, h.client, h.calendarOAuthConfig, h.tokenEncryptionKey, userID)
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"enabled":   updated.CalendarSyncEnabled,
+		"mode":      updated.CalendarSyncMode,
+		"connected": updated.GoogleRefreshToken != nil,
+	})
+}
+
+type manualCalendarSyncRequest struct {
+	Date string `json:"date" binding:"required"`
+}
+
+// maxManualSyncTasks は手動連携1回あたりの対象タスク数上限（api-spec.md
+// 「非同期処理・外部連携」、1リクエストのタイムアウトを避けるため）。
+const maxManualSyncTasks = 50
+
+// ManualCalendarSync は POST /me/calendar-sync（M6追加、手動モード用）。
+// 指定日が期限になっている自分の担当タスクをまとめてGoogleカレンダーへ反映する。
+func (h *AuthHandler) ManualCalendarSync(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	ctx := c.Request.Context()
+
+	var req manualCalendarSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "date is required"})
+		return
+	}
+	date, err := time.Parse(dateLayout, req.Date)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date"})
+		return
+	}
+	if !u.CalendarSyncEnabled || u.GoogleRefreshToken == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "calendar_sync_not_enabled"})
+		return
+	}
+
+	tasks, err := h.client.Task.Query().
+		Where(task.DueDateEQ(date), task.HasAssigneesWith(taskassignee.UserIDEQ(u.ID))).
+		Limit(maxManualSyncTasks).
+		All(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load tasks"})
+		return
+	}
+
+	synced, failed := 0, 0
+	for _, t := range tasks {
+		if err := calendarsync.ManualSyncForUser(ctx, h.client, h.calendarOAuthConfig, h.tokenEncryptionKey, u, t, h.frontendURL); err != nil {
+			failed++
+		} else {
+			synced++
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{"synced": synced, "failed": failed})
 }

@@ -166,7 +166,11 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
 
   const incompletePredecessors = dependencies.predecessors.filter((d) => d.task.status !== "done");
 
+  // タイトル/説明/優先度/期限/メンションに加え、担当者・タグもこの「保存」1つに
+  // まとめる（ユーザー要望）。それぞれ別APIのため順に呼び、途中で失敗したら
+  // どの更新で失敗したか分かるようエラーメッセージを出し分ける。
   async function handleSave() {
+    setError(null);
     try {
       await apiFetch(`/tasks/${taskId}`, {
         method: "PATCH",
@@ -178,11 +182,30 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
           mentioned_user_ids: mentionedIds,
         }),
       });
-      loadTask();
-      onChanged?.();
     } catch {
       setError("タスクの更新に失敗しました");
+      return;
     }
+    try {
+      await apiFetch(`/tasks/${taskId}/assignees`, {
+        method: "PUT",
+        body: JSON.stringify({ user_ids: assigneeIds }),
+      });
+    } catch {
+      setError("担当者の更新に失敗しました");
+      return;
+    }
+    try {
+      await apiFetch(`/tasks/${taskId}/tags`, {
+        method: "PUT",
+        body: JSON.stringify({ tag_ids: tagIds }),
+      });
+    } catch {
+      setError("タグの更新に失敗しました");
+      return;
+    }
+    onChanged?.();
+    onClose();
   }
 
   function handleDescriptionChange(value: string) {
@@ -225,6 +248,7 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
       });
       setNewDependencyId("");
       loadDependencies();
+      onChanged?.();
     } catch (err) {
       const code =
         err && typeof err === "object" && "body" in err
@@ -240,6 +264,7 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
     try {
       await apiFetch(`/tasks/${taskId}/dependencies/${dependencyId}`, { method: "DELETE" });
       loadDependencies();
+      onChanged?.();
     } catch {
       setDependencyError("先行タスクの解除に失敗しました");
     }
@@ -297,32 +322,6 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
       loadAttachments();
     } catch {
       setAttachmentError("添付ファイルの削除に失敗しました");
-    }
-  }
-
-  async function handleUpdateAssignees() {
-    try {
-      await apiFetch(`/tasks/${taskId}/assignees`, {
-        method: "PUT",
-        body: JSON.stringify({ user_ids: assigneeIds }),
-      });
-      loadTask();
-      onChanged?.();
-    } catch {
-      setError("担当者の更新に失敗しました");
-    }
-  }
-
-  async function handleUpdateTags() {
-    try {
-      await apiFetch(`/tasks/${taskId}/tags`, {
-        method: "PUT",
-        body: JSON.stringify({ tag_ids: tagIds }),
-      });
-      loadTask();
-      onChanged?.();
-    } catch {
-      setError("タグの更新に失敗しました");
     }
   }
 
@@ -420,6 +419,43 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             )}
           </div>
 
+          <div className="flex flex-col gap-2 border-t border-border pt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">添付ファイル</p>
+            {attachmentError && <p className="text-sm text-red-600 dark:text-red-400">{attachmentError}</p>}
+            {attachments.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {attachments.map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-muted"
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="truncate text-foreground">{a.file_name}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(a.size_bytes)}</span>
+                    </span>
+                    <IconButton size="sm" onClick={() => handleDeleteAttachment(a.id)} title="削除">
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </IconButton>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {storageEnabled ? (
+              <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground">
+                <Upload className="h-3.5 w-3.5" />
+                {uploading ? "アップロード中..." : "ファイルを添付（25MBまで）"}
+                <input type="file" className="hidden" onChange={handleFileSelected} disabled={uploading} />
+              </label>
+            ) : (
+              attachments.length === 0 && (
+                <p className="text-sm text-muted-foreground/70">
+                  添付ファイル機能は現在無効化されています
+                </p>
+              )
+            )}
+          </div>
+
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <Flag className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -449,9 +485,6 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             {showAssignees && (
               <div className="flex flex-col gap-2 pl-6">
                 <MemberPicker workspaceId={workspaceId} selected={assigneeIds} onChange={setAssigneeIds} />
-                <Button variant="secondary" size="sm" className="self-start" onClick={handleUpdateAssignees}>
-                  担当者を保存
-                </Button>
               </div>
             )}
           </div>
@@ -478,27 +511,8 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             {showTags && (
               <div className="flex flex-col gap-2 pl-6">
                 <TagPicker taskId={taskId} selected={tagIds} onChange={setTagIds} />
-                <Button variant="secondary" size="sm" className="self-start" onClick={handleUpdateTags}>
-                  タグを保存
-                </Button>
               </div>
             )}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            <Button variant="primary" size="sm" onClick={handleSave}>
-              保存
-            </Button>
-            {task.status !== "done" && (
-              <Button variant="secondary" size="sm" onClick={handleMarkDone}>
-                <Check className="h-3.5 w-3.5" />
-                対応済にする
-              </Button>
-            )}
-            <Button variant="danger" size="sm" className="ml-auto" onClick={handleDelete}>
-              <Trash2 className="h-3.5 w-3.5" />
-              削除
-            </Button>
           </div>
 
           {!task.parent_task_id && (
@@ -577,41 +591,20 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             </form>
           </div>
 
-          <div className="flex flex-col gap-2 border-t border-border pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">添付ファイル</p>
-            {attachmentError && <p className="text-sm text-red-600 dark:text-red-400">{attachmentError}</p>}
-            {attachments.length > 0 && (
-              <ul className="flex flex-col gap-1">
-                {attachments.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-muted"
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate text-foreground">{a.file_name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(a.size_bytes)}</span>
-                    </span>
-                    <IconButton size="sm" onClick={() => handleDeleteAttachment(a.id)} title="削除">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </IconButton>
-                  </li>
-                ))}
-              </ul>
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+            <Button variant="primary" size="sm" onClick={handleSave}>
+              保存
+            </Button>
+            {task.status !== "done" && (
+              <Button variant="secondary" size="sm" onClick={handleMarkDone}>
+                <Check className="h-3.5 w-3.5" />
+                対応済にする
+              </Button>
             )}
-            {storageEnabled ? (
-              <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground">
-                <Upload className="h-3.5 w-3.5" />
-                {uploading ? "アップロード中..." : "ファイルを添付（25MBまで）"}
-                <input type="file" className="hidden" onChange={handleFileSelected} disabled={uploading} />
-              </label>
-            ) : (
-              attachments.length === 0 && (
-                <p className="text-sm text-muted-foreground/70">
-                  添付ファイル機能は現在無効化されています
-                </p>
-              )
-            )}
+            <Button variant="danger" size="sm" className="ml-auto" onClick={handleDelete}>
+              <Trash2 className="h-3.5 w-3.5" />
+              削除
+            </Button>
           </div>
 
           <CommentThread taskId={taskId} />

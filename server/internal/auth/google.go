@@ -31,6 +31,20 @@ func NewGoogleOAuthConfig(clientID, clientSecret, redirectURL string) *oauth2.Co
 	}
 }
 
+// NewGoogleCalendarOAuthConfig はカレンダー連携用（M6）のoauth2.Configを返す。
+// ログイン用スコープに加えcalendar.eventsスコープを要求する。ログイン用の
+// NewGoogleOAuthConfigとはredirect URLを分ける（docs/aibo/m6-implementation-plan.md
+// の設計判断：stateパラメータにaibo JWTをそのまま載せて本人確認を行う専用フローのため）。
+func NewGoogleCalendarOAuthConfig(clientID, clientSecret, redirectURL string) *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		RedirectURL:  redirectURL,
+		Scopes:       []string{"openid", "email", "profile", "https://www.googleapis.com/auth/calendar.events"},
+		Endpoint:     google.Endpoint,
+	}
+}
+
 // FetchUserInfo はアクセストークンを使ってGoogleのuserinfoエンドポイントからプロフィールを取得する。
 func FetchUserInfo(ctx context.Context, cfg *oauth2.Config, token *oauth2.Token) (*GoogleUserInfo, error) {
 	client := cfg.Client(ctx, token)
