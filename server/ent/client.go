@@ -25,6 +25,8 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
+	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
@@ -62,6 +64,10 @@ type Client struct {
 	ProjectMember *ProjectMemberClient
 	// ProjectStatusColumn is the client for interacting with the ProjectStatusColumn builders.
 	ProjectStatusColumn *ProjectStatusColumnClient
+	// PushSubscription is the client for interacting with the PushSubscription builders.
+	PushSubscription *PushSubscriptionClient
+	// ReminderSend is the client for interacting with the ReminderSend builders.
+	ReminderSend *ReminderSendClient
 	// Section is the client for interacting with the Section builders.
 	Section *SectionClient
 	// Tag is the client for interacting with the Tag builders.
@@ -106,6 +112,8 @@ func (c *Client) init() {
 	c.Project = NewProjectClient(c.config)
 	c.ProjectMember = NewProjectMemberClient(c.config)
 	c.ProjectStatusColumn = NewProjectStatusColumnClient(c.config)
+	c.PushSubscription = NewPushSubscriptionClient(c.config)
+	c.ReminderSend = NewReminderSendClient(c.config)
 	c.Section = NewSectionClient(c.config)
 	c.Tag = NewTagClient(c.config)
 	c.Task = NewTaskClient(c.config)
@@ -219,6 +227,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Project:               NewProjectClient(cfg),
 		ProjectMember:         NewProjectMemberClient(cfg),
 		ProjectStatusColumn:   NewProjectStatusColumnClient(cfg),
+		PushSubscription:      NewPushSubscriptionClient(cfg),
+		ReminderSend:          NewReminderSendClient(cfg),
 		Section:               NewSectionClient(cfg),
 		Tag:                   NewTagClient(cfg),
 		Task:                  NewTaskClient(cfg),
@@ -259,6 +269,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Project:               NewProjectClient(cfg),
 		ProjectMember:         NewProjectMemberClient(cfg),
 		ProjectStatusColumn:   NewProjectStatusColumnClient(cfg),
+		PushSubscription:      NewPushSubscriptionClient(cfg),
+		ReminderSend:          NewReminderSendClient(cfg),
 		Section:               NewSectionClient(cfg),
 		Tag:                   NewTagClient(cfg),
 		Task:                  NewTaskClient(cfg),
@@ -302,9 +314,9 @@ func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
 		c.CommentMention, c.Notification, c.Project, c.ProjectMember,
-		c.ProjectStatusColumn, c.Section, c.Tag, c.Task, c.TaskAssignee,
-		c.TaskCalendarEvent, c.TaskDependency, c.TaskMention, c.TaskTag, c.User,
-		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.ProjectStatusColumn, c.PushSubscription, c.ReminderSend, c.Section, c.Tag,
+		c.Task, c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
+		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Use(hooks...)
 	}
@@ -316,9 +328,9 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
 		c.CommentMention, c.Notification, c.Project, c.ProjectMember,
-		c.ProjectStatusColumn, c.Section, c.Tag, c.Task, c.TaskAssignee,
-		c.TaskCalendarEvent, c.TaskDependency, c.TaskMention, c.TaskTag, c.User,
-		c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.ProjectStatusColumn, c.PushSubscription, c.ReminderSend, c.Section, c.Tag,
+		c.Task, c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
+		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -345,6 +357,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ProjectMember.mutate(ctx, m)
 	case *ProjectStatusColumnMutation:
 		return c.ProjectStatusColumn.mutate(ctx, m)
+	case *PushSubscriptionMutation:
+		return c.PushSubscription.mutate(ctx, m)
+	case *ReminderSendMutation:
+		return c.ReminderSend.mutate(ctx, m)
 	case *SectionMutation:
 		return c.Section.mutate(ctx, m)
 	case *TagMutation:
@@ -1984,6 +2000,304 @@ func (c *ProjectStatusColumnClient) mutate(ctx context.Context, m *ProjectStatus
 		return (&ProjectStatusColumnDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown ProjectStatusColumn mutation op: %q", m.Op())
+	}
+}
+
+// PushSubscriptionClient is a client for the PushSubscription schema.
+type PushSubscriptionClient struct {
+	config
+}
+
+// NewPushSubscriptionClient returns a client for the PushSubscription from the given config.
+func NewPushSubscriptionClient(c config) *PushSubscriptionClient {
+	return &PushSubscriptionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `pushsubscription.Hooks(f(g(h())))`.
+func (c *PushSubscriptionClient) Use(hooks ...Hook) {
+	c.hooks.PushSubscription = append(c.hooks.PushSubscription, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `pushsubscription.Intercept(f(g(h())))`.
+func (c *PushSubscriptionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PushSubscription = append(c.inters.PushSubscription, interceptors...)
+}
+
+// Create returns a builder for creating a PushSubscription entity.
+func (c *PushSubscriptionClient) Create() *PushSubscriptionCreate {
+	mutation := newPushSubscriptionMutation(c.config, OpCreate)
+	return &PushSubscriptionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PushSubscription entities.
+func (c *PushSubscriptionClient) CreateBulk(builders ...*PushSubscriptionCreate) *PushSubscriptionCreateBulk {
+	return &PushSubscriptionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PushSubscriptionClient) MapCreateBulk(slice any, setFunc func(*PushSubscriptionCreate, int)) *PushSubscriptionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PushSubscriptionCreateBulk{err: fmt.Errorf("calling to PushSubscriptionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PushSubscriptionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PushSubscriptionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PushSubscription.
+func (c *PushSubscriptionClient) Update() *PushSubscriptionUpdate {
+	mutation := newPushSubscriptionMutation(c.config, OpUpdate)
+	return &PushSubscriptionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PushSubscriptionClient) UpdateOne(_m *PushSubscription) *PushSubscriptionUpdateOne {
+	mutation := newPushSubscriptionMutation(c.config, OpUpdateOne, withPushSubscription(_m))
+	return &PushSubscriptionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PushSubscriptionClient) UpdateOneID(id uuid.UUID) *PushSubscriptionUpdateOne {
+	mutation := newPushSubscriptionMutation(c.config, OpUpdateOne, withPushSubscriptionID(id))
+	return &PushSubscriptionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PushSubscription.
+func (c *PushSubscriptionClient) Delete() *PushSubscriptionDelete {
+	mutation := newPushSubscriptionMutation(c.config, OpDelete)
+	return &PushSubscriptionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PushSubscriptionClient) DeleteOne(_m *PushSubscription) *PushSubscriptionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PushSubscriptionClient) DeleteOneID(id uuid.UUID) *PushSubscriptionDeleteOne {
+	builder := c.Delete().Where(pushsubscription.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PushSubscriptionDeleteOne{builder}
+}
+
+// Query returns a query builder for PushSubscription.
+func (c *PushSubscriptionClient) Query() *PushSubscriptionQuery {
+	return &PushSubscriptionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePushSubscription},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PushSubscription entity by its id.
+func (c *PushSubscriptionClient) Get(ctx context.Context, id uuid.UUID) (*PushSubscription, error) {
+	return c.Query().Where(pushsubscription.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PushSubscriptionClient) GetX(ctx context.Context, id uuid.UUID) *PushSubscription {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a PushSubscription.
+func (c *PushSubscriptionClient) QueryUser(_m *PushSubscription) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(pushsubscription.Table, pushsubscription.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, pushsubscription.UserTable, pushsubscription.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *PushSubscriptionClient) Hooks() []Hook {
+	return c.hooks.PushSubscription
+}
+
+// Interceptors returns the client interceptors.
+func (c *PushSubscriptionClient) Interceptors() []Interceptor {
+	return c.inters.PushSubscription
+}
+
+func (c *PushSubscriptionClient) mutate(ctx context.Context, m *PushSubscriptionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PushSubscriptionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PushSubscriptionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PushSubscriptionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PushSubscriptionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PushSubscription mutation op: %q", m.Op())
+	}
+}
+
+// ReminderSendClient is a client for the ReminderSend schema.
+type ReminderSendClient struct {
+	config
+}
+
+// NewReminderSendClient returns a client for the ReminderSend from the given config.
+func NewReminderSendClient(c config) *ReminderSendClient {
+	return &ReminderSendClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `remindersend.Hooks(f(g(h())))`.
+func (c *ReminderSendClient) Use(hooks ...Hook) {
+	c.hooks.ReminderSend = append(c.hooks.ReminderSend, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `remindersend.Intercept(f(g(h())))`.
+func (c *ReminderSendClient) Intercept(interceptors ...Interceptor) {
+	c.inters.ReminderSend = append(c.inters.ReminderSend, interceptors...)
+}
+
+// Create returns a builder for creating a ReminderSend entity.
+func (c *ReminderSendClient) Create() *ReminderSendCreate {
+	mutation := newReminderSendMutation(c.config, OpCreate)
+	return &ReminderSendCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of ReminderSend entities.
+func (c *ReminderSendClient) CreateBulk(builders ...*ReminderSendCreate) *ReminderSendCreateBulk {
+	return &ReminderSendCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ReminderSendClient) MapCreateBulk(slice any, setFunc func(*ReminderSendCreate, int)) *ReminderSendCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ReminderSendCreateBulk{err: fmt.Errorf("calling to ReminderSendClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ReminderSendCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ReminderSendCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for ReminderSend.
+func (c *ReminderSendClient) Update() *ReminderSendUpdate {
+	mutation := newReminderSendMutation(c.config, OpUpdate)
+	return &ReminderSendUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ReminderSendClient) UpdateOne(_m *ReminderSend) *ReminderSendUpdateOne {
+	mutation := newReminderSendMutation(c.config, OpUpdateOne, withReminderSend(_m))
+	return &ReminderSendUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ReminderSendClient) UpdateOneID(id uuid.UUID) *ReminderSendUpdateOne {
+	mutation := newReminderSendMutation(c.config, OpUpdateOne, withReminderSendID(id))
+	return &ReminderSendUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for ReminderSend.
+func (c *ReminderSendClient) Delete() *ReminderSendDelete {
+	mutation := newReminderSendMutation(c.config, OpDelete)
+	return &ReminderSendDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ReminderSendClient) DeleteOne(_m *ReminderSend) *ReminderSendDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ReminderSendClient) DeleteOneID(id uuid.UUID) *ReminderSendDeleteOne {
+	builder := c.Delete().Where(remindersend.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ReminderSendDeleteOne{builder}
+}
+
+// Query returns a query builder for ReminderSend.
+func (c *ReminderSendClient) Query() *ReminderSendQuery {
+	return &ReminderSendQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeReminderSend},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a ReminderSend entity by its id.
+func (c *ReminderSendClient) Get(ctx context.Context, id uuid.UUID) (*ReminderSend, error) {
+	return c.Query().Where(remindersend.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ReminderSendClient) GetX(ctx context.Context, id uuid.UUID) *ReminderSend {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a ReminderSend.
+func (c *ReminderSendClient) QueryUser(_m *ReminderSend) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(remindersend.Table, remindersend.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, remindersend.UserTable, remindersend.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ReminderSendClient) Hooks() []Hook {
+	return c.hooks.ReminderSend
+}
+
+// Interceptors returns the client interceptors.
+func (c *ReminderSendClient) Interceptors() []Interceptor {
+	return c.inters.ReminderSend
+}
+
+func (c *ReminderSendClient) mutate(ctx context.Context, m *ReminderSendMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ReminderSendCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ReminderSendUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ReminderSendUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ReminderSendDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown ReminderSend mutation op: %q", m.Op())
 	}
 }
 
@@ -3847,6 +4161,38 @@ func (c *UserClient) QueryCalendarWatches(_m *User) *CalendarWatchedMemberQuery 
 	return query
 }
 
+// QueryPushSubscriptions queries the push_subscriptions edge of a User.
+func (c *UserClient) QueryPushSubscriptions(_m *User) *PushSubscriptionQuery {
+	query := (&PushSubscriptionClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(pushsubscription.Table, pushsubscription.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.PushSubscriptionsTable, user.PushSubscriptionsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryReminderSends queries the reminder_sends edge of a User.
+func (c *UserClient) QueryReminderSends(_m *User) *ReminderSendQuery {
+	query := (&ReminderSendClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(remindersend.Table, remindersend.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.ReminderSendsTable, user.ReminderSendsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -4435,14 +4781,16 @@ func (c *WorkspaceMemberClient) mutate(ctx context.Context, m *WorkspaceMemberMu
 type (
 	hooks struct {
 		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
-		Notification, Project, ProjectMember, ProjectStatusColumn, Section, Tag, Task,
-		TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User,
-		Workspace, WorkspaceInvitation, WorkspaceMember []ent.Hook
+		Notification, Project, ProjectMember, ProjectStatusColumn, PushSubscription,
+		ReminderSend, Section, Tag, Task, TaskAssignee, TaskCalendarEvent,
+		TaskDependency, TaskMention, TaskTag, User, Workspace, WorkspaceInvitation,
+		WorkspaceMember []ent.Hook
 	}
 	inters struct {
 		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
-		Notification, Project, ProjectMember, ProjectStatusColumn, Section, Tag, Task,
-		TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMention, TaskTag, User,
-		Workspace, WorkspaceInvitation, WorkspaceMember []ent.Interceptor
+		Notification, Project, ProjectMember, ProjectStatusColumn, PushSubscription,
+		ReminderSend, Section, Tag, Task, TaskAssignee, TaskCalendarEvent,
+		TaskDependency, TaskMention, TaskTag, User, Workspace, WorkspaceInvitation,
+		WorkspaceMember []ent.Interceptor
 	}
 )

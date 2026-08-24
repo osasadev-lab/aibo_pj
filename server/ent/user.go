@@ -38,6 +38,14 @@ type User struct {
 	CalendarSyncMode *user.CalendarSyncMode `json:"calendar_sync_mode,omitempty"`
 	// HoverHighlightMode holds the value of the "hover_highlight_mode" field.
 	HoverHighlightMode user.HoverHighlightMode `json:"hover_highlight_mode,omitempty"`
+	// ReminderDueTodayEnabled holds the value of the "reminder_due_today_enabled" field.
+	ReminderDueTodayEnabled bool `json:"reminder_due_today_enabled,omitempty"`
+	// ReminderDueTodayTime holds the value of the "reminder_due_today_time" field.
+	ReminderDueTodayTime *string `json:"reminder_due_today_time,omitempty"`
+	// ReminderOverdueEnabled holds the value of the "reminder_overdue_enabled" field.
+	ReminderOverdueEnabled bool `json:"reminder_overdue_enabled,omitempty"`
+	// ReminderOverdueTime holds the value of the "reminder_overdue_time" field.
+	ReminderOverdueTime *string `json:"reminder_overdue_time,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges        UserEdges `json:"edges"`
@@ -72,9 +80,13 @@ type UserEdges struct {
 	SentInvitations []*WorkspaceInvitation `json:"sent_invitations,omitempty"`
 	// CalendarWatches holds the value of the calendar_watches edge.
 	CalendarWatches []*CalendarWatchedMember `json:"calendar_watches,omitempty"`
+	// PushSubscriptions holds the value of the push_subscriptions edge.
+	PushSubscriptions []*PushSubscription `json:"push_subscriptions,omitempty"`
+	// ReminderSends holds the value of the reminder_sends edge.
+	ReminderSends []*ReminderSend `json:"reminder_sends,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [13]bool
+	loadedTypes [15]bool
 }
 
 // WorkspaceMembersOrErr returns the WorkspaceMembers value or an error if the edge
@@ -194,14 +206,32 @@ func (e UserEdges) CalendarWatchesOrErr() ([]*CalendarWatchedMember, error) {
 	return nil, &NotLoadedError{edge: "calendar_watches"}
 }
 
+// PushSubscriptionsOrErr returns the PushSubscriptions value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) PushSubscriptionsOrErr() ([]*PushSubscription, error) {
+	if e.loadedTypes[13] {
+		return e.PushSubscriptions, nil
+	}
+	return nil, &NotLoadedError{edge: "push_subscriptions"}
+}
+
+// ReminderSendsOrErr returns the ReminderSends value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) ReminderSendsOrErr() ([]*ReminderSend, error) {
+	if e.loadedTypes[14] {
+		return e.ReminderSends, nil
+	}
+	return nil, &NotLoadedError{edge: "reminder_sends"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case user.FieldCalendarSyncEnabled:
+		case user.FieldCalendarSyncEnabled, user.FieldReminderDueTodayEnabled, user.FieldReminderOverdueEnabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldGoogleSub, user.FieldEmail, user.FieldName, user.FieldAvatarURL, user.FieldGoogleRefreshToken, user.FieldCalendarSyncMode, user.FieldHoverHighlightMode:
+		case user.FieldGoogleSub, user.FieldEmail, user.FieldName, user.FieldAvatarURL, user.FieldGoogleRefreshToken, user.FieldCalendarSyncMode, user.FieldHoverHighlightMode, user.FieldReminderDueTodayTime, user.FieldReminderOverdueTime:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -291,6 +321,32 @@ func (_m *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.HoverHighlightMode = user.HoverHighlightMode(value.String)
 			}
+		case user.FieldReminderDueTodayEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field reminder_due_today_enabled", values[i])
+			} else if value.Valid {
+				_m.ReminderDueTodayEnabled = value.Bool
+			}
+		case user.FieldReminderDueTodayTime:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field reminder_due_today_time", values[i])
+			} else if value.Valid {
+				_m.ReminderDueTodayTime = new(string)
+				*_m.ReminderDueTodayTime = value.String
+			}
+		case user.FieldReminderOverdueEnabled:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field reminder_overdue_enabled", values[i])
+			} else if value.Valid {
+				_m.ReminderOverdueEnabled = value.Bool
+			}
+		case user.FieldReminderOverdueTime:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field reminder_overdue_time", values[i])
+			} else if value.Valid {
+				_m.ReminderOverdueTime = new(string)
+				*_m.ReminderOverdueTime = value.String
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -369,6 +425,16 @@ func (_m *User) QueryCalendarWatches() *CalendarWatchedMemberQuery {
 	return NewUserClient(_m.config).QueryCalendarWatches(_m)
 }
 
+// QueryPushSubscriptions queries the "push_subscriptions" edge of the User entity.
+func (_m *User) QueryPushSubscriptions() *PushSubscriptionQuery {
+	return NewUserClient(_m.config).QueryPushSubscriptions(_m)
+}
+
+// QueryReminderSends queries the "reminder_sends" edge of the User entity.
+func (_m *User) QueryReminderSends() *ReminderSendQuery {
+	return NewUserClient(_m.config).QueryReminderSends(_m)
+}
+
 // Update returns a builder for updating this User.
 // Note that you need to call User.Unwrap() before calling this method if this User
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -424,6 +490,22 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("hover_highlight_mode=")
 	builder.WriteString(fmt.Sprintf("%v", _m.HoverHighlightMode))
+	builder.WriteString(", ")
+	builder.WriteString("reminder_due_today_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ReminderDueTodayEnabled))
+	builder.WriteString(", ")
+	if v := _m.ReminderDueTodayTime; v != nil {
+		builder.WriteString("reminder_due_today_time=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	builder.WriteString("reminder_overdue_enabled=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ReminderOverdueEnabled))
+	builder.WriteString(", ")
+	if v := _m.ReminderOverdueTime; v != nil {
+		builder.WriteString("reminder_overdue_time=")
+		builder.WriteString(*v)
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

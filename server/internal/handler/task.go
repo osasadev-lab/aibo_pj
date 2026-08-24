@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"entgo.io/ent/dialect/sql"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
@@ -29,6 +32,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/pushdelivery"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 
 	"golang.org/x/oauth2"
@@ -47,10 +51,12 @@ type TaskHandler struct {
 	calCfg      *oauth2.Config
 	encKey      []byte
 	frontendURL string
+	// pushCfgはM7（Web Push配信）用。
+	pushCfg pushdelivery.Config
 }
 
-func NewTaskHandler(client *ent.Client, r2 *storage.R2Client, calCfg *oauth2.Config, encKey []byte, frontendURL string) *TaskHandler {
-	return &TaskHandler{client: client, r2: r2, calCfg: calCfg, encKey: encKey, frontendURL: frontendURL}
+func NewTaskHandler(client *ent.Client, r2 *storage.R2Client, calCfg *oauth2.Config, encKey []byte, frontendURL string, pushCfg pushdelivery.Config) *TaskHandler {
+	return &TaskHandler{client: client, r2: r2, calCfg: calCfg, encKey: encKey, frontendURL: frontendURL, pushCfg: pushCfg}
 }
 
 func taskJSON(t *ent.Task) gin.H {
@@ -198,6 +204,114 @@ func (h *TaskHandler) Search(c *gin.Context) {
 		out = append(out, taskJSON(t))
 	}
 	c.JSON(http.StatusOK, out)
+}
+
+// maxSearchResults は全文検索1回あたりの結果件数上限（M7スコープ外のページネーションの
+// 代わりに、まずは直近更新順で上位のみ返す簡易な割り切り）。
+const maxSearchResults = 50
+
+// FullTextSearch は GET /workspaces/:workspace_id/search?q=。
+// タスクのtitle/description/コメント本文/添付ファイル名を対象にした部分一致検索
+// （docs/aibo/m7-implementation-plan.md 設計判断5・6）。Searchと同じ可視性フィルタを
+// 適用した上で、qが空なら空配列を返す。
+func (h *TaskHandler) FullTextSearch(c *gin.Context) {
+	m := middleware.CurrentMembership(c)
+	ctx := c.Request.Context()
+
+	q := c.Query("q")
+	if q == "" {
+		c.JSON(http.StatusOK, []gin.H{})
+		return
+	}
+
+	tasks, err := h.client.Task.Query().
+		Where(
+			task.WorkspaceIDEQ(m.WorkspaceID),
+			task.Or(
+				task.ProjectIDIsNil(),
+				task.HasProjectWith(project.VisibilityEQ(project.VisibilityPublic)),
+				task.HasProjectWith(project.HasMembersWith(projectmember.UserIDEQ(m.UserID))),
+			),
+			task.Or(
+				task.TitleContainsFold(q),
+				task.DescriptionContainsFold(q),
+				task.HasCommentsWith(comment.BodyContainsFold(q)),
+				task.HasAttachmentsWith(attachment.FileNameContainsFold(q)),
+			),
+		).
+		Order(task.ByUpdatedAt(sql.OrderDesc())).
+		Limit(maxSearchResults).
+		All(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search tasks"})
+		return
+	}
+
+	// どの項目に、どの内容で一致したかをフロントで表示するため（ユーザーフィードバック、
+	// タスク/説明/コメント/添付ファイルの4区分ごとに「ヒットなし」or一致した内容を
+	// 一覧表示したい、という具体的なレイアウト要望）。コメント・添付ファイルは1タスクに
+	// 複数一致しうるため、それぞれの一致内容（抜粋・ファイル名）をタスクID単位で集める
+	// （N+1を避けるためtask_id INの一括クエリ2回、tasksが0件なら実行しない）。
+	commentMatches := map[uuid.UUID][]string{}
+	attachmentMatches := map[uuid.UUID][]string{}
+	if len(tasks) > 0 {
+		taskIDs := make([]uuid.UUID, 0, len(tasks))
+		for _, t := range tasks {
+			taskIDs = append(taskIDs, t.ID)
+		}
+
+		matchedComments, err := h.client.Comment.Query().
+			Where(comment.TaskIDIn(taskIDs...), comment.BodyContainsFold(q)).
+			Order(comment.ByCreatedAt()).
+			All(ctx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search tasks"})
+			return
+		}
+		for _, cm := range matchedComments {
+			commentMatches[cm.TaskID] = append(commentMatches[cm.TaskID], excerpt(cm.Body, 80))
+		}
+
+		matchedAttachments, err := h.client.Attachment.Query().
+			Where(attachment.TaskIDIn(taskIDs...), attachment.FileNameContainsFold(q)).
+			Order(attachment.ByCreatedAt()).
+			All(ctx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search tasks"})
+			return
+		}
+		for _, a := range matchedAttachments {
+			attachmentMatches[a.TaskID] = append(attachmentMatches[a.TaskID], a.FileName)
+		}
+	}
+
+	lowerQ := strings.ToLower(q)
+	out := make([]gin.H, 0, len(tasks))
+	for _, t := range tasks {
+		row := taskJSON(t)
+		matches := gin.H{
+			"comments":    orEmptyStrings(commentMatches[t.ID]),
+			"attachments": orEmptyStrings(attachmentMatches[t.ID]),
+		}
+		if strings.Contains(strings.ToLower(t.Title), lowerQ) {
+			matches["title"] = t.Title
+		}
+		if t.Description != nil && strings.Contains(strings.ToLower(*t.Description), lowerQ) {
+			matches["description"] = excerpt(*t.Description, 150)
+		}
+		row["matches"] = matches
+		out = append(out, row)
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+// orEmptyStrings はnilスライスをJSON上で`null`ではなく`[]`にするためのヘルパー
+// （フロントが常に配列として扱えるようにする）。
+func orEmptyStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // MyTasks は GET /workspaces/:workspace_id/my-tasks。
@@ -500,6 +614,7 @@ func (h *TaskHandler) Update(c *gin.Context) {
 	previousStatus := t.Status
 
 	var updated *ent.Task
+	var pendingPush []pushdelivery.Item
 	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
 		builder := tx.Task.UpdateOneID(t.ID)
 		changes := map[string]any{}
@@ -587,19 +702,21 @@ func (h *TaskHandler) Update(c *gin.Context) {
 				if _, wasMentioned := oldSet[id]; wasMentioned {
 					continue
 				}
+				payload := map[string]any{
+					"task_id":           t.ID,
+					"project_id":        t.ProjectID,
+					"mentioned_by":      u.ID,
+					"mentioned_by_name": u.Name,
+					"excerpt":           excerpt(descText, 100),
+				}
 				if _, err := tx.Notification.Create().
 					SetUserID(id).
 					SetType("mentioned").
-					SetPayload(map[string]any{
-						"task_id":           t.ID,
-						"project_id":        t.ProjectID,
-						"mentioned_by":      u.ID,
-						"mentioned_by_name": u.Name,
-						"excerpt":           excerpt(descText, 100),
-					}).
+					SetPayload(payload).
 					Save(ctx); err != nil {
 					return err
 				}
+				pendingPush = append(pendingPush, pushdelivery.BuildItem(id, h.frontendURL, t.WorkspaceID.String(), "mentioned", payload))
 			}
 		}
 
@@ -634,6 +751,10 @@ func (h *TaskHandler) Update(c *gin.Context) {
 			calendarsync.SyncTask(ctx, h.client, h.calCfg, h.encKey, updated, h.frontendURL)
 		})
 	}
+
+	// Web Push配信（M7）。DBコミット後にベストエフォートで送る
+	// （docs/aibo/m7-implementation-plan.md 設計判断7、calendarsync.Asyncと同じ理由）。
+	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 
 	c.JSON(http.StatusOK, taskJSON(updated))
 }
@@ -900,6 +1021,7 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 	}
 
 	var addedIDs, removedIDs []uuid.UUID
+	var pendingPush []pushdelivery.Item
 	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
 		existing, err := tx.TaskAssignee.Query().Where(taskassignee.TaskIDEQ(t.ID)).All(ctx)
 		if err != nil {
@@ -941,37 +1063,41 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 			if _, was := oldSet[id]; was {
 				continue
 			}
+			payload := map[string]any{
+				"task_id":         t.ID,
+				"project_id":      t.ProjectID,
+				"changed_by":      u.ID,
+				"changed_by_name": u.Name,
+				"task_title":      t.Title,
+			}
 			if _, err := tx.Notification.Create().
 				SetUserID(id).
 				SetType("assigned").
-				SetPayload(map[string]any{
-					"task_id":         t.ID,
-					"project_id":      t.ProjectID,
-					"changed_by":      u.ID,
-					"changed_by_name": u.Name,
-					"task_title":      t.Title,
-				}).
+				SetPayload(payload).
 				Save(ctx); err != nil {
 				return err
 			}
+			pendingPush = append(pendingPush, pushdelivery.BuildItem(id, h.frontendURL, t.WorkspaceID.String(), "assigned", payload))
 		}
 		for id := range oldSet {
 			if _, still := newSet[id]; still {
 				continue
 			}
+			payload := map[string]any{
+				"task_id":         t.ID,
+				"project_id":      t.ProjectID,
+				"changed_by":      u.ID,
+				"changed_by_name": u.Name,
+				"task_title":      t.Title,
+			}
 			if _, err := tx.Notification.Create().
 				SetUserID(id).
 				SetType("unassigned").
-				SetPayload(map[string]any{
-					"task_id":         t.ID,
-					"project_id":      t.ProjectID,
-					"changed_by":      u.ID,
-					"changed_by_name": u.Name,
-					"task_title":      t.Title,
-				}).
+				SetPayload(payload).
 				Save(ctx); err != nil {
 				return err
 			}
+			pendingPush = append(pendingPush, pushdelivery.BuildItem(id, h.frontendURL, t.WorkspaceID.String(), "unassigned", payload))
 		}
 
 		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.assigned",
@@ -995,6 +1121,8 @@ func (h *TaskHandler) PutAssignees(c *gin.Context) {
 			calendarsync.SyncTaskForUserOnUnassign(ctx, h.client, h.calCfg, h.encKey, t.ID, id)
 		})
 	}
+
+	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 
 	c.Status(http.StatusNoContent)
 }

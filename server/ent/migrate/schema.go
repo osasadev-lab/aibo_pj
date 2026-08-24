@@ -323,6 +323,60 @@ var (
 			},
 		},
 	}
+	// PushSubscriptionsColumns holds the columns for the "push_subscriptions" table.
+	PushSubscriptionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "endpoint", Type: field.TypeString, Unique: true},
+		{Name: "p256dh", Type: field.TypeString},
+		{Name: "auth", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// PushSubscriptionsTable holds the schema information for the "push_subscriptions" table.
+	PushSubscriptionsTable = &schema.Table{
+		Name:       "push_subscriptions",
+		Columns:    PushSubscriptionsColumns,
+		PrimaryKey: []*schema.Column{PushSubscriptionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "push_subscriptions_users_user",
+				Columns:    []*schema.Column{PushSubscriptionsColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
+	// ReminderSendsColumns holds the columns for the "reminder_sends" table.
+	ReminderSendsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"due_today", "overdue"}},
+		{Name: "sent_date", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "date"}},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// ReminderSendsTable holds the schema information for the "reminder_sends" table.
+	ReminderSendsTable = &schema.Table{
+		Name:       "reminder_sends",
+		Columns:    ReminderSendsColumns,
+		PrimaryKey: []*schema.Column{ReminderSendsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "reminder_sends_users_user",
+				Columns:    []*schema.Column{ReminderSendsColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "remindersend_user_id_type_sent_date",
+				Unique:  true,
+				Columns: []*schema.Column{ReminderSendsColumns[5], ReminderSendsColumns[3], ReminderSendsColumns[4]},
+			},
+		},
+	}
 	// SectionsColumns holds the columns for the "sections" table.
 	SectionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID, Unique: true},
@@ -652,6 +706,10 @@ var (
 		{Name: "calendar_sync_enabled", Type: field.TypeBool, Default: false},
 		{Name: "calendar_sync_mode", Type: field.TypeEnum, Nullable: true, Enums: []string{"auto", "manual"}},
 		{Name: "hover_highlight_mode", Type: field.TypeEnum, Enums: []string{"off", "tag", "dependency", "subtask"}, Default: "off"},
+		{Name: "reminder_due_today_enabled", Type: field.TypeBool, Default: false},
+		{Name: "reminder_due_today_time", Type: field.TypeString, Nullable: true},
+		{Name: "reminder_overdue_enabled", Type: field.TypeBool, Default: false},
+		{Name: "reminder_overdue_time", Type: field.TypeString, Nullable: true},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
@@ -755,6 +813,8 @@ var (
 		ProjectsTable,
 		ProjectMembersTable,
 		ProjectStatusColumnsTable,
+		PushSubscriptionsTable,
+		ReminderSendsTable,
 		SectionsTable,
 		TagsTable,
 		TasksTable,
@@ -790,6 +850,8 @@ func init() {
 	ProjectMembersTable.ForeignKeys[0].RefTable = ProjectsTable
 	ProjectMembersTable.ForeignKeys[1].RefTable = UsersTable
 	ProjectStatusColumnsTable.ForeignKeys[0].RefTable = ProjectsTable
+	PushSubscriptionsTable.ForeignKeys[0].RefTable = UsersTable
+	ReminderSendsTable.ForeignKeys[0].RefTable = UsersTable
 	SectionsTable.ForeignKeys[0].RefTable = ProjectsTable
 	TagsTable.ForeignKeys[0].RefTable = WorkspacesTable
 	TagsTable.ForeignKeys[1].RefTable = ProjectsTable

@@ -42,10 +42,12 @@ export default function MyTasksPage() {
   // 期限のタスクだけに絞り込む。
   const [date, setDate] = useState("");
 
+  // TaskDetailPanelのonChangedがこの一覧の再取得完了までスピナーを出せるよう、
+  // Promiseを返す（ユーザーフィードバック：保存後の反映が遅い体感の改善）。
   const load = useCallback(() => {
-    if (!workspaceId) return;
+    if (!workspaceId) return Promise.resolve();
     const query = date ? `?date=${date}` : "";
-    apiFetch<Task[]>(`/workspaces/${workspaceId}/my-tasks${query}`)
+    return apiFetch<Task[]>(`/workspaces/${workspaceId}/my-tasks${query}`)
       .then(setTasks)
       .catch(() => setError("マイタスクの取得に失敗しました"));
   }, [workspaceId, date]);

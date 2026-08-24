@@ -87,11 +87,15 @@ export default function ProjectDetailPage() {
   const [editingDescription, setEditingDescription] = useState(false);
   const [descriptionDraft, setDescriptionDraft] = useState("");
 
+  // TaskDetailPanelのonChangedがこの一覧の再取得完了までスピナーを出せるよう、
+  // Promiseを返す（ユーザーフィードバック：保存後の反映が遅い体感の改善）。
   const load = useCallback(() => {
-    if (!projectId || !workspaceId) return;
-    apiFetch<MemberSummary[]>(`/workspaces/${workspaceId}/members`).then(setMembers).catch(() => {});
-    apiFetch<StatusColumn[]>(`/projects/${projectId}/status-columns`).then(setColumns);
-    apiFetch<Task[]>(`/workspaces/${workspaceId}/tasks?project_id=${projectId}`).then(setTasks);
+    if (!projectId || !workspaceId) return Promise.resolve();
+    return Promise.all([
+      apiFetch<MemberSummary[]>(`/workspaces/${workspaceId}/members`).then(setMembers).catch(() => {}),
+      apiFetch<StatusColumn[]>(`/projects/${projectId}/status-columns`).then(setColumns),
+      apiFetch<Task[]>(`/workspaces/${workspaceId}/tasks?project_id=${projectId}`).then(setTasks),
+    ]).then(() => undefined);
   }, [projectId, workspaceId]);
 
   useEffect(() => {

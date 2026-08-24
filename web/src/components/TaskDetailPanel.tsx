@@ -9,6 +9,7 @@ import {
   Flag,
   Folder,
   Link as LinkIcon,
+  Loader2,
   Paperclip,
   Plus,
   Tag as TagIcon,
@@ -78,7 +79,9 @@ type Props = {
   taskId: string;
   workspaceId: string;
   onClose: () => void;
-  onChanged?: () => void;
+  // 呼び出し元一覧の再取得が完了するまで保存ボタンにスピナーを出したいため、
+  // Promiseを返せるようにする（同期のvoidでも動くよう両方許容、ユーザーフィードバック）。
+  onChanged?: () => void | Promise<void>;
 };
 
 // プロジェクト詳細・マイタスクで共用する右サイドバー形式のタスク詳細パネル。
@@ -113,10 +116,22 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
   const [uploading, setUploading] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // 「担当者やコメントなど全項目が揃うまで表示せずクルクルを出したい」との要望対応。
+  // detailReadyは自分自身が持つ初回フェッチ（タスク本体・依存関係・添付ファイル・
+  // メンション候補・先行タスク候補）が全て完了したことを、commentsReadyは埋め込みの
+  // CommentThreadが自身の初回フェッチを終えたことを示す。両方揃うまでは中身を
+  // 描画自体はする（CommentThreadを早期にマウントして並行でフェッチさせるため）が
+  // hiddenクラスで非表示にし、揃った時点で一括表示する。
+  const [detailReady, setDetailReady] = useState(false);
+  const [commentsReady, setCommentsReady] = useState(false);
+  const ready = detailReady && commentsReady;
   const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // 戻り値のPromiseはマウント時のdetailReady判定用。保存後等の再取得（fire-and-forget
+  // で呼ぶ箇所）ではPromiseはそのまま無視して構わない。
   function loadTask() {
-    apiFetch<Task>(`/tasks/${taskId}`)
+    return apiFetch<Task>(`/tasks/${taskId}`)
       .then((t) => {
         setTask(t);
         setTitle(t.title);
@@ -127,22 +142,21 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
         setMentionedIds(t.mentioned_user_ids ?? []);
         setTagIds((t.tags ?? []).map((tag) => tag.id));
         if (!t.parent_task_id) {
-          apiFetch<Task[]>(`/tasks/${taskId}/subtasks`).then(setSubtasks).catch(() => {});
-        } else {
-          setSubtasks([]);
+          return apiFetch<Task[]>(`/tasks/${taskId}/subtasks`).then(setSubtasks).catch(() => {});
         }
+        setSubtasks([]);
       })
       .catch(() => setError("タスクの取得に失敗しました"));
   }
 
   function loadDependencies() {
-    apiFetch<Dependencies>(`/tasks/${taskId}/dependencies`)
+    return apiFetch<Dependencies>(`/tasks/${taskId}/dependencies`)
       .then(setDependencies)
       .catch(() => {});
   }
 
   function loadAttachments() {
-    apiFetch<Attachment[]>(`/tasks/${taskId}/attachments`)
+    return apiFetch<Attachment[]>(`/tasks/${taskId}/attachments`)
       .then(setAttachments)
       .catch(() => {});
   }
@@ -151,16 +165,16 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
   // 想定（TaskDetailPanelはtaskId変更時の再利用を考慮しない）ため、
   // マウント時に1回だけ取得すればよい。
   useEffect(() => {
-    loadTask();
-    loadDependencies();
-    loadAttachments();
-    apiFetch<MemberSummary[]>(`/tasks/${taskId}/mentionable-members`)
-      .then(setMentionable)
-      .catch(() => {});
-    // 先行タスク選択の候補一覧（ワークスペース全体のタスク）。
-    apiFetch<DependencyTask[]>(`/workspaces/${workspaceId}/tasks`)
-      .then((list) => setCandidateTasks(list.filter((t) => t.id !== taskId)))
-      .catch(() => {});
+    Promise.allSettled([
+      loadTask(),
+      loadDependencies(),
+      loadAttachments(),
+      apiFetch<MemberSummary[]>(`/tasks/${taskId}/mentionable-members`).then(setMentionable).catch(() => {}),
+      // 先行タスク選択の候補一覧（ワークスペース全体のタスク）。
+      apiFetch<DependencyTask[]>(`/workspaces/${workspaceId}/tasks`)
+        .then((list) => setCandidateTasks(list.filter((t) => t.id !== taskId)))
+        .catch(() => {}),
+    ]).then(() => setDetailReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -169,43 +183,56 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
   // タイトル/説明/優先度/期限/メンションに加え、担当者・タグもこの「保存」1つに
   // まとめる（ユーザー要望）。それぞれ別APIのため順に呼び、途中で失敗したら
   // どの更新で失敗したか分かるようエラーメッセージを出し分ける。
+  // 3つのPUT/PATCHを直列にawaitしていたため、保存完了（＝onChanged呼び出し・一覧再取得）
+  // までにネットワーク往復3回分の待ち時間があり体感が遅かった。相互に独立した更新
+  // （タスク本体/担当者/タグ）なので並列実行に変更し、待ち時間を最も遅い1回分に短縮する
+  // （ユーザーフィードバックにより変更。1つが失敗しても他の成功分はそのまま反映される
+  // 点が直列時と異なるが、フォームの意図した保存内容が部分的にでも残る方が望ましいと判断）。
+  // 「反映されるまでクルクルを表示してほしい」との要望で、保存ボタン押下から
+  // onChanged（呼び出し元一覧の再取得）が完了するまでをsavingで覆う。onChangedが
+  // Promiseを返さない呼び出し元でも await はそのまま解決するだけなので害はない。
   async function handleSave() {
     setError(null);
+    setSaving(true);
     try {
-      await apiFetch(`/tasks/${taskId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          title,
-          description: description || null,
-          priority: priority || null,
-          due_date: dueDate || null,
-          mentioned_user_ids: mentionedIds,
+      const [taskResult, assigneesResult, tagsResult] = await Promise.allSettled([
+        apiFetch(`/tasks/${taskId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            title,
+            description: description || null,
+            priority: priority || null,
+            due_date: dueDate || null,
+            mentioned_user_ids: mentionedIds,
+          }),
         }),
-      });
-    } catch {
-      setError("タスクの更新に失敗しました");
-      return;
+        apiFetch(`/tasks/${taskId}/assignees`, {
+          method: "PUT",
+          body: JSON.stringify({ user_ids: assigneeIds }),
+        }),
+        apiFetch(`/tasks/${taskId}/tags`, {
+          method: "PUT",
+          body: JSON.stringify({ tag_ids: tagIds }),
+        }),
+      ]);
+
+      if (taskResult.status === "rejected") {
+        setError("タスクの更新に失敗しました");
+        return;
+      }
+      if (assigneesResult.status === "rejected") {
+        setError("担当者の更新に失敗しました");
+        return;
+      }
+      if (tagsResult.status === "rejected") {
+        setError("タグの更新に失敗しました");
+        return;
+      }
+      await onChanged?.();
+      onClose();
+    } finally {
+      setSaving(false);
     }
-    try {
-      await apiFetch(`/tasks/${taskId}/assignees`, {
-        method: "PUT",
-        body: JSON.stringify({ user_ids: assigneeIds }),
-      });
-    } catch {
-      setError("担当者の更新に失敗しました");
-      return;
-    }
-    try {
-      await apiFetch(`/tasks/${taskId}/tags`, {
-        method: "PUT",
-        body: JSON.stringify({ tag_ids: tagIds }),
-      });
-    } catch {
-      setError("タグの更新に失敗しました");
-      return;
-    }
-    onChanged?.();
-    onClose();
   }
 
   function handleDescriptionChange(value: string) {
@@ -371,10 +398,18 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
         </p>
       )}
 
-      {!task ? (
-        <p className="text-sm text-muted-foreground">読み込み中...</p>
-      ) : (
-        <div className="flex flex-col gap-4">
+      {!ready && (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          読み込み中...
+        </p>
+      )}
+
+      {task && (
+        <fieldset
+          disabled={saving}
+          className={clsx("m-0 flex min-w-0 flex-col gap-4 border-0 p-0", !ready && "hidden")}
+        >
           {task.project_id && (
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Folder className="h-3 w-3" />
@@ -592,7 +627,8 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-            <Button variant="primary" size="sm" onClick={handleSave}>
+            <Button variant="primary" size="sm" disabled={saving} onClick={handleSave}>
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               保存
             </Button>
             {task.status !== "done" && (
@@ -607,8 +643,8 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             </Button>
           </div>
 
-          <CommentThread taskId={taskId} />
-        </div>
+          <CommentThread taskId={taskId} onLoaded={() => setCommentsReady(true)} />
+        </fieldset>
       )}
 
       <ConfirmDialog

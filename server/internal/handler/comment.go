@@ -12,15 +12,18 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/pushdelivery"
 )
 
 // CommentHandler は /tasks/:task_id/comments, /tasks/:task_id/mentionable-members を扱う。
 type CommentHandler struct {
-	client *ent.Client
+	client      *ent.Client
+	pushCfg     pushdelivery.Config
+	frontendURL string
 }
 
-func NewCommentHandler(client *ent.Client) *CommentHandler {
-	return &CommentHandler{client: client}
+func NewCommentHandler(client *ent.Client, pushCfg pushdelivery.Config, frontendURL string) *CommentHandler {
+	return &CommentHandler{client: client, pushCfg: pushCfg, frontendURL: frontendURL}
 }
 
 // MentionableMembers は GET /tasks/:task_id/mentionable-members。
@@ -131,6 +134,7 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 	}
 
 	var created *ent.Comment
+	var pendingPush []pushdelivery.Item
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		cm, err := tx.Comment.Create().
 			SetTaskID(t.ID).
@@ -148,20 +152,22 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 				Save(ctx); err != nil {
 				return err
 			}
+			payload := map[string]any{
+				"task_id":           t.ID,
+				"comment_id":        cm.ID,
+				"project_id":        t.ProjectID,
+				"mentioned_by":      u.ID,
+				"mentioned_by_name": u.Name,
+				"excerpt":           excerpt(req.Body, 100),
+			}
 			if _, err := tx.Notification.Create().
 				SetUserID(uid).
 				SetType("mentioned").
-				SetPayload(map[string]any{
-					"task_id":           t.ID,
-					"comment_id":        cm.ID,
-					"project_id":        t.ProjectID,
-					"mentioned_by":      u.ID,
-					"mentioned_by_name": u.Name,
-					"excerpt":           excerpt(req.Body, 100),
-				}).
+				SetPayload(payload).
 				Save(ctx); err != nil {
 				return err
 			}
+			pendingPush = append(pendingPush, pushdelivery.BuildItem(uid, h.frontendURL, t.WorkspaceID.String(), "mentioned", payload))
 		}
 
 		if err := activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "comment.created",
@@ -177,6 +183,8 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create comment"})
 		return
 	}
+
+	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 
 	c.JSON(http.StatusCreated, commentJSON(created))
 }

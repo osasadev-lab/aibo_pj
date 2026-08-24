@@ -19,6 +19,8 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
@@ -146,6 +148,62 @@ func (_c *UserCreate) SetHoverHighlightMode(v user.HoverHighlightMode) *UserCrea
 func (_c *UserCreate) SetNillableHoverHighlightMode(v *user.HoverHighlightMode) *UserCreate {
 	if v != nil {
 		_c.SetHoverHighlightMode(*v)
+	}
+	return _c
+}
+
+// SetReminderDueTodayEnabled sets the "reminder_due_today_enabled" field.
+func (_c *UserCreate) SetReminderDueTodayEnabled(v bool) *UserCreate {
+	_c.mutation.SetReminderDueTodayEnabled(v)
+	return _c
+}
+
+// SetNillableReminderDueTodayEnabled sets the "reminder_due_today_enabled" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReminderDueTodayEnabled(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetReminderDueTodayEnabled(*v)
+	}
+	return _c
+}
+
+// SetReminderDueTodayTime sets the "reminder_due_today_time" field.
+func (_c *UserCreate) SetReminderDueTodayTime(v string) *UserCreate {
+	_c.mutation.SetReminderDueTodayTime(v)
+	return _c
+}
+
+// SetNillableReminderDueTodayTime sets the "reminder_due_today_time" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReminderDueTodayTime(v *string) *UserCreate {
+	if v != nil {
+		_c.SetReminderDueTodayTime(*v)
+	}
+	return _c
+}
+
+// SetReminderOverdueEnabled sets the "reminder_overdue_enabled" field.
+func (_c *UserCreate) SetReminderOverdueEnabled(v bool) *UserCreate {
+	_c.mutation.SetReminderOverdueEnabled(v)
+	return _c
+}
+
+// SetNillableReminderOverdueEnabled sets the "reminder_overdue_enabled" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReminderOverdueEnabled(v *bool) *UserCreate {
+	if v != nil {
+		_c.SetReminderOverdueEnabled(*v)
+	}
+	return _c
+}
+
+// SetReminderOverdueTime sets the "reminder_overdue_time" field.
+func (_c *UserCreate) SetReminderOverdueTime(v string) *UserCreate {
+	_c.mutation.SetReminderOverdueTime(v)
+	return _c
+}
+
+// SetNillableReminderOverdueTime sets the "reminder_overdue_time" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReminderOverdueTime(v *string) *UserCreate {
+	if v != nil {
+		_c.SetReminderOverdueTime(*v)
 	}
 	return _c
 }
@@ -359,6 +417,36 @@ func (_c *UserCreate) AddCalendarWatches(v ...*CalendarWatchedMember) *UserCreat
 	return _c.AddCalendarWatchIDs(ids...)
 }
 
+// AddPushSubscriptionIDs adds the "push_subscriptions" edge to the PushSubscription entity by IDs.
+func (_c *UserCreate) AddPushSubscriptionIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddPushSubscriptionIDs(ids...)
+	return _c
+}
+
+// AddPushSubscriptions adds the "push_subscriptions" edges to the PushSubscription entity.
+func (_c *UserCreate) AddPushSubscriptions(v ...*PushSubscription) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddPushSubscriptionIDs(ids...)
+}
+
+// AddReminderSendIDs adds the "reminder_sends" edge to the ReminderSend entity by IDs.
+func (_c *UserCreate) AddReminderSendIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddReminderSendIDs(ids...)
+	return _c
+}
+
+// AddReminderSends adds the "reminder_sends" edges to the ReminderSend entity.
+func (_c *UserCreate) AddReminderSends(v ...*ReminderSend) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddReminderSendIDs(ids...)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (_c *UserCreate) Mutation() *UserMutation {
 	return _c.mutation
@@ -409,6 +497,14 @@ func (_c *UserCreate) defaults() {
 	if _, ok := _c.mutation.HoverHighlightMode(); !ok {
 		v := user.DefaultHoverHighlightMode
 		_c.mutation.SetHoverHighlightMode(v)
+	}
+	if _, ok := _c.mutation.ReminderDueTodayEnabled(); !ok {
+		v := user.DefaultReminderDueTodayEnabled
+		_c.mutation.SetReminderDueTodayEnabled(v)
+	}
+	if _, ok := _c.mutation.ReminderOverdueEnabled(); !ok {
+		v := user.DefaultReminderOverdueEnabled
+		_c.mutation.SetReminderOverdueEnabled(v)
 	}
 	if _, ok := _c.mutation.ID(); !ok {
 		v := user.DefaultID()
@@ -463,6 +559,12 @@ func (_c *UserCreate) check() error {
 		if err := user.HoverHighlightModeValidator(v); err != nil {
 			return &ValidationError{Name: "hover_highlight_mode", err: fmt.Errorf(`ent: validator failed for field "User.hover_highlight_mode": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.ReminderDueTodayEnabled(); !ok {
+		return &ValidationError{Name: "reminder_due_today_enabled", err: errors.New(`ent: missing required field "User.reminder_due_today_enabled"`)}
+	}
+	if _, ok := _c.mutation.ReminderOverdueEnabled(); !ok {
+		return &ValidationError{Name: "reminder_overdue_enabled", err: errors.New(`ent: missing required field "User.reminder_overdue_enabled"`)}
 	}
 	return nil
 }
@@ -538,6 +640,22 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.HoverHighlightMode(); ok {
 		_spec.SetField(user.FieldHoverHighlightMode, field.TypeEnum, value)
 		_node.HoverHighlightMode = value
+	}
+	if value, ok := _c.mutation.ReminderDueTodayEnabled(); ok {
+		_spec.SetField(user.FieldReminderDueTodayEnabled, field.TypeBool, value)
+		_node.ReminderDueTodayEnabled = value
+	}
+	if value, ok := _c.mutation.ReminderDueTodayTime(); ok {
+		_spec.SetField(user.FieldReminderDueTodayTime, field.TypeString, value)
+		_node.ReminderDueTodayTime = &value
+	}
+	if value, ok := _c.mutation.ReminderOverdueEnabled(); ok {
+		_spec.SetField(user.FieldReminderOverdueEnabled, field.TypeBool, value)
+		_node.ReminderOverdueEnabled = value
+	}
+	if value, ok := _c.mutation.ReminderOverdueTime(); ok {
+		_spec.SetField(user.FieldReminderOverdueTime, field.TypeString, value)
+		_node.ReminderOverdueTime = &value
 	}
 	if nodes := _c.mutation.WorkspaceMembersIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -740,6 +858,38 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.PushSubscriptionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.ReminderSendsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ReminderSendsTable,
+			Columns: []string{user.ReminderSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

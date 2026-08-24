@@ -28,6 +28,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/pushdelivery"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 
 	"golang.org/x/oauth2"
@@ -41,10 +42,13 @@ type ProjectHandler struct {
 	// 連携イベントもベストエフォートで削除する。
 	calCfg *oauth2.Config
 	encKey []byte
+	// pushCfg/frontendURLはM7（Web Push配信）用。
+	pushCfg     pushdelivery.Config
+	frontendURL string
 }
 
-func NewProjectHandler(client *ent.Client, r2 *storage.R2Client, calCfg *oauth2.Config, encKey []byte) *ProjectHandler {
-	return &ProjectHandler{client: client, r2: r2, calCfg: calCfg, encKey: encKey}
+func NewProjectHandler(client *ent.Client, r2 *storage.R2Client, calCfg *oauth2.Config, encKey []byte, pushCfg pushdelivery.Config, frontendURL string) *ProjectHandler {
+	return &ProjectHandler{client: client, r2: r2, calCfg: calCfg, encKey: encKey, pushCfg: pushCfg, frontendURL: frontendURL}
 }
 
 // defaultStatusColumns はプロジェクト作成時に自動投入する既定4列（db-schema.md）。
@@ -63,44 +67,53 @@ const maxStatusColumns = 5
 
 // notifyProjectMembership はプロジェクトへの参画・除外をuserIDに通知する
 // （project_members行の作成・削除に伴うイベント。role変更のみの場合は呼ばない）。
-func notifyProjectMembership(ctx context.Context, tx *ent.Tx, projectID uuid.UUID, projectName string, actorID uuid.UUID, actorName string, userID uuid.UUID, joined bool) error {
+// pendingにWeb Push配信用のitemを追記する（呼び出し元がwithTx成功後にpushdelivery.Asyncへ渡す）。
+func notifyProjectMembership(ctx context.Context, tx *ent.Tx, pending *[]pushdelivery.Item, frontendURL string, workspaceID, projectID uuid.UUID, projectName string, actorID uuid.UUID, actorName string, userID uuid.UUID, joined bool) error {
 	notifType := "project_removed"
 	if joined {
 		notifType = "project_joined"
 	}
-	_, err := tx.Notification.Create().
+	payload := map[string]any{
+		"project_id":      projectID,
+		"project_name":    projectName,
+		"changed_by":      actorID,
+		"changed_by_name": actorName,
+	}
+	if _, err := tx.Notification.Create().
 		SetUserID(userID).
 		SetType(notifType).
-		SetPayload(map[string]any{
-			"project_id":      projectID,
-			"project_name":    projectName,
-			"changed_by":      actorID,
-			"changed_by_name": actorName,
-		}).
-		Save(ctx)
-	return err
+		SetPayload(payload).
+		Save(ctx); err != nil {
+		return err
+	}
+	*pending = append(*pending, pushdelivery.BuildItem(userID, frontendURL, workspaceID.String(), notifType, payload))
+	return nil
 }
 
 // notifyProjectLifecycle はプロジェクト自体の作成・削除をuserIDに通知する
 // （notifyProjectMembershipは「参画状態の変化」用で、こちらは「プロジェクトという
 // モノ自体の生成・消滅」用。publicはワークスペース全員が対象、privateは
 // 参画メンバー全員が対象。actor自身には呼び出し側で通知しない）。
-func notifyProjectLifecycle(ctx context.Context, tx *ent.Tx, projectID uuid.UUID, projectName string, actorID uuid.UUID, actorName string, userID uuid.UUID, created bool) error {
+func notifyProjectLifecycle(ctx context.Context, tx *ent.Tx, pending *[]pushdelivery.Item, frontendURL string, workspaceID, projectID uuid.UUID, projectName string, actorID uuid.UUID, actorName string, userID uuid.UUID, created bool) error {
 	notifType := "project_deleted"
 	if created {
 		notifType = "project_created"
 	}
-	_, err := tx.Notification.Create().
+	payload := map[string]any{
+		"project_id":      projectID,
+		"project_name":    projectName,
+		"changed_by":      actorID,
+		"changed_by_name": actorName,
+	}
+	if _, err := tx.Notification.Create().
 		SetUserID(userID).
 		SetType(notifType).
-		SetPayload(map[string]any{
-			"project_id":      projectID,
-			"project_name":    projectName,
-			"changed_by":      actorID,
-			"changed_by_name": actorName,
-		}).
-		Save(ctx)
-	return err
+		SetPayload(payload).
+		Save(ctx); err != nil {
+		return err
+	}
+	*pending = append(*pending, pushdelivery.BuildItem(userID, frontendURL, workspaceID.String(), notifType, payload))
+	return nil
 }
 
 func projectJSON(p *ent.Project) gin.H {
@@ -219,6 +232,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 	}
 
 	var created *ent.Project
+	var pendingPush []pushdelivery.Item
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		builder := tx.Project.Create().
 			SetWorkspaceID(m.WorkspaceID).
@@ -250,7 +264,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 			if uid == m.UserID {
 				continue
 			}
-			if err := notifyProjectMembership(ctx, tx, p.ID, p.Name, m.UserID, u.Name, uid, true); err != nil {
+			if err := notifyProjectMembership(ctx, tx, &pendingPush, h.frontendURL, m.WorkspaceID, p.ID, p.Name, m.UserID, u.Name, uid, true); err != nil {
 				return err
 			}
 		}
@@ -269,7 +283,7 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 				if wm.UserID == m.UserID {
 					continue
 				}
-				if err := notifyProjectLifecycle(ctx, tx, p.ID, p.Name, m.UserID, u.Name, wm.UserID, true); err != nil {
+				if err := notifyProjectLifecycle(ctx, tx, &pendingPush, h.frontendURL, m.WorkspaceID, p.ID, p.Name, m.UserID, u.Name, wm.UserID, true); err != nil {
 					return err
 				}
 			}
@@ -300,6 +314,8 @@ func (h *ProjectHandler) Create(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create project"})
 		return
 	}
+
+	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 
 	c.JSON(http.StatusCreated, projectJSON(created))
 }
@@ -370,6 +386,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 
 	var attachmentKeys []string
 	var calendarEventRefs []calendarsync.EventRef
+	var pendingPush []pushdelivery.Item
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		taskIDs, err := tx.Task.Query().
 			Where(task.ProjectIDEQ(p.ID)).
@@ -498,7 +515,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 			return err
 		}
 		for _, uid := range recipientIDs {
-			if err := notifyProjectLifecycle(ctx, tx, p.ID, p.Name, u.ID, u.Name, uid, false); err != nil {
+			if err := notifyProjectLifecycle(ctx, tx, &pendingPush, h.frontendURL, p.WorkspaceID, p.ID, p.Name, u.ID, u.Name, uid, false); err != nil {
 				return err
 			}
 		}
@@ -527,6 +544,7 @@ func (h *ProjectHandler) Delete(c *gin.Context) {
 	calendarsync.Async(func(ctx context.Context) {
 		calendarsync.DeleteGoogleEventsOnly(ctx, h.calCfg, h.encKey, calendarEventRefs)
 	})
+	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 	c.Status(http.StatusNoContent)
 }
 
@@ -634,6 +652,7 @@ func (h *ProjectHandler) PutMembers(c *gin.Context) {
 		return
 	}
 
+	var pendingPush []pushdelivery.Item
 	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
 		existing, err := tx.ProjectMember.Query().Where(projectmember.ProjectIDEQ(p.ID)).All(ctx)
 		if err != nil {
@@ -683,7 +702,7 @@ func (h *ProjectHandler) PutMembers(c *gin.Context) {
 			if _, was := wasMember[uid]; was {
 				continue
 			}
-			if err := notifyProjectMembership(ctx, tx, p.ID, p.Name, m.UserID, u.Name, uid, true); err != nil {
+			if err := notifyProjectMembership(ctx, tx, &pendingPush, h.frontendURL, m.WorkspaceID, p.ID, p.Name, m.UserID, u.Name, uid, true); err != nil {
 				return err
 			}
 		}
@@ -691,7 +710,7 @@ func (h *ProjectHandler) PutMembers(c *gin.Context) {
 			if _, still := isMember[uid]; still {
 				continue
 			}
-			if err := notifyProjectMembership(ctx, tx, p.ID, p.Name, m.UserID, u.Name, uid, false); err != nil {
+			if err := notifyProjectMembership(ctx, tx, &pendingPush, h.frontendURL, m.WorkspaceID, p.ID, p.Name, m.UserID, u.Name, uid, false); err != nil {
 				return err
 			}
 		}
@@ -704,6 +723,7 @@ func (h *ProjectHandler) PutMembers(c *gin.Context) {
 	case err != nil:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update members"})
 	default:
+		pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -808,6 +828,7 @@ func (h *ProjectHandler) PutManagers(c *gin.Context) {
 		return
 	}
 
+	var pendingPush []pushdelivery.Item
 	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
 		existing, err := tx.ProjectMember.Query().Where(projectmember.ProjectIDEQ(p.ID)).All(ctx)
 		if err != nil {
@@ -841,7 +862,7 @@ func (h *ProjectHandler) PutManagers(c *gin.Context) {
 				Save(ctx); err != nil {
 				return err
 			}
-			if err := notifyProjectMembership(ctx, tx, p.ID, p.Name, m.UserID, u.Name, uid, true); err != nil {
+			if err := notifyProjectMembership(ctx, tx, &pendingPush, h.frontendURL, m.WorkspaceID, p.ID, p.Name, m.UserID, u.Name, uid, true); err != nil {
 				return err
 			}
 		}
@@ -860,7 +881,7 @@ func (h *ProjectHandler) PutManagers(c *gin.Context) {
 				if err := tx.ProjectMember.DeleteOne(pm).Exec(ctx); err != nil {
 					return err
 				}
-				if err := notifyProjectMembership(ctx, tx, p.ID, p.Name, m.UserID, u.Name, pm.UserID, false); err != nil {
+				if err := notifyProjectMembership(ctx, tx, &pendingPush, h.frontendURL, m.WorkspaceID, p.ID, p.Name, m.UserID, u.Name, pm.UserID, false); err != nil {
 					return err
 				}
 			} else if _, err := tx.ProjectMember.UpdateOneID(pm.ID).SetRole(projectmember.RoleStaff).Save(ctx); err != nil {
@@ -873,6 +894,7 @@ func (h *ProjectHandler) PutManagers(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update managers"})
 		return
 	}
+	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 	c.Status(http.StatusNoContent)
 }
 

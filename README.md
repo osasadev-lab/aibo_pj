@@ -77,6 +77,14 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - [x] タスク/プロジェクト/ワークスペース削除時のイベント削除（モード問わず）、連携OFF時の一括削除
 - 実装詳細・設計判断は`docs/aibo/m6-implementation-plan.md`参照。**Google Cloud Console側の作業（Calendar API有効化、OAuth同意画面への`calendar.events`スコープ追加、テストユーザー登録）が未実施のため、実アカウントでの実機確認は未了**
 
+### M7：通知・検索
+
+- [x] リマインダー通知（今日期限／期限超過タスクをユーザーごとに時刻設定して通知。デフォルトOFF、両方同時にON可、15分刻みの時刻・1日1回の集約通知。Cloud Schedulerから15分ごとに叩く内部cronエンドポイント`POST /internal/cron/reminders`で判定）
+- [x] Web Push購読・配信（VAPID、`POST /notifications/subscribe`・`GET /notifications/push-public-key`。既存の`mentioned`/`assigned`等の通知作成箇所すべてにコミット後のベストエフォート配信フックを追加）
+- [x] プロジェクト横断の全文検索（タスク名・説明・コメント本文・添付ファイル名が対象、`GET /workspaces/:id/search?q=`。左サイドバー常時表示の入力欄からEnterで実行し、「タスク/説明/コメント/添付ファイル」の4区分ごとにヒットしたタスクを一覧表示）
+- [x] 通知バッジのリアルタイム更新（`notifications`テーブルもSupabase Realtime購読対象に追加）、タスク詳細保存の並列化・スピナー表示・保存中の全項目非活性化
+- 実装詳細・設計判断・ユーザーフィードバックによる追加改修は`docs/aibo/m7-implementation-plan.md`参照。**VAPID鍵・Cloud Schedulerジョブは本番Cloud Runにまだ反映していない**（`deploy/secrets-checklist.md`参照）
+
 ## セットアップ
 
 ### 前提
@@ -89,7 +97,7 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 
 ```sh
 cd server
-cp .env.example .env   # DATABASE_URL・JWT_SECRET・GOOGLE_OAUTH_*・FRONTEND_URL・SUPABASE_JWT_SECRET・GOOGLE_CALENDAR_REDIRECT_URL・TOKEN_ENCRYPTION_KEY を設定する
+cp .env.example .env   # DATABASE_URL・JWT_SECRET・GOOGLE_OAUTH_*・FRONTEND_URL・SUPABASE_JWT_SECRET・GOOGLE_CALENDAR_REDIRECT_URL・TOKEN_ENCRYPTION_KEY・VAPID_PUBLIC_KEY・VAPID_PRIVATE_KEY・VAPID_SUBJECT・INTERNAL_CRON_SECRET を設定する
 go run ./cmd/migrate   # entスキーマをDBに適用（テーブル作成 + pgvector拡張の有効化）
 go run ./cmd/server    # http://localhost:8080
 ```
@@ -109,6 +117,8 @@ ent スキーマを変更したら `go generate ./ent` でコード再生成し�
 必要がある（ブラウザから直接R2へPUTするため、バケットのCORS設定でフロントのオリジンからの
 PUT/GETを許可すること）。**未設定でもサーバーは起動し、他機能は問題なく動作する**（アップロード
 UI自体が表示されなくなるだけ。詳細は`docs/aibo/m4-implementation-plan.md`参照）。
+
+Web Push配信（M7）を試すには、VAPID鍵ペアを1回生成して`VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`に設定する必要がある（`webpush-go`の`webpush.GenerateVAPIDKeys()`を呼ぶ小さなGoプログラムで生成、詳細は`docs/aibo/m7-implementation-plan.md`参照）。`VAPID_SUBJECT`は`mailto:`連絡先メールでよい。`INTERNAL_CRON_SECRET`はリマインダーバッチ（`POST /internal/cron/reminders`）を認証する共有シークレットで、`openssl rand -base64 32`等で生成する。**いずれも`mustEnv`（未設定だとサーバーが起動しない）**。ローカルでリマインダーを試す場合、Cloud Schedulerの代わりに`curl -X POST http://localhost:8080/api/v1/internal/cron/reminders -H "X-Internal-Cron-Secret: <値>"`を手動で叩けばよい。
 
 ### web/
 
@@ -139,4 +149,4 @@ Googleカレンダー連携（M6）を試すには、GCPコンソールでCalend
 
 ## 次のマイルストーン
 
-M7（通知・検索）以降は `docs/aibo/execution-plan.md` を参照。
+M8（PWA・UI仕上げ）以降は `docs/aibo/execution-plan.md` を参照。

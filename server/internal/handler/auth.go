@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -290,6 +291,84 @@ func (h *AuthHandler) UpdateCalendarSettings(c *gin.Context) {
 		"enabled":   updated.CalendarSyncEnabled,
 		"mode":      updated.CalendarSyncMode,
 		"connected": updated.GoogleRefreshToken != nil,
+	})
+}
+
+// reminderTimeSlots は15分刻みの許容値集合（"00:00"〜"23:45"、M7設計判断11）。
+var reminderTimeSlots = func() map[string]bool {
+	slots := make(map[string]bool, 96)
+	for h := 0; h < 24; h++ {
+		for _, m := range []int{0, 15, 30, 45} {
+			slots[fmt.Sprintf("%02d:%02d", h, m)] = true
+		}
+	}
+	return slots
+}()
+
+// GetReminderSettings は GET /me/reminder-settings（M7追加）。
+func (h *AuthHandler) GetReminderSettings(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	c.JSON(http.StatusOK, gin.H{
+		"due_today_enabled": u.ReminderDueTodayEnabled,
+		"due_today_time":    u.ReminderDueTodayTime,
+		"overdue_enabled":   u.ReminderOverdueEnabled,
+		"overdue_time":      u.ReminderOverdueTime,
+	})
+}
+
+type updateReminderSettingsRequest struct {
+	DueTodayEnabled bool    `json:"due_today_enabled"`
+	DueTodayTime    *string `json:"due_today_time"`
+	OverdueEnabled  bool    `json:"overdue_enabled"`
+	OverdueTime     *string `json:"overdue_time"`
+}
+
+// UpdateReminderSettings は PATCH /me/reminder-settings（M7追加）。
+// *_enabled=trueにする場合は対応する*_timeが必須かつ15分刻みの"HH:MM"形式であることを
+// 検証する（設計判断11）。*_enabled=falseにする場合は*_timeをnullクリアする
+// （OFF時は時刻設定自体に意味が無いため、calendar_sync_modeとは異なりクリアする方針）。
+func (h *AuthHandler) UpdateReminderSettings(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+
+	var req updateReminderSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if req.DueTodayEnabled && (req.DueTodayTime == nil || !reminderTimeSlots[*req.DueTodayTime]) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "due_today_time must be a 15-minute slot (HH:MM) when due_today_enabled"})
+		return
+	}
+	if req.OverdueEnabled && (req.OverdueTime == nil || !reminderTimeSlots[*req.OverdueTime]) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "overdue_time must be a 15-minute slot (HH:MM) when overdue_enabled"})
+		return
+	}
+
+	builder := h.client.User.UpdateOneID(u.ID).
+		SetReminderDueTodayEnabled(req.DueTodayEnabled).
+		SetReminderOverdueEnabled(req.OverdueEnabled)
+	if req.DueTodayEnabled {
+		builder = builder.SetReminderDueTodayTime(*req.DueTodayTime)
+	} else {
+		builder = builder.ClearReminderDueTodayTime()
+	}
+	if req.OverdueEnabled {
+		builder = builder.SetReminderOverdueTime(*req.OverdueTime)
+	} else {
+		builder = builder.ClearReminderOverdueTime()
+	}
+
+	updated, err := builder.Save(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update reminder settings"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"due_today_enabled": updated.ReminderDueTodayEnabled,
+		"due_today_time":    updated.ReminderDueTodayTime,
+		"overdue_enabled":   updated.ReminderOverdueEnabled,
+		"overdue_time":      updated.ReminderOverdueTime,
 	})
 }
 

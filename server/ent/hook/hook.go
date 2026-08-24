@@ -117,6 +117,30 @@ func (f ProjectStatusColumnFunc) Mutate(ctx context.Context, m ent.Mutation) (en
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ProjectStatusColumnMutation", m)
 }
 
+// The PushSubscriptionFunc type is an adapter to allow the use of ordinary
+// function as PushSubscription mutator.
+type PushSubscriptionFunc func(context.Context, *ent.PushSubscriptionMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PushSubscriptionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PushSubscriptionMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PushSubscriptionMutation", m)
+}
+
+// The ReminderSendFunc type is an adapter to allow the use of ordinary
+// function as ReminderSend mutator.
+type ReminderSendFunc func(context.Context, *ent.ReminderSendMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ReminderSendFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ReminderSendMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ReminderSendMutation", m)
+}
+
 // The SectionFunc type is an adapter to allow the use of ordinary
 // function as Section mutator.
 type SectionFunc func(context.Context, *ent.SectionMutation) (ent.Value, error)

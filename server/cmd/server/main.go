@@ -14,6 +14,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/internal/db"
 	"github.com/osasadev-lab/aibo_pj/server/internal/handler"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
+	"github.com/osasadev-lab/aibo_pj/server/internal/pushdelivery"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 )
 
@@ -58,19 +59,27 @@ func main() {
 	}
 	calendarOAuthConfig := internalauth.NewGoogleCalendarOAuthConfig(cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleCalendarRedirectURL)
 
+	// M7（通知・検索）。pushCfgはWeb Push配信（VAPID）用。
+	pushCfg := pushdelivery.Config{
+		VAPIDPublicKey:  cfg.VAPIDPublicKey,
+		VAPIDPrivateKey: cfg.VAPIDPrivateKey,
+		VAPIDSubject:    cfg.VAPIDSubject,
+	}
+
 	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure, r2Client, calendarOAuthConfig, encKey)
 	calendarConnectHandler := handler.NewCalendarConnectHandler(client, calendarOAuthConfig, cfg.JWTSecret, encKey, cfg.FrontendURL)
 	workspaceHandler := handler.NewWorkspaceHandler(client, r2Client, calendarOAuthConfig, encKey)
 	memberHandler := handler.NewMemberHandler(client)
-	projectHandler := handler.NewProjectHandler(client, r2Client, calendarOAuthConfig, encKey)
-	taskHandler := handler.NewTaskHandler(client, r2Client, calendarOAuthConfig, encKey, cfg.FrontendURL)
-	commentHandler := handler.NewCommentHandler(client)
-	notificationHandler := handler.NewNotificationHandler(client)
+	projectHandler := handler.NewProjectHandler(client, r2Client, calendarOAuthConfig, encKey, pushCfg, cfg.FrontendURL)
+	taskHandler := handler.NewTaskHandler(client, r2Client, calendarOAuthConfig, encKey, cfg.FrontendURL, pushCfg)
+	commentHandler := handler.NewCommentHandler(client, pushCfg, cfg.FrontendURL)
+	notificationHandler := handler.NewNotificationHandler(client, pushCfg)
 	tagHandler := handler.NewTagHandler(client)
 	attachmentHandler := handler.NewAttachmentHandler(client, r2Client)
 	calendarHandler := handler.NewCalendarHandler(client)
 	progressHandler := handler.NewProgressHandler(client)
 	activityHandler := handler.NewActivityHandler(client)
+	cronHandler := handler.NewCronHandler(client, pushCfg, cfg.FrontendURL)
 
 	requireAuth := middleware.RequireAuth(client, cfg.JWTSecret)
 	requireWorkspaceMember := middleware.RequireWorkspaceMember(client)
@@ -78,6 +87,7 @@ func main() {
 	requireProjectAccess := middleware.RequireProjectAccess(client)
 	requireProjectManager := middleware.RequireProjectManager(client)
 	requireTaskAccess := middleware.RequireTaskAccess(client)
+	requireInternalCronSecret := middleware.RequireInternalCronSecret(cfg.InternalCronSecret)
 
 	api := router.Group("/api/v1")
 	{
@@ -122,6 +132,7 @@ func main() {
 				withMember.GET("/tasks", taskHandler.Search)
 				withMember.POST("/tasks", taskHandler.Create)
 				withMember.GET("/my-tasks", taskHandler.MyTasks)
+				withMember.GET("/search", taskHandler.FullTextSearch)
 
 				withMember.GET("/calendar", calendarHandler.GetCalendar)
 				withMember.GET("/calendar-watched-users", calendarHandler.GetWatchedMembers)
@@ -206,6 +217,8 @@ func main() {
 			me.GET("/calendar-settings", authHandler.GetCalendarSettings)
 			me.PATCH("/calendar-settings", authHandler.UpdateCalendarSettings)
 			me.POST("/calendar-sync", authHandler.ManualCalendarSync)
+			me.GET("/reminder-settings", authHandler.GetReminderSettings)
+			me.PATCH("/reminder-settings", authHandler.UpdateReminderSettings)
 		}
 
 		// 通知系エンドポイント
@@ -213,6 +226,15 @@ func main() {
 		{
 			notifications.GET("", notificationHandler.List)
 			notifications.PATCH("/:notification_id/read", notificationHandler.MarkRead)
+			notifications.GET("/push-public-key", notificationHandler.PushPublicKey)
+			notifications.POST("/subscribe", notificationHandler.Subscribe)
+			notifications.DELETE("/subscribe", notificationHandler.Unsubscribe)
+		}
+
+		// 内部cronエンドポイント（Cloud Schedulerからのみ、requireAuthを経由しない。M7）
+		internalCron := api.Group("/internal/cron", requireInternalCronSecret)
+		{
+			internalCron.POST("/reminders", cronHandler.Reminders)
 		}
 	}
 

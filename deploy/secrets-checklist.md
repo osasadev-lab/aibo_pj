@@ -24,6 +24,16 @@
 
 あわせてGoogle Cloud ConsoleでCalendar APIの有効化、OAuth同意画面への`https://www.googleapis.com/auth/calendar.events`スコープ追加、（本番公開前は）テストユーザー登録または確認審査の実施が必要（未実施、docs/aibo/m6-implementation-plan.md参照）。
 
+**M7追加（通知・検索）で必要な環境変数（未登録・要対応）**：以下も同様にCloud Runサービス側への設定が必要（`mustEnv`対象、未設定だと起動時に落ちる）。
+
+| 環境変数名 | 値 | 備考 |
+|---|---|---|
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `webpush.GenerateVAPIDKeys()`で生成した鍵ペア | Web Push配信用。ローカル`.env`とは別の値を新規発行すること |
+| `VAPID_SUBJECT` | 例: `mailto:osasadev@gmail.com` | Push送信時のVAPID JWTに載せる連絡先 |
+| `INTERNAL_CRON_SECRET` | ランダム文字列（`openssl rand -base64 32`等） | Cloud Schedulerからのリマインダーバッチ呼び出し（`POST /internal/cron/reminders`）を認証する共有シークレット |
+
+あわせてCloud Schedulerジョブ（15分ごとに`POST {Cloud Run URL}/api/v1/internal/cron/reminders`を`X-Internal-Cron-Secret`ヘッダー付きで呼ぶ）の作成が必要（未実施、`gcloud scheduler jobs create http`コマンド例はdocs/aibo/m7-implementation-plan.md参照）。
+
 ## Cloudflare Workers（`deploy-web.yml`）
 
 | Secret名 | 値 | 備考 |

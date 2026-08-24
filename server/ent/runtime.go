@@ -15,6 +15,8 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
+	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/schema"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
@@ -241,6 +243,56 @@ func init() {
 	projectstatuscolumnDescID := projectstatuscolumnMixinFields0[0].Descriptor()
 	// projectstatuscolumn.DefaultID holds the default value on creation for the id field.
 	projectstatuscolumn.DefaultID = projectstatuscolumnDescID.Default.(func() uuid.UUID)
+	pushsubscriptionMixin := schema.PushSubscription{}.Mixin()
+	pushsubscriptionMixinFields0 := pushsubscriptionMixin[0].Fields()
+	_ = pushsubscriptionMixinFields0
+	pushsubscriptionFields := schema.PushSubscription{}.Fields()
+	_ = pushsubscriptionFields
+	// pushsubscriptionDescCreatedAt is the schema descriptor for created_at field.
+	pushsubscriptionDescCreatedAt := pushsubscriptionMixinFields0[1].Descriptor()
+	// pushsubscription.DefaultCreatedAt holds the default value on creation for the created_at field.
+	pushsubscription.DefaultCreatedAt = pushsubscriptionDescCreatedAt.Default.(func() time.Time)
+	// pushsubscriptionDescUpdatedAt is the schema descriptor for updated_at field.
+	pushsubscriptionDescUpdatedAt := pushsubscriptionMixinFields0[2].Descriptor()
+	// pushsubscription.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	pushsubscription.DefaultUpdatedAt = pushsubscriptionDescUpdatedAt.Default.(func() time.Time)
+	// pushsubscription.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	pushsubscription.UpdateDefaultUpdatedAt = pushsubscriptionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// pushsubscriptionDescEndpoint is the schema descriptor for endpoint field.
+	pushsubscriptionDescEndpoint := pushsubscriptionFields[1].Descriptor()
+	// pushsubscription.EndpointValidator is a validator for the "endpoint" field. It is called by the builders before save.
+	pushsubscription.EndpointValidator = pushsubscriptionDescEndpoint.Validators[0].(func(string) error)
+	// pushsubscriptionDescP256dh is the schema descriptor for p256dh field.
+	pushsubscriptionDescP256dh := pushsubscriptionFields[2].Descriptor()
+	// pushsubscription.P256dhValidator is a validator for the "p256dh" field. It is called by the builders before save.
+	pushsubscription.P256dhValidator = pushsubscriptionDescP256dh.Validators[0].(func(string) error)
+	// pushsubscriptionDescAuth is the schema descriptor for auth field.
+	pushsubscriptionDescAuth := pushsubscriptionFields[3].Descriptor()
+	// pushsubscription.AuthValidator is a validator for the "auth" field. It is called by the builders before save.
+	pushsubscription.AuthValidator = pushsubscriptionDescAuth.Validators[0].(func(string) error)
+	// pushsubscriptionDescID is the schema descriptor for id field.
+	pushsubscriptionDescID := pushsubscriptionMixinFields0[0].Descriptor()
+	// pushsubscription.DefaultID holds the default value on creation for the id field.
+	pushsubscription.DefaultID = pushsubscriptionDescID.Default.(func() uuid.UUID)
+	remindersendMixin := schema.ReminderSend{}.Mixin()
+	remindersendMixinFields0 := remindersendMixin[0].Fields()
+	_ = remindersendMixinFields0
+	remindersendFields := schema.ReminderSend{}.Fields()
+	_ = remindersendFields
+	// remindersendDescCreatedAt is the schema descriptor for created_at field.
+	remindersendDescCreatedAt := remindersendMixinFields0[1].Descriptor()
+	// remindersend.DefaultCreatedAt holds the default value on creation for the created_at field.
+	remindersend.DefaultCreatedAt = remindersendDescCreatedAt.Default.(func() time.Time)
+	// remindersendDescUpdatedAt is the schema descriptor for updated_at field.
+	remindersendDescUpdatedAt := remindersendMixinFields0[2].Descriptor()
+	// remindersend.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	remindersend.DefaultUpdatedAt = remindersendDescUpdatedAt.Default.(func() time.Time)
+	// remindersend.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	remindersend.UpdateDefaultUpdatedAt = remindersendDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// remindersendDescID is the schema descriptor for id field.
+	remindersendDescID := remindersendMixinFields0[0].Descriptor()
+	// remindersend.DefaultID holds the default value on creation for the id field.
+	remindersend.DefaultID = remindersendDescID.Default.(func() uuid.UUID)
 	sectionMixin := schema.Section{}.Mixin()
 	sectionMixinFields0 := sectionMixin[0].Fields()
 	_ = sectionMixinFields0
@@ -448,6 +500,14 @@ func init() {
 	userDescCalendarSyncEnabled := userFields[5].Descriptor()
 	// user.DefaultCalendarSyncEnabled holds the default value on creation for the calendar_sync_enabled field.
 	user.DefaultCalendarSyncEnabled = userDescCalendarSyncEnabled.Default.(bool)
+	// userDescReminderDueTodayEnabled is the schema descriptor for reminder_due_today_enabled field.
+	userDescReminderDueTodayEnabled := userFields[8].Descriptor()
+	// user.DefaultReminderDueTodayEnabled holds the default value on creation for the reminder_due_today_enabled field.
+	user.DefaultReminderDueTodayEnabled = userDescReminderDueTodayEnabled.Default.(bool)
+	// userDescReminderOverdueEnabled is the schema descriptor for reminder_overdue_enabled field.
+	userDescReminderOverdueEnabled := userFields[10].Descriptor()
+	// user.DefaultReminderOverdueEnabled holds the default value on creation for the reminder_overdue_enabled field.
+	user.DefaultReminderOverdueEnabled = userDescReminderOverdueEnabled.Default.(bool)
 	// userDescID is the schema descriptor for id field.
 	userDescID := userMixinFields0[0].Descriptor()
 	// user.DefaultID holds the default value on creation for the id field.

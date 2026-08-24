@@ -36,6 +36,14 @@ const (
 	FieldCalendarSyncMode = "calendar_sync_mode"
 	// FieldHoverHighlightMode holds the string denoting the hover_highlight_mode field in the database.
 	FieldHoverHighlightMode = "hover_highlight_mode"
+	// FieldReminderDueTodayEnabled holds the string denoting the reminder_due_today_enabled field in the database.
+	FieldReminderDueTodayEnabled = "reminder_due_today_enabled"
+	// FieldReminderDueTodayTime holds the string denoting the reminder_due_today_time field in the database.
+	FieldReminderDueTodayTime = "reminder_due_today_time"
+	// FieldReminderOverdueEnabled holds the string denoting the reminder_overdue_enabled field in the database.
+	FieldReminderOverdueEnabled = "reminder_overdue_enabled"
+	// FieldReminderOverdueTime holds the string denoting the reminder_overdue_time field in the database.
+	FieldReminderOverdueTime = "reminder_overdue_time"
 	// EdgeWorkspaceMembers holds the string denoting the workspace_members edge name in mutations.
 	EdgeWorkspaceMembers = "workspace_members"
 	// EdgeProjectMembers holds the string denoting the project_members edge name in mutations.
@@ -62,6 +70,10 @@ const (
 	EdgeSentInvitations = "sent_invitations"
 	// EdgeCalendarWatches holds the string denoting the calendar_watches edge name in mutations.
 	EdgeCalendarWatches = "calendar_watches"
+	// EdgePushSubscriptions holds the string denoting the push_subscriptions edge name in mutations.
+	EdgePushSubscriptions = "push_subscriptions"
+	// EdgeReminderSends holds the string denoting the reminder_sends edge name in mutations.
+	EdgeReminderSends = "reminder_sends"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// WorkspaceMembersTable is the table that holds the workspace_members relation/edge.
@@ -155,6 +167,20 @@ const (
 	CalendarWatchesInverseTable = "calendar_watched_members"
 	// CalendarWatchesColumn is the table column denoting the calendar_watches relation/edge.
 	CalendarWatchesColumn = "user_id"
+	// PushSubscriptionsTable is the table that holds the push_subscriptions relation/edge.
+	PushSubscriptionsTable = "push_subscriptions"
+	// PushSubscriptionsInverseTable is the table name for the PushSubscription entity.
+	// It exists in this package in order to avoid circular dependency with the "pushsubscription" package.
+	PushSubscriptionsInverseTable = "push_subscriptions"
+	// PushSubscriptionsColumn is the table column denoting the push_subscriptions relation/edge.
+	PushSubscriptionsColumn = "user_id"
+	// ReminderSendsTable is the table that holds the reminder_sends relation/edge.
+	ReminderSendsTable = "reminder_sends"
+	// ReminderSendsInverseTable is the table name for the ReminderSend entity.
+	// It exists in this package in order to avoid circular dependency with the "remindersend" package.
+	ReminderSendsInverseTable = "reminder_sends"
+	// ReminderSendsColumn is the table column denoting the reminder_sends relation/edge.
+	ReminderSendsColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -170,6 +196,10 @@ var Columns = []string{
 	FieldCalendarSyncEnabled,
 	FieldCalendarSyncMode,
 	FieldHoverHighlightMode,
+	FieldReminderDueTodayEnabled,
+	FieldReminderDueTodayTime,
+	FieldReminderOverdueEnabled,
+	FieldReminderOverdueTime,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -197,6 +227,10 @@ var (
 	NameValidator func(string) error
 	// DefaultCalendarSyncEnabled holds the default value on creation for the "calendar_sync_enabled" field.
 	DefaultCalendarSyncEnabled bool
+	// DefaultReminderDueTodayEnabled holds the default value on creation for the "reminder_due_today_enabled" field.
+	DefaultReminderDueTodayEnabled bool
+	// DefaultReminderOverdueEnabled holds the default value on creation for the "reminder_overdue_enabled" field.
+	DefaultReminderOverdueEnabled bool
 	// DefaultID holds the default value on creation for the "id" field.
 	DefaultID func() uuid.UUID
 )
@@ -308,6 +342,26 @@ func ByCalendarSyncMode(opts ...sql.OrderTermOption) OrderOption {
 // ByHoverHighlightMode orders the results by the hover_highlight_mode field.
 func ByHoverHighlightMode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldHoverHighlightMode, opts...).ToFunc()
+}
+
+// ByReminderDueTodayEnabled orders the results by the reminder_due_today_enabled field.
+func ByReminderDueTodayEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReminderDueTodayEnabled, opts...).ToFunc()
+}
+
+// ByReminderDueTodayTime orders the results by the reminder_due_today_time field.
+func ByReminderDueTodayTime(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReminderDueTodayTime, opts...).ToFunc()
+}
+
+// ByReminderOverdueEnabled orders the results by the reminder_overdue_enabled field.
+func ByReminderOverdueEnabled(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReminderOverdueEnabled, opts...).ToFunc()
+}
+
+// ByReminderOverdueTime orders the results by the reminder_overdue_time field.
+func ByReminderOverdueTime(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReminderOverdueTime, opts...).ToFunc()
 }
 
 // ByWorkspaceMembersCount orders the results by workspace_members count.
@@ -491,6 +545,34 @@ func ByCalendarWatches(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newCalendarWatchesStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByPushSubscriptionsCount orders the results by push_subscriptions count.
+func ByPushSubscriptionsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newPushSubscriptionsStep(), opts...)
+	}
+}
+
+// ByPushSubscriptions orders the results by push_subscriptions terms.
+func ByPushSubscriptions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPushSubscriptionsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByReminderSendsCount orders the results by reminder_sends count.
+func ByReminderSendsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newReminderSendsStep(), opts...)
+	}
+}
+
+// ByReminderSends orders the results by reminder_sends terms.
+func ByReminderSends(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newReminderSendsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newWorkspaceMembersStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -580,5 +662,19 @@ func newCalendarWatchesStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(CalendarWatchesInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, CalendarWatchesTable, CalendarWatchesColumn),
+	)
+}
+func newPushSubscriptionsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PushSubscriptionsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, PushSubscriptionsTable, PushSubscriptionsColumn),
+	)
+}
+func newReminderSendsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(ReminderSendsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, ReminderSendsTable, ReminderSendsColumn),
 	)
 }

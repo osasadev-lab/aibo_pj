@@ -96,6 +96,26 @@ func CalendarSyncEnabled(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCalendarSyncEnabled, v))
 }
 
+// ReminderDueTodayEnabled applies equality check predicate on the "reminder_due_today_enabled" field. It's identical to ReminderDueTodayEnabledEQ.
+func ReminderDueTodayEnabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderDueTodayEnabled, v))
+}
+
+// ReminderDueTodayTime applies equality check predicate on the "reminder_due_today_time" field. It's identical to ReminderDueTodayTimeEQ.
+func ReminderDueTodayTime(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderDueTodayTime, v))
+}
+
+// ReminderOverdueEnabled applies equality check predicate on the "reminder_overdue_enabled" field. It's identical to ReminderOverdueEnabledEQ.
+func ReminderOverdueEnabled(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderOverdueEnabled, v))
+}
+
+// ReminderOverdueTime applies equality check predicate on the "reminder_overdue_time" field. It's identical to ReminderOverdueTimeEQ.
+func ReminderOverdueTime(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderOverdueTime, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -581,6 +601,176 @@ func HoverHighlightModeNotIn(vs ...HoverHighlightMode) predicate.User {
 	return predicate.User(sql.FieldNotIn(FieldHoverHighlightMode, vs...))
 }
 
+// ReminderDueTodayEnabledEQ applies the EQ predicate on the "reminder_due_today_enabled" field.
+func ReminderDueTodayEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderDueTodayEnabled, v))
+}
+
+// ReminderDueTodayEnabledNEQ applies the NEQ predicate on the "reminder_due_today_enabled" field.
+func ReminderDueTodayEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldReminderDueTodayEnabled, v))
+}
+
+// ReminderDueTodayTimeEQ applies the EQ predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeNEQ applies the NEQ predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeIn applies the In predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldReminderDueTodayTime, vs...))
+}
+
+// ReminderDueTodayTimeNotIn applies the NotIn predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldReminderDueTodayTime, vs...))
+}
+
+// ReminderDueTodayTimeGT applies the GT predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeGTE applies the GTE predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeLT applies the LT predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeLTE applies the LTE predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeContains applies the Contains predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeHasPrefix applies the HasPrefix predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeHasSuffix applies the HasSuffix predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeIsNil applies the IsNil predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldReminderDueTodayTime))
+}
+
+// ReminderDueTodayTimeNotNil applies the NotNil predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldReminderDueTodayTime))
+}
+
+// ReminderDueTodayTimeEqualFold applies the EqualFold predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldReminderDueTodayTime, v))
+}
+
+// ReminderDueTodayTimeContainsFold applies the ContainsFold predicate on the "reminder_due_today_time" field.
+func ReminderDueTodayTimeContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldReminderDueTodayTime, v))
+}
+
+// ReminderOverdueEnabledEQ applies the EQ predicate on the "reminder_overdue_enabled" field.
+func ReminderOverdueEnabledEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderOverdueEnabled, v))
+}
+
+// ReminderOverdueEnabledNEQ applies the NEQ predicate on the "reminder_overdue_enabled" field.
+func ReminderOverdueEnabledNEQ(v bool) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldReminderOverdueEnabled, v))
+}
+
+// ReminderOverdueTimeEQ applies the EQ predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeNEQ applies the NEQ predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeIn applies the In predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldReminderOverdueTime, vs...))
+}
+
+// ReminderOverdueTimeNotIn applies the NotIn predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldReminderOverdueTime, vs...))
+}
+
+// ReminderOverdueTimeGT applies the GT predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeGTE applies the GTE predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeLT applies the LT predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeLTE applies the LTE predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeContains applies the Contains predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeHasPrefix applies the HasPrefix predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeHasSuffix applies the HasSuffix predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeIsNil applies the IsNil predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldReminderOverdueTime))
+}
+
+// ReminderOverdueTimeNotNil applies the NotNil predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldReminderOverdueTime))
+}
+
+// ReminderOverdueTimeEqualFold applies the EqualFold predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldReminderOverdueTime, v))
+}
+
+// ReminderOverdueTimeContainsFold applies the ContainsFold predicate on the "reminder_overdue_time" field.
+func ReminderOverdueTimeContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldReminderOverdueTime, v))
+}
+
 // HasWorkspaceMembers applies the HasEdge predicate on the "workspace_members" edge.
 func HasWorkspaceMembers() predicate.User {
 	return predicate.User(func(s *sql.Selector) {
@@ -872,6 +1062,52 @@ func HasCalendarWatches() predicate.User {
 func HasCalendarWatchesWith(preds ...predicate.CalendarWatchedMember) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newCalendarWatchesStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasPushSubscriptions applies the HasEdge predicate on the "push_subscriptions" edge.
+func HasPushSubscriptions() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, PushSubscriptionsTable, PushSubscriptionsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPushSubscriptionsWith applies the HasEdge predicate on the "push_subscriptions" edge with a given conditions (other predicates).
+func HasPushSubscriptionsWith(preds ...predicate.PushSubscription) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newPushSubscriptionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasReminderSends applies the HasEdge predicate on the "reminder_sends" edge.
+func HasReminderSends() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, ReminderSendsTable, ReminderSendsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasReminderSendsWith applies the HasEdge predicate on the "reminder_sends" edge with a given conditions (other predicates).
+func HasReminderSendsWith(preds ...predicate.ReminderSend) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newReminderSendsStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

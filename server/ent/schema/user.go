@@ -46,6 +46,19 @@ func (User) Fields() []ent.Field {
 		field.Enum("hover_highlight_mode").
 			Values("off", "tag", "dependency", "subtask").
 			Default("off"),
+		// リマインダー個人設定（M7追加）。今日期限・期限超過の通知を独立してON/OFF・
+		// 時刻設定できる。デフォルトは両方OFF（通知なし）。時刻は"HH:MM"の15分刻み
+		// （例:"09:00"）。enabled=trueにする場合はtime必須（バリデーションはハンドラ側）。
+		field.Bool("reminder_due_today_enabled").
+			Default(false),
+		field.String("reminder_due_today_time").
+			Optional().
+			Nillable(),
+		field.Bool("reminder_overdue_enabled").
+			Default(false),
+		field.String("reminder_overdue_time").
+			Optional().
+			Nillable(),
 	}
 }
 
@@ -65,5 +78,7 @@ func (User) Edges() []ent.Edge {
 		edge.From("notifications", Notification.Type).Ref("user"),
 		edge.From("sent_invitations", WorkspaceInvitation.Type).Ref("inviter"),
 		edge.From("calendar_watches", CalendarWatchedMember.Type).Ref("user"),
+		edge.From("push_subscriptions", PushSubscription.Type).Ref("user"),
+		edge.From("reminder_sends", ReminderSend.Type).Ref("user"),
 	}
 }

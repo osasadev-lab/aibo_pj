@@ -25,6 +25,15 @@ type Config struct {
 	// base64エンコードされた32バイトを想定（`openssl rand -base64 32`等で生成）。
 	TokenEncryptionKey string
 
+	// VAPID*はM7（Web Push配信）用。webpush.GenerateVAPIDKeys()で1回生成して設定する
+	// （docs/aibo/m7-implementation-plan.md参照）。
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	VAPIDSubject    string
+	// InternalCronSecretはCloud Schedulerからのリマインダーバッチ呼び出し
+	// （POST /internal/cron/reminders）を認証する共有シークレット。
+	InternalCronSecret string
+
 	// R2*はM4（添付ファイル）用。未設定でもサーバー起動は妨げない（getEnvで空文字許容）。
 	// 添付ファイルAPI呼び出し時に未設定なら500 storage_not_configuredを返す方針
 	// （docs/aibo/m4-implementation-plan.md参照）。
@@ -47,6 +56,10 @@ func Load() Config {
 		SupabaseJWTSecret:         mustEnv("SUPABASE_JWT_SECRET"),
 		GoogleCalendarRedirectURL: mustEnv("GOOGLE_CALENDAR_REDIRECT_URL"),
 		TokenEncryptionKey:        mustEnv("TOKEN_ENCRYPTION_KEY"),
+		VAPIDPublicKey:            mustEnv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey:           mustEnv("VAPID_PRIVATE_KEY"),
+		VAPIDSubject:              mustEnv("VAPID_SUBJECT"),
+		InternalCronSecret:        mustEnv("INTERNAL_CRON_SECRET"),
 		R2AccountID:               getEnv("R2_ACCOUNT_ID", ""),
 		R2AccessKeyID:             getEnv("R2_ACCESS_KEY_ID", ""),
 		R2SecretAccessKey:         getEnv("R2_SECRET_ACCESS_KEY", ""),

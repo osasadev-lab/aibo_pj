@@ -62,9 +62,11 @@ export default function CalendarPage() {
 
   const monthParam = `${viewYear}-${String(viewMonth).padStart(2, "0")}`;
 
+  // TaskDetailPanelのonChangedがこの一覧の再取得完了までスピナーを出せるよう、
+  // Promiseを返す（ユーザーフィードバック：保存後の反映が遅い体感の改善）。
   const loadTasks = useCallback(() => {
-    if (!workspaceId) return;
-    apiFetch<Task[]>(`/workspaces/${workspaceId}/calendar?month=${monthParam}`)
+    if (!workspaceId) return Promise.resolve();
+    return apiFetch<Task[]>(`/workspaces/${workspaceId}/calendar?month=${monthParam}`)
       .then(setTasks)
       .catch(() => setError("カレンダーの取得に失敗しました"));
   }, [workspaceId, monthParam]);

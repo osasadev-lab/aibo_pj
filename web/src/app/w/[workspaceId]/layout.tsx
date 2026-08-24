@@ -24,6 +24,7 @@ import {
 import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/auth/useAuth";
 import Avatar from "@/components/ui/Avatar";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
@@ -32,6 +33,7 @@ import { Input } from "@/components/ui/fields";
 import ActivityPanel from "@/components/ActivityPanel";
 import MembersPanel from "@/components/MembersPanel";
 import NotificationsPanel from "@/components/NotificationsPanel";
+import SearchInput from "@/components/SearchInput";
 import { ProjectsProvider, useProjects } from "@/lib/workspace/ProjectsContext";
 import { CurrentProjectProvider, useCurrentProject } from "@/lib/workspace/CurrentProjectContext";
 import type { Workspace } from "@/lib/types";
@@ -103,6 +105,27 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshUnread();
   }, []);
+
+  // 新着通知（アサイン・メンション・リマインダー等）が来てもリロードしないと
+  // 強調表示が更新されない問題への対応（ユーザーフィードバック）。comments/tasksと
+  // 同じくSupabase Realtimeでnotificationsテーブルの変更を直接購読し、
+  // 自分宛のINSERT時に未読バッジを即時再取得する。
+  useEffect(() => {
+    if (!user) return;
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`notifications:${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` },
+        () => refreshUnread(),
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const isWorkspaceOwner = workspace?.role === "owner";
 
@@ -208,6 +231,10 @@ function WorkspaceLayoutInner({ children }: { children: ReactNode }) {
             )}
           </div>
         )}
+
+        <div className="border-b border-border px-3 py-3">
+          <SearchInput />
+        </div>
 
         <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-3">
           <NavLink href={projectsHref} label="プロジェクト" icon={Folder} active={pathname === projectsHref} />

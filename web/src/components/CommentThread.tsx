@@ -24,7 +24,10 @@ type Comment = {
 // タスク詳細に埋め込むコメントスレッド。初回一覧はREST APIから取得し、
 // 以降の新着はSupabase Realtimeの直接購読で反映する（Goバックエンド非経由）。
 // docs/aibo/m3-implementation-plan.md参照。
-export default function CommentThread({ taskId }: { taskId: string }) {
+// onLoadedは初回の一覧・メンション候補取得が両方完了した時点で1回呼ぶ
+// （呼び出し元のTaskDetailPanelが「全項目が揃うまでクルクル」を実現するための
+// 完了通知、ユーザーフィードバック）。
+export default function CommentThread({ taskId, onLoaded }: { taskId: string; onLoaded?: () => void }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [body, setBody] = useState("");
   const [mentionable, setMentionable] = useState<MemberSummary[]>([]);
@@ -39,12 +42,12 @@ export default function CommentThread({ taskId }: { taskId: string }) {
 
   useEffect(() => {
     let ignore = false;
-    apiFetch<Comment[]>(`/tasks/${taskId}/comments`)
+    const commentsPromise = apiFetch<Comment[]>(`/tasks/${taskId}/comments`)
       .then((list) => {
         if (!ignore) setComments(list);
       })
       .catch(() => {});
-    apiFetch<MemberSummary[]>(`/tasks/${taskId}/mentionable-members`)
+    const mentionablePromise = apiFetch<MemberSummary[]>(`/tasks/${taskId}/mentionable-members`)
       .then((list) => {
         if (!ignore) {
           setMentionable(list);
@@ -52,9 +55,13 @@ export default function CommentThread({ taskId }: { taskId: string }) {
         }
       })
       .catch(() => {});
+    Promise.allSettled([commentsPromise, mentionablePromise]).then(() => {
+      if (!ignore) onLoaded?.();
+    });
     return () => {
       ignore = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
 
   useEffect(() => {

@@ -21,6 +21,8 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/predicate"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
@@ -175,6 +177,74 @@ func (_u *UserUpdate) SetNillableHoverHighlightMode(v *user.HoverHighlightMode) 
 	if v != nil {
 		_u.SetHoverHighlightMode(*v)
 	}
+	return _u
+}
+
+// SetReminderDueTodayEnabled sets the "reminder_due_today_enabled" field.
+func (_u *UserUpdate) SetReminderDueTodayEnabled(v bool) *UserUpdate {
+	_u.mutation.SetReminderDueTodayEnabled(v)
+	return _u
+}
+
+// SetNillableReminderDueTodayEnabled sets the "reminder_due_today_enabled" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReminderDueTodayEnabled(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetReminderDueTodayEnabled(*v)
+	}
+	return _u
+}
+
+// SetReminderDueTodayTime sets the "reminder_due_today_time" field.
+func (_u *UserUpdate) SetReminderDueTodayTime(v string) *UserUpdate {
+	_u.mutation.SetReminderDueTodayTime(v)
+	return _u
+}
+
+// SetNillableReminderDueTodayTime sets the "reminder_due_today_time" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReminderDueTodayTime(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetReminderDueTodayTime(*v)
+	}
+	return _u
+}
+
+// ClearReminderDueTodayTime clears the value of the "reminder_due_today_time" field.
+func (_u *UserUpdate) ClearReminderDueTodayTime() *UserUpdate {
+	_u.mutation.ClearReminderDueTodayTime()
+	return _u
+}
+
+// SetReminderOverdueEnabled sets the "reminder_overdue_enabled" field.
+func (_u *UserUpdate) SetReminderOverdueEnabled(v bool) *UserUpdate {
+	_u.mutation.SetReminderOverdueEnabled(v)
+	return _u
+}
+
+// SetNillableReminderOverdueEnabled sets the "reminder_overdue_enabled" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReminderOverdueEnabled(v *bool) *UserUpdate {
+	if v != nil {
+		_u.SetReminderOverdueEnabled(*v)
+	}
+	return _u
+}
+
+// SetReminderOverdueTime sets the "reminder_overdue_time" field.
+func (_u *UserUpdate) SetReminderOverdueTime(v string) *UserUpdate {
+	_u.mutation.SetReminderOverdueTime(v)
+	return _u
+}
+
+// SetNillableReminderOverdueTime sets the "reminder_overdue_time" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReminderOverdueTime(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetReminderOverdueTime(*v)
+	}
+	return _u
+}
+
+// ClearReminderOverdueTime clears the value of the "reminder_overdue_time" field.
+func (_u *UserUpdate) ClearReminderOverdueTime() *UserUpdate {
+	_u.mutation.ClearReminderOverdueTime()
 	return _u
 }
 
@@ -371,6 +441,36 @@ func (_u *UserUpdate) AddCalendarWatches(v ...*CalendarWatchedMember) *UserUpdat
 		ids[i] = v[i].ID
 	}
 	return _u.AddCalendarWatchIDs(ids...)
+}
+
+// AddPushSubscriptionIDs adds the "push_subscriptions" edge to the PushSubscription entity by IDs.
+func (_u *UserUpdate) AddPushSubscriptionIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.AddPushSubscriptionIDs(ids...)
+	return _u
+}
+
+// AddPushSubscriptions adds the "push_subscriptions" edges to the PushSubscription entity.
+func (_u *UserUpdate) AddPushSubscriptions(v ...*PushSubscription) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPushSubscriptionIDs(ids...)
+}
+
+// AddReminderSendIDs adds the "reminder_sends" edge to the ReminderSend entity by IDs.
+func (_u *UserUpdate) AddReminderSendIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.AddReminderSendIDs(ids...)
+	return _u
+}
+
+// AddReminderSends adds the "reminder_sends" edges to the ReminderSend entity.
+func (_u *UserUpdate) AddReminderSends(v ...*ReminderSend) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddReminderSendIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -651,6 +751,48 @@ func (_u *UserUpdate) RemoveCalendarWatches(v ...*CalendarWatchedMember) *UserUp
 	return _u.RemoveCalendarWatchIDs(ids...)
 }
 
+// ClearPushSubscriptions clears all "push_subscriptions" edges to the PushSubscription entity.
+func (_u *UserUpdate) ClearPushSubscriptions() *UserUpdate {
+	_u.mutation.ClearPushSubscriptions()
+	return _u
+}
+
+// RemovePushSubscriptionIDs removes the "push_subscriptions" edge to PushSubscription entities by IDs.
+func (_u *UserUpdate) RemovePushSubscriptionIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.RemovePushSubscriptionIDs(ids...)
+	return _u
+}
+
+// RemovePushSubscriptions removes "push_subscriptions" edges to PushSubscription entities.
+func (_u *UserUpdate) RemovePushSubscriptions(v ...*PushSubscription) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePushSubscriptionIDs(ids...)
+}
+
+// ClearReminderSends clears all "reminder_sends" edges to the ReminderSend entity.
+func (_u *UserUpdate) ClearReminderSends() *UserUpdate {
+	_u.mutation.ClearReminderSends()
+	return _u
+}
+
+// RemoveReminderSendIDs removes the "reminder_sends" edge to ReminderSend entities by IDs.
+func (_u *UserUpdate) RemoveReminderSendIDs(ids ...uuid.UUID) *UserUpdate {
+	_u.mutation.RemoveReminderSendIDs(ids...)
+	return _u
+}
+
+// RemoveReminderSends removes "reminder_sends" edges to ReminderSend entities.
+func (_u *UserUpdate) RemoveReminderSends(v ...*ReminderSend) *UserUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveReminderSendIDs(ids...)
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *UserUpdate) Save(ctx context.Context) (int, error) {
 	_u.defaults()
@@ -764,6 +906,24 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.HoverHighlightMode(); ok {
 		_spec.SetField(user.FieldHoverHighlightMode, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ReminderDueTodayEnabled(); ok {
+		_spec.SetField(user.FieldReminderDueTodayEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ReminderDueTodayTime(); ok {
+		_spec.SetField(user.FieldReminderDueTodayTime, field.TypeString, value)
+	}
+	if _u.mutation.ReminderDueTodayTimeCleared() {
+		_spec.ClearField(user.FieldReminderDueTodayTime, field.TypeString)
+	}
+	if value, ok := _u.mutation.ReminderOverdueEnabled(); ok {
+		_spec.SetField(user.FieldReminderOverdueEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ReminderOverdueTime(); ok {
+		_spec.SetField(user.FieldReminderOverdueTime, field.TypeString, value)
+	}
+	if _u.mutation.ReminderOverdueTimeCleared() {
+		_spec.ClearField(user.FieldReminderOverdueTime, field.TypeString)
 	}
 	if _u.mutation.WorkspaceMembersCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1350,6 +1510,96 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.PushSubscriptionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPushSubscriptionsIDs(); len(nodes) > 0 && !_u.mutation.PushSubscriptionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PushSubscriptionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ReminderSendsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ReminderSendsTable,
+			Columns: []string{user.ReminderSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedReminderSendsIDs(); len(nodes) > 0 && !_u.mutation.ReminderSendsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ReminderSendsTable,
+			Columns: []string{user.ReminderSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ReminderSendsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ReminderSendsTable,
+			Columns: []string{user.ReminderSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{user.Label}
@@ -1503,6 +1753,74 @@ func (_u *UserUpdateOne) SetNillableHoverHighlightMode(v *user.HoverHighlightMod
 	if v != nil {
 		_u.SetHoverHighlightMode(*v)
 	}
+	return _u
+}
+
+// SetReminderDueTodayEnabled sets the "reminder_due_today_enabled" field.
+func (_u *UserUpdateOne) SetReminderDueTodayEnabled(v bool) *UserUpdateOne {
+	_u.mutation.SetReminderDueTodayEnabled(v)
+	return _u
+}
+
+// SetNillableReminderDueTodayEnabled sets the "reminder_due_today_enabled" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReminderDueTodayEnabled(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetReminderDueTodayEnabled(*v)
+	}
+	return _u
+}
+
+// SetReminderDueTodayTime sets the "reminder_due_today_time" field.
+func (_u *UserUpdateOne) SetReminderDueTodayTime(v string) *UserUpdateOne {
+	_u.mutation.SetReminderDueTodayTime(v)
+	return _u
+}
+
+// SetNillableReminderDueTodayTime sets the "reminder_due_today_time" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReminderDueTodayTime(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetReminderDueTodayTime(*v)
+	}
+	return _u
+}
+
+// ClearReminderDueTodayTime clears the value of the "reminder_due_today_time" field.
+func (_u *UserUpdateOne) ClearReminderDueTodayTime() *UserUpdateOne {
+	_u.mutation.ClearReminderDueTodayTime()
+	return _u
+}
+
+// SetReminderOverdueEnabled sets the "reminder_overdue_enabled" field.
+func (_u *UserUpdateOne) SetReminderOverdueEnabled(v bool) *UserUpdateOne {
+	_u.mutation.SetReminderOverdueEnabled(v)
+	return _u
+}
+
+// SetNillableReminderOverdueEnabled sets the "reminder_overdue_enabled" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReminderOverdueEnabled(v *bool) *UserUpdateOne {
+	if v != nil {
+		_u.SetReminderOverdueEnabled(*v)
+	}
+	return _u
+}
+
+// SetReminderOverdueTime sets the "reminder_overdue_time" field.
+func (_u *UserUpdateOne) SetReminderOverdueTime(v string) *UserUpdateOne {
+	_u.mutation.SetReminderOverdueTime(v)
+	return _u
+}
+
+// SetNillableReminderOverdueTime sets the "reminder_overdue_time" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReminderOverdueTime(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetReminderOverdueTime(*v)
+	}
+	return _u
+}
+
+// ClearReminderOverdueTime clears the value of the "reminder_overdue_time" field.
+func (_u *UserUpdateOne) ClearReminderOverdueTime() *UserUpdateOne {
+	_u.mutation.ClearReminderOverdueTime()
 	return _u
 }
 
@@ -1699,6 +2017,36 @@ func (_u *UserUpdateOne) AddCalendarWatches(v ...*CalendarWatchedMember) *UserUp
 		ids[i] = v[i].ID
 	}
 	return _u.AddCalendarWatchIDs(ids...)
+}
+
+// AddPushSubscriptionIDs adds the "push_subscriptions" edge to the PushSubscription entity by IDs.
+func (_u *UserUpdateOne) AddPushSubscriptionIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.AddPushSubscriptionIDs(ids...)
+	return _u
+}
+
+// AddPushSubscriptions adds the "push_subscriptions" edges to the PushSubscription entity.
+func (_u *UserUpdateOne) AddPushSubscriptions(v ...*PushSubscription) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPushSubscriptionIDs(ids...)
+}
+
+// AddReminderSendIDs adds the "reminder_sends" edge to the ReminderSend entity by IDs.
+func (_u *UserUpdateOne) AddReminderSendIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.AddReminderSendIDs(ids...)
+	return _u
+}
+
+// AddReminderSends adds the "reminder_sends" edges to the ReminderSend entity.
+func (_u *UserUpdateOne) AddReminderSends(v ...*ReminderSend) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddReminderSendIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -1979,6 +2327,48 @@ func (_u *UserUpdateOne) RemoveCalendarWatches(v ...*CalendarWatchedMember) *Use
 	return _u.RemoveCalendarWatchIDs(ids...)
 }
 
+// ClearPushSubscriptions clears all "push_subscriptions" edges to the PushSubscription entity.
+func (_u *UserUpdateOne) ClearPushSubscriptions() *UserUpdateOne {
+	_u.mutation.ClearPushSubscriptions()
+	return _u
+}
+
+// RemovePushSubscriptionIDs removes the "push_subscriptions" edge to PushSubscription entities by IDs.
+func (_u *UserUpdateOne) RemovePushSubscriptionIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.RemovePushSubscriptionIDs(ids...)
+	return _u
+}
+
+// RemovePushSubscriptions removes "push_subscriptions" edges to PushSubscription entities.
+func (_u *UserUpdateOne) RemovePushSubscriptions(v ...*PushSubscription) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePushSubscriptionIDs(ids...)
+}
+
+// ClearReminderSends clears all "reminder_sends" edges to the ReminderSend entity.
+func (_u *UserUpdateOne) ClearReminderSends() *UserUpdateOne {
+	_u.mutation.ClearReminderSends()
+	return _u
+}
+
+// RemoveReminderSendIDs removes the "reminder_sends" edge to ReminderSend entities by IDs.
+func (_u *UserUpdateOne) RemoveReminderSendIDs(ids ...uuid.UUID) *UserUpdateOne {
+	_u.mutation.RemoveReminderSendIDs(ids...)
+	return _u
+}
+
+// RemoveReminderSends removes "reminder_sends" edges to ReminderSend entities.
+func (_u *UserUpdateOne) RemoveReminderSends(v ...*ReminderSend) *UserUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveReminderSendIDs(ids...)
+}
+
 // Where appends a list predicates to the UserUpdate builder.
 func (_u *UserUpdateOne) Where(ps ...predicate.User) *UserUpdateOne {
 	_u.mutation.Where(ps...)
@@ -2122,6 +2512,24 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.HoverHighlightMode(); ok {
 		_spec.SetField(user.FieldHoverHighlightMode, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ReminderDueTodayEnabled(); ok {
+		_spec.SetField(user.FieldReminderDueTodayEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ReminderDueTodayTime(); ok {
+		_spec.SetField(user.FieldReminderDueTodayTime, field.TypeString, value)
+	}
+	if _u.mutation.ReminderDueTodayTimeCleared() {
+		_spec.ClearField(user.FieldReminderDueTodayTime, field.TypeString)
+	}
+	if value, ok := _u.mutation.ReminderOverdueEnabled(); ok {
+		_spec.SetField(user.FieldReminderOverdueEnabled, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ReminderOverdueTime(); ok {
+		_spec.SetField(user.FieldReminderOverdueTime, field.TypeString, value)
+	}
+	if _u.mutation.ReminderOverdueTimeCleared() {
+		_spec.ClearField(user.FieldReminderOverdueTime, field.TypeString)
 	}
 	if _u.mutation.WorkspaceMembersCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2701,6 +3109,96 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(calendarwatchedmember.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PushSubscriptionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPushSubscriptionsIDs(); len(nodes) > 0 && !_u.mutation.PushSubscriptionsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PushSubscriptionsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.PushSubscriptionsTable,
+			Columns: []string{user.PushSubscriptionsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(pushsubscription.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.ReminderSendsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ReminderSendsTable,
+			Columns: []string{user.ReminderSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedReminderSendsIDs(); len(nodes) > 0 && !_u.mutation.ReminderSendsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ReminderSendsTable,
+			Columns: []string{user.ReminderSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.ReminderSendsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.ReminderSendsTable,
+			Columns: []string{user.ReminderSendsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

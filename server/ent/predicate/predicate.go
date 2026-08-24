@@ -33,6 +33,12 @@ type ProjectMember func(*sql.Selector)
 // ProjectStatusColumn is the predicate function for projectstatuscolumn builders.
 type ProjectStatusColumn func(*sql.Selector)
 
+// PushSubscription is the predicate function for pushsubscription builders.
+type PushSubscription func(*sql.Selector)
+
+// ReminderSend is the predicate function for remindersend builders.
+type ReminderSend func(*sql.Selector)
+
 // Section is the predicate function for section builders.
 type Section func(*sql.Selector)
 

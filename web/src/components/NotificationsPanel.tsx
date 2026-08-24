@@ -2,13 +2,32 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { AtSign, Bell, Check, FolderPlus, FolderX, LogIn, LogOut, UserMinus, UserPlus } from "lucide-react";
+import {
+  AlertTriangle,
+  AtSign,
+  Bell,
+  Check,
+  Clock,
+  FolderPlus,
+  FolderX,
+  LogIn,
+  LogOut,
+  UserMinus,
+  UserPlus,
+} from "lucide-react";
 import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/auth/useAuth";
 import IconButton from "@/components/ui/IconButton";
 import SidePanel from "@/components/ui/SidePanel";
+
+type SummaryTask = {
+  task_id: string;
+  workspace_id: string;
+  project_id?: string;
+  title: string;
+};
 
 type Notification = {
   id: string;
@@ -17,6 +36,8 @@ type Notification = {
   read_at: string | null;
   created_at: string;
 };
+
+const SUMMARY_TYPES = new Set(["due_today_summary", "overdue_summary"]);
 
 // 通知一覧の右サイドバーパネル。左サイドバー「通知」から開く（現在のページを
 // 維持したまま重ねて表示するため、/notifications ルートへは遷移しない）。
@@ -69,6 +90,18 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
     router.push(href);
   }
 
+  // due_today_summary/overdue_summaryは1件の通知内に複数タスクへのリンクを持つため、
+  // payload.tasksの各要素が自前のworkspace_idを持つ（設計判断3：複数ワークスペースの
+  // タスクをまとめうるため、表示中のworkspaceIdに依存せず遷移先を組み立てられる）。
+  function handleOpenSummaryTask(n: Notification, t: SummaryTask) {
+    if (!n.read_at) handleMarkRead(n.id);
+    onClose();
+    const href = t.project_id
+      ? `/w/${t.workspace_id}/projects/${t.project_id}?task=${t.task_id}`
+      : `/w/${t.workspace_id}/my-tasks?task=${t.task_id}`;
+    router.push(href);
+  }
+
   return (
     <SidePanel title="通知" onClose={onClose}>
       <div className="flex flex-col gap-6">
@@ -83,7 +116,11 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
           <ul className="flex flex-col gap-2">
             {notifications.map((n) => {
               // project_deletedは対象プロジェクトが既に存在しないため遷移先にできない。
-              const hasTarget = n.type !== "project_deleted" && (!!n.payload?.task_id || !!n.payload?.project_id);
+              // due_today_summary/overdue_summaryは行全体ではなく内部の各タスクリンクが
+              // 遷移先を持つため、行自体はクリック対象にしない。
+              const isSummary = SUMMARY_TYPES.has(n.type);
+              const hasTarget =
+                !isSummary && n.type !== "project_deleted" && (!!n.payload?.task_id || !!n.payload?.project_id);
               return (
                 <li key={n.id}>
                   {/* 通知全体をクリック可能にしつつ既読ボタンもネストするため、
@@ -118,6 +155,7 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className={clsx("block", !n.read_at && "text-foreground")}>{describeNotification(n)}</span>
+                      {isSummary && <SummaryTaskList n={n} onOpenTask={handleOpenSummaryTask} />}
                       <span className="text-xs text-muted-foreground">{new Date(n.created_at).toLocaleString()}</span>
                     </span>
                     {!n.read_at && (
@@ -179,6 +217,14 @@ function describeNotification(n: Notification): string {
     const name = (n.payload?.project_name as string) ?? "";
     return `${by}さんがプロジェクトを削除しました: ${name}`;
   }
+  if (n.type === "due_today_summary") {
+    const count = (n.payload?.task_count as number) ?? 0;
+    return `本日期限のタスクが${count}件あります`;
+  }
+  if (n.type === "overdue_summary") {
+    const count = (n.payload?.task_count as number) ?? 0;
+    return `期限を過ぎているタスクが${count}件あります`;
+  }
   return n.type;
 }
 
@@ -189,5 +235,37 @@ function NotificationIcon({ type, className }: { type: string; className?: strin
   if (type === "project_removed") return <LogOut className={className} />;
   if (type === "project_created") return <FolderPlus className={className} />;
   if (type === "project_deleted") return <FolderX className={className} />;
+  if (type === "due_today_summary") return <Clock className={className} />;
+  if (type === "overdue_summary") return <AlertTriangle className={className} />;
   return <AtSign className={className} />;
+}
+
+// due_today_summary/overdue_summary通知内のタスク一覧（最大5件、それぞれ個別に
+// クリック可能。6件目以降はtask_countとの差分を「他N件」として非リンク表示する）。
+function SummaryTaskList({ n, onOpenTask }: { n: Notification; onOpenTask: (n: Notification, t: SummaryTask) => void }) {
+  const tasks = (n.payload?.tasks as SummaryTask[] | undefined) ?? [];
+  const totalCount = (n.payload?.task_count as number) ?? tasks.length;
+  const remaining = totalCount - tasks.length;
+
+  if (tasks.length === 0) return null;
+
+  return (
+    <ul className="mt-1 flex flex-col gap-0.5">
+      {tasks.map((t) => (
+        <li key={t.task_id}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenTask(n, t);
+            }}
+            className="text-left text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+          >
+            {t.title}
+          </button>
+        </li>
+      ))}
+      {remaining > 0 && <li className="text-xs text-muted-foreground">他{remaining}件</li>}
+    </ul>
+  );
 }
