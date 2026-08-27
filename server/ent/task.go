@@ -51,6 +51,8 @@ type Task struct {
 	DueDate *time.Time `json:"due_date,omitempty"`
 	// CreatedBy holds the value of the "created_by" field.
 	CreatedBy uuid.UUID `json:"created_by,omitempty"`
+	// Position holds the value of the "position" field.
+	Position *int `json:"position,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TaskQuery when eager-loading is set.
 	Edges        TaskEdges `json:"edges"`
@@ -89,9 +91,13 @@ type TaskEdges struct {
 	Attachments []*Attachment `json:"attachments,omitempty"`
 	// Mentions holds the value of the mentions edge.
 	Mentions []*TaskMention `json:"mentions,omitempty"`
+	// Pins holds the value of the pins edge.
+	Pins []*TaskPin `json:"pins,omitempty"`
+	// Memos holds the value of the memos edge.
+	Memos []*TaskMemo `json:"memos,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [15]bool
+	loadedTypes [17]bool
 }
 
 // WorkspaceOrErr returns the Workspace value or an error if the edge
@@ -241,6 +247,24 @@ func (e TaskEdges) MentionsOrErr() ([]*TaskMention, error) {
 	return nil, &NotLoadedError{edge: "mentions"}
 }
 
+// PinsOrErr returns the Pins value or an error if the edge
+// was not loaded in eager-loading.
+func (e TaskEdges) PinsOrErr() ([]*TaskPin, error) {
+	if e.loadedTypes[15] {
+		return e.Pins, nil
+	}
+	return nil, &NotLoadedError{edge: "pins"}
+}
+
+// MemosOrErr returns the Memos value or an error if the edge
+// was not loaded in eager-loading.
+func (e TaskEdges) MemosOrErr() ([]*TaskMemo, error) {
+	if e.loadedTypes[16] {
+		return e.Memos, nil
+	}
+	return nil, &NotLoadedError{edge: "memos"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*Task) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -248,6 +272,8 @@ func (*Task) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case task.FieldProjectID, task.FieldSectionID, task.FieldStatusColumnID, task.FieldParentTaskID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
+		case task.FieldPosition:
+			values[i] = new(sql.NullInt64)
 		case task.FieldStatus, task.FieldTitle, task.FieldDescription, task.FieldPriority:
 			values[i] = new(sql.NullString)
 		case task.FieldCreatedAt, task.FieldUpdatedAt, task.FieldStartDate, task.FieldDueDate:
@@ -367,6 +393,13 @@ func (_m *Task) assignValues(columns []string, values []any) error {
 			} else if value != nil {
 				_m.CreatedBy = *value
 			}
+		case task.FieldPosition:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field position", values[i])
+			} else if value.Valid {
+				_m.Position = new(int)
+				*_m.Position = int(value.Int64)
+			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
 		}
@@ -455,6 +488,16 @@ func (_m *Task) QueryMentions() *TaskMentionQuery {
 	return NewTaskClient(_m.config).QueryMentions(_m)
 }
 
+// QueryPins queries the "pins" edge of the Task entity.
+func (_m *Task) QueryPins() *TaskPinQuery {
+	return NewTaskClient(_m.config).QueryPins(_m)
+}
+
+// QueryMemos queries the "memos" edge of the Task entity.
+func (_m *Task) QueryMemos() *TaskMemoQuery {
+	return NewTaskClient(_m.config).QueryMemos(_m)
+}
+
 // Update returns a builder for updating this Task.
 // Note that you need to call Task.Unwrap() before calling this method if this Task
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -535,6 +578,11 @@ func (_m *Task) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("created_by=")
 	builder.WriteString(fmt.Sprintf("%v", _m.CreatedBy))
+	builder.WriteString(", ")
+	if v := _m.Position; v != nil {
+		builder.WriteString("position=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -26,6 +26,8 @@ const (
 	FieldUserID = "user_id"
 	// FieldRole holds the string denoting the role field in the database.
 	FieldRole = "role"
+	// FieldProjectOrder holds the string denoting the project_order field in the database.
+	FieldProjectOrder = "project_order"
 	// EdgeWorkspace holds the string denoting the workspace edge name in mutations.
 	EdgeWorkspace = "workspace"
 	// EdgeUser holds the string denoting the user edge name in mutations.
@@ -56,6 +58,7 @@ var Columns = []string{
 	FieldWorkspaceID,
 	FieldUserID,
 	FieldRole,
+	FieldProjectOrder,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).

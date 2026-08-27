@@ -35,6 +35,7 @@ export default function MyTasksPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const openTaskId = searchParams.get("task");
+  const openCommentId = searchParams.get("comment") ?? undefined;
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +126,7 @@ export default function MyTasksPage() {
           workspaceId={workspaceId}
           onClose={closeTaskPanel}
           onChanged={load}
+          initialCommentId={openCommentId}
         />
       )}
     </div>

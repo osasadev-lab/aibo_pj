@@ -74,6 +74,22 @@ const (
 	EdgePushSubscriptions = "push_subscriptions"
 	// EdgeReminderSends holds the string denoting the reminder_sends edge name in mutations.
 	EdgeReminderSends = "reminder_sends"
+	// EdgeTaskPins holds the string denoting the task_pins edge name in mutations.
+	EdgeTaskPins = "task_pins"
+	// EdgeFeedbacks holds the string denoting the feedbacks edge name in mutations.
+	EdgeFeedbacks = "feedbacks"
+	// EdgeCreatedDmChannels holds the string denoting the created_dm_channels edge name in mutations.
+	EdgeCreatedDmChannels = "created_dm_channels"
+	// EdgeDmChannelMembers holds the string denoting the dm_channel_members edge name in mutations.
+	EdgeDmChannelMembers = "dm_channel_members"
+	// EdgeDmMessages holds the string denoting the dm_messages edge name in mutations.
+	EdgeDmMessages = "dm_messages"
+	// EdgeDmAttachments holds the string denoting the dm_attachments edge name in mutations.
+	EdgeDmAttachments = "dm_attachments"
+	// EdgeTaskMemos holds the string denoting the task_memos edge name in mutations.
+	EdgeTaskMemos = "task_memos"
+	// EdgeTaskMemoAttachments holds the string denoting the task_memo_attachments edge name in mutations.
+	EdgeTaskMemoAttachments = "task_memo_attachments"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// WorkspaceMembersTable is the table that holds the workspace_members relation/edge.
@@ -181,6 +197,62 @@ const (
 	ReminderSendsInverseTable = "reminder_sends"
 	// ReminderSendsColumn is the table column denoting the reminder_sends relation/edge.
 	ReminderSendsColumn = "user_id"
+	// TaskPinsTable is the table that holds the task_pins relation/edge.
+	TaskPinsTable = "task_pins"
+	// TaskPinsInverseTable is the table name for the TaskPin entity.
+	// It exists in this package in order to avoid circular dependency with the "taskpin" package.
+	TaskPinsInverseTable = "task_pins"
+	// TaskPinsColumn is the table column denoting the task_pins relation/edge.
+	TaskPinsColumn = "user_id"
+	// FeedbacksTable is the table that holds the feedbacks relation/edge.
+	FeedbacksTable = "feedbacks"
+	// FeedbacksInverseTable is the table name for the Feedback entity.
+	// It exists in this package in order to avoid circular dependency with the "feedback" package.
+	FeedbacksInverseTable = "feedbacks"
+	// FeedbacksColumn is the table column denoting the feedbacks relation/edge.
+	FeedbacksColumn = "user_id"
+	// CreatedDmChannelsTable is the table that holds the created_dm_channels relation/edge.
+	CreatedDmChannelsTable = "dm_channels"
+	// CreatedDmChannelsInverseTable is the table name for the DMChannel entity.
+	// It exists in this package in order to avoid circular dependency with the "dmchannel" package.
+	CreatedDmChannelsInverseTable = "dm_channels"
+	// CreatedDmChannelsColumn is the table column denoting the created_dm_channels relation/edge.
+	CreatedDmChannelsColumn = "created_by"
+	// DmChannelMembersTable is the table that holds the dm_channel_members relation/edge.
+	DmChannelMembersTable = "dm_channel_members"
+	// DmChannelMembersInverseTable is the table name for the DMChannelMember entity.
+	// It exists in this package in order to avoid circular dependency with the "dmchannelmember" package.
+	DmChannelMembersInverseTable = "dm_channel_members"
+	// DmChannelMembersColumn is the table column denoting the dm_channel_members relation/edge.
+	DmChannelMembersColumn = "user_id"
+	// DmMessagesTable is the table that holds the dm_messages relation/edge.
+	DmMessagesTable = "dm_messages"
+	// DmMessagesInverseTable is the table name for the DMMessage entity.
+	// It exists in this package in order to avoid circular dependency with the "dmmessage" package.
+	DmMessagesInverseTable = "dm_messages"
+	// DmMessagesColumn is the table column denoting the dm_messages relation/edge.
+	DmMessagesColumn = "user_id"
+	// DmAttachmentsTable is the table that holds the dm_attachments relation/edge.
+	DmAttachmentsTable = "dm_attachments"
+	// DmAttachmentsInverseTable is the table name for the DMAttachment entity.
+	// It exists in this package in order to avoid circular dependency with the "dmattachment" package.
+	DmAttachmentsInverseTable = "dm_attachments"
+	// DmAttachmentsColumn is the table column denoting the dm_attachments relation/edge.
+	DmAttachmentsColumn = "uploaded_by"
+	// TaskMemosTable is the table that holds the task_memos relation/edge.
+	TaskMemosTable = "task_memos"
+	// TaskMemosInverseTable is the table name for the TaskMemo entity.
+	// It exists in this package in order to avoid circular dependency with the "taskmemo" package.
+	TaskMemosInverseTable = "task_memos"
+	// TaskMemosColumn is the table column denoting the task_memos relation/edge.
+	TaskMemosColumn = "user_id"
+	// TaskMemoAttachmentsTable is the table that holds the task_memo_attachments relation/edge.
+	TaskMemoAttachmentsTable = "task_memo_attachments"
+	// TaskMemoAttachmentsInverseTable is the table name for the TaskMemoAttachment entity.
+	// It exists in this package in order to avoid circular dependency with the "taskmemoattachment" package.
+	TaskMemoAttachmentsInverseTable = "task_memo_attachments"
+	// TaskMemoAttachmentsColumn is the table column denoting the task_memo_attachments relation/edge.
+	TaskMemoAttachmentsColumn = "uploaded_by"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -573,6 +645,118 @@ func ByReminderSends(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newReminderSendsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByTaskPinsCount orders the results by task_pins count.
+func ByTaskPinsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newTaskPinsStep(), opts...)
+	}
+}
+
+// ByTaskPins orders the results by task_pins terms.
+func ByTaskPins(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newTaskPinsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByFeedbacksCount orders the results by feedbacks count.
+func ByFeedbacksCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newFeedbacksStep(), opts...)
+	}
+}
+
+// ByFeedbacks orders the results by feedbacks terms.
+func ByFeedbacks(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newFeedbacksStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByCreatedDmChannelsCount orders the results by created_dm_channels count.
+func ByCreatedDmChannelsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newCreatedDmChannelsStep(), opts...)
+	}
+}
+
+// ByCreatedDmChannels orders the results by created_dm_channels terms.
+func ByCreatedDmChannels(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newCreatedDmChannelsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByDmChannelMembersCount orders the results by dm_channel_members count.
+func ByDmChannelMembersCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDmChannelMembersStep(), opts...)
+	}
+}
+
+// ByDmChannelMembers orders the results by dm_channel_members terms.
+func ByDmChannelMembers(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDmChannelMembersStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByDmMessagesCount orders the results by dm_messages count.
+func ByDmMessagesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDmMessagesStep(), opts...)
+	}
+}
+
+// ByDmMessages orders the results by dm_messages terms.
+func ByDmMessages(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDmMessagesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByDmAttachmentsCount orders the results by dm_attachments count.
+func ByDmAttachmentsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDmAttachmentsStep(), opts...)
+	}
+}
+
+// ByDmAttachments orders the results by dm_attachments terms.
+func ByDmAttachments(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDmAttachmentsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByTaskMemosCount orders the results by task_memos count.
+func ByTaskMemosCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newTaskMemosStep(), opts...)
+	}
+}
+
+// ByTaskMemos orders the results by task_memos terms.
+func ByTaskMemos(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newTaskMemosStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByTaskMemoAttachmentsCount orders the results by task_memo_attachments count.
+func ByTaskMemoAttachmentsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newTaskMemoAttachmentsStep(), opts...)
+	}
+}
+
+// ByTaskMemoAttachments orders the results by task_memo_attachments terms.
+func ByTaskMemoAttachments(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newTaskMemoAttachmentsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newWorkspaceMembersStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -676,5 +860,61 @@ func newReminderSendsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(ReminderSendsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, ReminderSendsTable, ReminderSendsColumn),
+	)
+}
+func newTaskPinsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(TaskPinsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, TaskPinsTable, TaskPinsColumn),
+	)
+}
+func newFeedbacksStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(FeedbacksInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, FeedbacksTable, FeedbacksColumn),
+	)
+}
+func newCreatedDmChannelsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(CreatedDmChannelsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, CreatedDmChannelsTable, CreatedDmChannelsColumn),
+	)
+}
+func newDmChannelMembersStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DmChannelMembersInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, DmChannelMembersTable, DmChannelMembersColumn),
+	)
+}
+func newDmMessagesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DmMessagesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, DmMessagesTable, DmMessagesColumn),
+	)
+}
+func newDmAttachmentsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DmAttachmentsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, DmAttachmentsTable, DmAttachmentsColumn),
+	)
+}
+func newTaskMemosStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(TaskMemosInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, TaskMemosTable, TaskMemosColumn),
+	)
+}
+func newTaskMemoAttachmentsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(TaskMemoAttachmentsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, TaskMemoAttachmentsTable, TaskMemoAttachmentsColumn),
 	)
 }

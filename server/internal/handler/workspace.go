@@ -5,12 +5,17 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
@@ -21,10 +26,12 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
+	"github.com/osasadev-lab/aibo_pj/server/internal/logging"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 
@@ -102,6 +109,7 @@ func (h *WorkspaceHandler) Create(c *gin.Context) {
 		return
 	}
 
+	logging.Action(c, "workspace.created", map[string]any{"workspace_id": ws.ID, "workspace_name": ws.Name})
 	c.JSON(http.StatusCreated, gin.H{"id": ws.ID, "name": ws.Name, "role": workspacemember.RoleOwner})
 }
 
@@ -113,7 +121,36 @@ func (h *WorkspaceHandler) Get(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "workspace not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"id": ws.ID, "name": ws.Name, "role": m.Role})
+	// M8追加：左サイドバーのプロジェクト一覧の個人ごとの並び順（本人のみの表示に影響、
+	// docs/aibo/m8-implementation-plan.md スコープ追加A）。
+	c.JSON(http.StatusOK, gin.H{"id": ws.ID, "name": ws.Name, "role": m.Role, "project_order": m.ProjectOrder})
+}
+
+type updateProjectOrderRequest struct {
+	ProjectOrder []uuid.UUID `json:"project_order" binding:"required"`
+}
+
+// UpdateProjectOrder は PATCH /workspaces/:workspace_id/project-order。
+// 左サイドバーのプロジェクト一覧の個人ごとの並び順を更新する。本人のWorkspaceMember行
+// のみを更新するため、RequireWorkspaceMember以上の権限チェックは不要
+// （誰でも自分の表示順は自由に変えられる）。
+func (h *WorkspaceHandler) UpdateProjectOrder(c *gin.Context) {
+	m := middleware.CurrentMembership(c)
+
+	var req updateProjectOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "project_order is required"})
+		return
+	}
+
+	updated, err := h.client.WorkspaceMember.UpdateOneID(m.ID).
+		SetProjectOrder(req.ProjectOrder).
+		Save(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update project order"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"project_order": updated.ProjectOrder})
 }
 
 type updateWorkspaceRequest struct {
@@ -135,6 +172,7 @@ func (h *WorkspaceHandler) Update(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update workspace"})
 		return
 	}
+	logging.Action(c, "workspace.updated", map[string]any{"workspace_id": ws.ID, "workspace_name": ws.Name})
 	c.JSON(http.StatusOK, gin.H{"id": ws.ID, "name": ws.Name})
 }
 
@@ -189,6 +227,14 @@ func (h *WorkspaceHandler) Delete(c *gin.Context) {
 			if _, err := tx.TaskMention.Delete().Where(taskmention.TaskIDIn(taskIDs...)).Exec(ctx); err != nil {
 				return err
 			}
+			if _, err := tx.TaskPin.Delete().Where(taskpin.TaskIDIn(taskIDs...)).Exec(ctx); err != nil {
+				return err
+			}
+			memoKeys, err := deleteTaskMemosForTasks(ctx, tx, taskIDs)
+			if err != nil {
+				return err
+			}
+			attachmentKeys = append(attachmentKeys, memoKeys...)
 			if _, err := tx.CommentMention.Delete().
 				Where(commentmention.HasCommentWith(comment.TaskIDIn(taskIDs...))).
 				Exec(ctx); err != nil {
@@ -248,12 +294,47 @@ func (h *WorkspaceHandler) Delete(c *gin.Context) {
 		if _, err := tx.WorkspaceMember.Delete().Where(workspacemember.WorkspaceIDEQ(m.WorkspaceID)).Exec(ctx); err != nil {
 			return err
 		}
+
+		// DM（M8.5）。dm_channelsはworkspace_idを直接持つ（タスク非依存）。
+		dmChannelIDs, err := tx.DMChannel.Query().Where(dmchannel.WorkspaceIDEQ(m.WorkspaceID)).IDs(ctx)
+		if err != nil {
+			return err
+		}
+		if len(dmChannelIDs) > 0 {
+			dmMessageIDs, err := tx.DMMessage.Query().Where(dmmessage.ChannelIDIn(dmChannelIDs...)).IDs(ctx)
+			if err != nil {
+				return err
+			}
+			if len(dmMessageIDs) > 0 {
+				dmAttachments, err := tx.DMAttachment.Query().Where(dmattachment.DmMessageIDIn(dmMessageIDs...)).All(ctx)
+				if err != nil {
+					return err
+				}
+				for _, a := range dmAttachments {
+					attachmentKeys = append(attachmentKeys, a.StorageKey)
+				}
+				if _, err := tx.DMAttachment.Delete().Where(dmattachment.DmMessageIDIn(dmMessageIDs...)).Exec(ctx); err != nil {
+					return err
+				}
+			}
+			if _, err := tx.DMMessage.Delete().Where(dmmessage.ChannelIDIn(dmChannelIDs...)).Exec(ctx); err != nil {
+				return err
+			}
+			if _, err := tx.DMChannelMember.Delete().Where(dmchannelmember.ChannelIDIn(dmChannelIDs...)).Exec(ctx); err != nil {
+				return err
+			}
+			if _, err := tx.DMChannel.Delete().Where(dmchannel.IDIn(dmChannelIDs...)).Exec(ctx); err != nil {
+				return err
+			}
+		}
+
 		return tx.Workspace.DeleteOneID(m.WorkspaceID).Exec(ctx)
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete workspace"})
 		return
 	}
+	logging.Action(c, "workspace.deleted", map[string]any{"workspace_id": m.WorkspaceID})
 	deleteR2Objects(ctx, h.r2, attachmentKeys)
 	// バックグラウンド化の理由はtask.goと同じ（体感速度対策、2026-08-21）。
 	calendarsync.Async(func(ctx context.Context) {

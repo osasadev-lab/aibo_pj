@@ -18,6 +18,11 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
+	"github.com/osasadev-lab/aibo_pj/server/ent/feedback"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
 	"github.com/osasadev-lab/aibo_pj/server/ent/predicate"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
@@ -27,6 +32,9 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemoattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
@@ -35,25 +43,33 @@ import (
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx                   *QueryContext
-	order                 []user.OrderOption
-	inters                []Interceptor
-	predicates            []predicate.User
-	withWorkspaceMembers  *WorkspaceMemberQuery
-	withProjectMembers    *ProjectMemberQuery
-	withCreatedProjects   *ProjectQuery
-	withCreatedTasks      *TaskQuery
-	withTaskAssignees     *TaskAssigneeQuery
-	withCalendarEvents    *TaskCalendarEventQuery
-	withComments          *CommentQuery
-	withCommentMentions   *CommentMentionQuery
-	withAttachments       *AttachmentQuery
-	withActivityLogs      *ActivityLogQuery
-	withNotifications     *NotificationQuery
-	withSentInvitations   *WorkspaceInvitationQuery
-	withCalendarWatches   *CalendarWatchedMemberQuery
-	withPushSubscriptions *PushSubscriptionQuery
-	withReminderSends     *ReminderSendQuery
+	ctx                     *QueryContext
+	order                   []user.OrderOption
+	inters                  []Interceptor
+	predicates              []predicate.User
+	withWorkspaceMembers    *WorkspaceMemberQuery
+	withProjectMembers      *ProjectMemberQuery
+	withCreatedProjects     *ProjectQuery
+	withCreatedTasks        *TaskQuery
+	withTaskAssignees       *TaskAssigneeQuery
+	withCalendarEvents      *TaskCalendarEventQuery
+	withComments            *CommentQuery
+	withCommentMentions     *CommentMentionQuery
+	withAttachments         *AttachmentQuery
+	withActivityLogs        *ActivityLogQuery
+	withNotifications       *NotificationQuery
+	withSentInvitations     *WorkspaceInvitationQuery
+	withCalendarWatches     *CalendarWatchedMemberQuery
+	withPushSubscriptions   *PushSubscriptionQuery
+	withReminderSends       *ReminderSendQuery
+	withTaskPins            *TaskPinQuery
+	withFeedbacks           *FeedbackQuery
+	withCreatedDmChannels   *DMChannelQuery
+	withDmChannelMembers    *DMChannelMemberQuery
+	withDmMessages          *DMMessageQuery
+	withDmAttachments       *DMAttachmentQuery
+	withTaskMemos           *TaskMemoQuery
+	withTaskMemoAttachments *TaskMemoAttachmentQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -420,6 +436,182 @@ func (_q *UserQuery) QueryReminderSends() *ReminderSendQuery {
 	return query
 }
 
+// QueryTaskPins chains the current query on the "task_pins" edge.
+func (_q *UserQuery) QueryTaskPins() *TaskPinQuery {
+	query := (&TaskPinClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(taskpin.Table, taskpin.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.TaskPinsTable, user.TaskPinsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryFeedbacks chains the current query on the "feedbacks" edge.
+func (_q *UserQuery) QueryFeedbacks() *FeedbackQuery {
+	query := (&FeedbackClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(feedback.Table, feedback.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.FeedbacksTable, user.FeedbacksColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryCreatedDmChannels chains the current query on the "created_dm_channels" edge.
+func (_q *UserQuery) QueryCreatedDmChannels() *DMChannelQuery {
+	query := (&DMChannelClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(dmchannel.Table, dmchannel.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.CreatedDmChannelsTable, user.CreatedDmChannelsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryDmChannelMembers chains the current query on the "dm_channel_members" edge.
+func (_q *UserQuery) QueryDmChannelMembers() *DMChannelMemberQuery {
+	query := (&DMChannelMemberClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(dmchannelmember.Table, dmchannelmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.DmChannelMembersTable, user.DmChannelMembersColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryDmMessages chains the current query on the "dm_messages" edge.
+func (_q *UserQuery) QueryDmMessages() *DMMessageQuery {
+	query := (&DMMessageClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(dmmessage.Table, dmmessage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.DmMessagesTable, user.DmMessagesColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryDmAttachments chains the current query on the "dm_attachments" edge.
+func (_q *UserQuery) QueryDmAttachments() *DMAttachmentQuery {
+	query := (&DMAttachmentClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(dmattachment.Table, dmattachment.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.DmAttachmentsTable, user.DmAttachmentsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryTaskMemos chains the current query on the "task_memos" edge.
+func (_q *UserQuery) QueryTaskMemos() *TaskMemoQuery {
+	query := (&TaskMemoClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(taskmemo.Table, taskmemo.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.TaskMemosTable, user.TaskMemosColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryTaskMemoAttachments chains the current query on the "task_memo_attachments" edge.
+func (_q *UserQuery) QueryTaskMemoAttachments() *TaskMemoAttachmentQuery {
+	query := (&TaskMemoAttachmentClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(taskmemoattachment.Table, taskmemoattachment.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.TaskMemoAttachmentsTable, user.TaskMemoAttachmentsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first User entity from the query.
 // Returns a *NotFoundError when no User was found.
 func (_q *UserQuery) First(ctx context.Context) (*User, error) {
@@ -607,26 +799,34 @@ func (_q *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:                _q.config,
-		ctx:                   _q.ctx.Clone(),
-		order:                 append([]user.OrderOption{}, _q.order...),
-		inters:                append([]Interceptor{}, _q.inters...),
-		predicates:            append([]predicate.User{}, _q.predicates...),
-		withWorkspaceMembers:  _q.withWorkspaceMembers.Clone(),
-		withProjectMembers:    _q.withProjectMembers.Clone(),
-		withCreatedProjects:   _q.withCreatedProjects.Clone(),
-		withCreatedTasks:      _q.withCreatedTasks.Clone(),
-		withTaskAssignees:     _q.withTaskAssignees.Clone(),
-		withCalendarEvents:    _q.withCalendarEvents.Clone(),
-		withComments:          _q.withComments.Clone(),
-		withCommentMentions:   _q.withCommentMentions.Clone(),
-		withAttachments:       _q.withAttachments.Clone(),
-		withActivityLogs:      _q.withActivityLogs.Clone(),
-		withNotifications:     _q.withNotifications.Clone(),
-		withSentInvitations:   _q.withSentInvitations.Clone(),
-		withCalendarWatches:   _q.withCalendarWatches.Clone(),
-		withPushSubscriptions: _q.withPushSubscriptions.Clone(),
-		withReminderSends:     _q.withReminderSends.Clone(),
+		config:                  _q.config,
+		ctx:                     _q.ctx.Clone(),
+		order:                   append([]user.OrderOption{}, _q.order...),
+		inters:                  append([]Interceptor{}, _q.inters...),
+		predicates:              append([]predicate.User{}, _q.predicates...),
+		withWorkspaceMembers:    _q.withWorkspaceMembers.Clone(),
+		withProjectMembers:      _q.withProjectMembers.Clone(),
+		withCreatedProjects:     _q.withCreatedProjects.Clone(),
+		withCreatedTasks:        _q.withCreatedTasks.Clone(),
+		withTaskAssignees:       _q.withTaskAssignees.Clone(),
+		withCalendarEvents:      _q.withCalendarEvents.Clone(),
+		withComments:            _q.withComments.Clone(),
+		withCommentMentions:     _q.withCommentMentions.Clone(),
+		withAttachments:         _q.withAttachments.Clone(),
+		withActivityLogs:        _q.withActivityLogs.Clone(),
+		withNotifications:       _q.withNotifications.Clone(),
+		withSentInvitations:     _q.withSentInvitations.Clone(),
+		withCalendarWatches:     _q.withCalendarWatches.Clone(),
+		withPushSubscriptions:   _q.withPushSubscriptions.Clone(),
+		withReminderSends:       _q.withReminderSends.Clone(),
+		withTaskPins:            _q.withTaskPins.Clone(),
+		withFeedbacks:           _q.withFeedbacks.Clone(),
+		withCreatedDmChannels:   _q.withCreatedDmChannels.Clone(),
+		withDmChannelMembers:    _q.withDmChannelMembers.Clone(),
+		withDmMessages:          _q.withDmMessages.Clone(),
+		withDmAttachments:       _q.withDmAttachments.Clone(),
+		withTaskMemos:           _q.withTaskMemos.Clone(),
+		withTaskMemoAttachments: _q.withTaskMemoAttachments.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -798,6 +998,94 @@ func (_q *UserQuery) WithReminderSends(opts ...func(*ReminderSendQuery)) *UserQu
 	return _q
 }
 
+// WithTaskPins tells the query-builder to eager-load the nodes that are connected to
+// the "task_pins" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithTaskPins(opts ...func(*TaskPinQuery)) *UserQuery {
+	query := (&TaskPinClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withTaskPins = query
+	return _q
+}
+
+// WithFeedbacks tells the query-builder to eager-load the nodes that are connected to
+// the "feedbacks" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithFeedbacks(opts ...func(*FeedbackQuery)) *UserQuery {
+	query := (&FeedbackClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withFeedbacks = query
+	return _q
+}
+
+// WithCreatedDmChannels tells the query-builder to eager-load the nodes that are connected to
+// the "created_dm_channels" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithCreatedDmChannels(opts ...func(*DMChannelQuery)) *UserQuery {
+	query := (&DMChannelClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withCreatedDmChannels = query
+	return _q
+}
+
+// WithDmChannelMembers tells the query-builder to eager-load the nodes that are connected to
+// the "dm_channel_members" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithDmChannelMembers(opts ...func(*DMChannelMemberQuery)) *UserQuery {
+	query := (&DMChannelMemberClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withDmChannelMembers = query
+	return _q
+}
+
+// WithDmMessages tells the query-builder to eager-load the nodes that are connected to
+// the "dm_messages" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithDmMessages(opts ...func(*DMMessageQuery)) *UserQuery {
+	query := (&DMMessageClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withDmMessages = query
+	return _q
+}
+
+// WithDmAttachments tells the query-builder to eager-load the nodes that are connected to
+// the "dm_attachments" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithDmAttachments(opts ...func(*DMAttachmentQuery)) *UserQuery {
+	query := (&DMAttachmentClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withDmAttachments = query
+	return _q
+}
+
+// WithTaskMemos tells the query-builder to eager-load the nodes that are connected to
+// the "task_memos" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithTaskMemos(opts ...func(*TaskMemoQuery)) *UserQuery {
+	query := (&TaskMemoClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withTaskMemos = query
+	return _q
+}
+
+// WithTaskMemoAttachments tells the query-builder to eager-load the nodes that are connected to
+// the "task_memo_attachments" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithTaskMemoAttachments(opts ...func(*TaskMemoAttachmentQuery)) *UserQuery {
+	query := (&TaskMemoAttachmentClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withTaskMemoAttachments = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -876,7 +1164,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
-		loadedTypes = [15]bool{
+		loadedTypes = [23]bool{
 			_q.withWorkspaceMembers != nil,
 			_q.withProjectMembers != nil,
 			_q.withCreatedProjects != nil,
@@ -892,6 +1180,14 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 			_q.withCalendarWatches != nil,
 			_q.withPushSubscriptions != nil,
 			_q.withReminderSends != nil,
+			_q.withTaskPins != nil,
+			_q.withFeedbacks != nil,
+			_q.withCreatedDmChannels != nil,
+			_q.withDmChannelMembers != nil,
+			_q.withDmMessages != nil,
+			_q.withDmAttachments != nil,
+			_q.withTaskMemos != nil,
+			_q.withTaskMemoAttachments != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -1014,6 +1310,64 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		if err := _q.loadReminderSends(ctx, query, nodes,
 			func(n *User) { n.Edges.ReminderSends = []*ReminderSend{} },
 			func(n *User, e *ReminderSend) { n.Edges.ReminderSends = append(n.Edges.ReminderSends, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withTaskPins; query != nil {
+		if err := _q.loadTaskPins(ctx, query, nodes,
+			func(n *User) { n.Edges.TaskPins = []*TaskPin{} },
+			func(n *User, e *TaskPin) { n.Edges.TaskPins = append(n.Edges.TaskPins, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withFeedbacks; query != nil {
+		if err := _q.loadFeedbacks(ctx, query, nodes,
+			func(n *User) { n.Edges.Feedbacks = []*Feedback{} },
+			func(n *User, e *Feedback) { n.Edges.Feedbacks = append(n.Edges.Feedbacks, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withCreatedDmChannels; query != nil {
+		if err := _q.loadCreatedDmChannels(ctx, query, nodes,
+			func(n *User) { n.Edges.CreatedDmChannels = []*DMChannel{} },
+			func(n *User, e *DMChannel) { n.Edges.CreatedDmChannels = append(n.Edges.CreatedDmChannels, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withDmChannelMembers; query != nil {
+		if err := _q.loadDmChannelMembers(ctx, query, nodes,
+			func(n *User) { n.Edges.DmChannelMembers = []*DMChannelMember{} },
+			func(n *User, e *DMChannelMember) { n.Edges.DmChannelMembers = append(n.Edges.DmChannelMembers, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withDmMessages; query != nil {
+		if err := _q.loadDmMessages(ctx, query, nodes,
+			func(n *User) { n.Edges.DmMessages = []*DMMessage{} },
+			func(n *User, e *DMMessage) { n.Edges.DmMessages = append(n.Edges.DmMessages, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withDmAttachments; query != nil {
+		if err := _q.loadDmAttachments(ctx, query, nodes,
+			func(n *User) { n.Edges.DmAttachments = []*DMAttachment{} },
+			func(n *User, e *DMAttachment) { n.Edges.DmAttachments = append(n.Edges.DmAttachments, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withTaskMemos; query != nil {
+		if err := _q.loadTaskMemos(ctx, query, nodes,
+			func(n *User) { n.Edges.TaskMemos = []*TaskMemo{} },
+			func(n *User, e *TaskMemo) { n.Edges.TaskMemos = append(n.Edges.TaskMemos, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withTaskMemoAttachments; query != nil {
+		if err := _q.loadTaskMemoAttachments(ctx, query, nodes,
+			func(n *User) { n.Edges.TaskMemoAttachments = []*TaskMemoAttachment{} },
+			func(n *User, e *TaskMemoAttachment) {
+				n.Edges.TaskMemoAttachments = append(n.Edges.TaskMemoAttachments, e)
+			}); err != nil {
 			return nil, err
 		}
 	}
@@ -1465,6 +1819,246 @@ func (_q *UserQuery) loadReminderSends(ctx context.Context, query *ReminderSendQ
 		node, ok := nodeids[fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadTaskPins(ctx context.Context, query *TaskPinQuery, nodes []*User, init func(*User), assign func(*User, *TaskPin)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(taskpin.FieldUserID)
+	}
+	query.Where(predicate.TaskPin(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.TaskPinsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadFeedbacks(ctx context.Context, query *FeedbackQuery, nodes []*User, init func(*User), assign func(*User, *Feedback)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(feedback.FieldUserID)
+	}
+	query.Where(predicate.Feedback(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.FeedbacksColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadCreatedDmChannels(ctx context.Context, query *DMChannelQuery, nodes []*User, init func(*User), assign func(*User, *DMChannel)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(dmchannel.FieldCreatedBy)
+	}
+	query.Where(predicate.DMChannel(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.CreatedDmChannelsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.CreatedBy
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "created_by" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadDmChannelMembers(ctx context.Context, query *DMChannelMemberQuery, nodes []*User, init func(*User), assign func(*User, *DMChannelMember)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(dmchannelmember.FieldUserID)
+	}
+	query.Where(predicate.DMChannelMember(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.DmChannelMembersColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadDmMessages(ctx context.Context, query *DMMessageQuery, nodes []*User, init func(*User), assign func(*User, *DMMessage)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(dmmessage.FieldUserID)
+	}
+	query.Where(predicate.DMMessage(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.DmMessagesColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadDmAttachments(ctx context.Context, query *DMAttachmentQuery, nodes []*User, init func(*User), assign func(*User, *DMAttachment)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(dmattachment.FieldUploadedBy)
+	}
+	query.Where(predicate.DMAttachment(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.DmAttachmentsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UploadedBy
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "uploaded_by" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadTaskMemos(ctx context.Context, query *TaskMemoQuery, nodes []*User, init func(*User), assign func(*User, *TaskMemo)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(taskmemo.FieldUserID)
+	}
+	query.Where(predicate.TaskMemo(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.TaskMemosColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UserID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "user_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *UserQuery) loadTaskMemoAttachments(ctx context.Context, query *TaskMemoAttachmentQuery, nodes []*User, init func(*User), assign func(*User, *TaskMemoAttachment)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*User)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(taskmemoattachment.FieldUploadedBy)
+	}
+	query.Where(predicate.TaskMemoAttachment(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.TaskMemoAttachmentsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.UploadedBy
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "uploaded_by" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

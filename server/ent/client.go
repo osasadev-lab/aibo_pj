@@ -21,6 +21,11 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
+	"github.com/osasadev-lab/aibo_pj/server/ent/feedback"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
@@ -33,7 +38,10 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemoattachment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -56,6 +64,16 @@ type Client struct {
 	Comment *CommentClient
 	// CommentMention is the client for interacting with the CommentMention builders.
 	CommentMention *CommentMentionClient
+	// DMAttachment is the client for interacting with the DMAttachment builders.
+	DMAttachment *DMAttachmentClient
+	// DMChannel is the client for interacting with the DMChannel builders.
+	DMChannel *DMChannelClient
+	// DMChannelMember is the client for interacting with the DMChannelMember builders.
+	DMChannelMember *DMChannelMemberClient
+	// DMMessage is the client for interacting with the DMMessage builders.
+	DMMessage *DMMessageClient
+	// Feedback is the client for interacting with the Feedback builders.
+	Feedback *FeedbackClient
 	// Notification is the client for interacting with the Notification builders.
 	Notification *NotificationClient
 	// Project is the client for interacting with the Project builders.
@@ -80,8 +98,14 @@ type Client struct {
 	TaskCalendarEvent *TaskCalendarEventClient
 	// TaskDependency is the client for interacting with the TaskDependency builders.
 	TaskDependency *TaskDependencyClient
+	// TaskMemo is the client for interacting with the TaskMemo builders.
+	TaskMemo *TaskMemoClient
+	// TaskMemoAttachment is the client for interacting with the TaskMemoAttachment builders.
+	TaskMemoAttachment *TaskMemoAttachmentClient
 	// TaskMention is the client for interacting with the TaskMention builders.
 	TaskMention *TaskMentionClient
+	// TaskPin is the client for interacting with the TaskPin builders.
+	TaskPin *TaskPinClient
 	// TaskTag is the client for interacting with the TaskTag builders.
 	TaskTag *TaskTagClient
 	// User is the client for interacting with the User builders.
@@ -108,6 +132,11 @@ func (c *Client) init() {
 	c.CalendarWatchedMember = NewCalendarWatchedMemberClient(c.config)
 	c.Comment = NewCommentClient(c.config)
 	c.CommentMention = NewCommentMentionClient(c.config)
+	c.DMAttachment = NewDMAttachmentClient(c.config)
+	c.DMChannel = NewDMChannelClient(c.config)
+	c.DMChannelMember = NewDMChannelMemberClient(c.config)
+	c.DMMessage = NewDMMessageClient(c.config)
+	c.Feedback = NewFeedbackClient(c.config)
 	c.Notification = NewNotificationClient(c.config)
 	c.Project = NewProjectClient(c.config)
 	c.ProjectMember = NewProjectMemberClient(c.config)
@@ -120,7 +149,10 @@ func (c *Client) init() {
 	c.TaskAssignee = NewTaskAssigneeClient(c.config)
 	c.TaskCalendarEvent = NewTaskCalendarEventClient(c.config)
 	c.TaskDependency = NewTaskDependencyClient(c.config)
+	c.TaskMemo = NewTaskMemoClient(c.config)
+	c.TaskMemoAttachment = NewTaskMemoAttachmentClient(c.config)
 	c.TaskMention = NewTaskMentionClient(c.config)
+	c.TaskPin = NewTaskPinClient(c.config)
 	c.TaskTag = NewTaskTagClient(c.config)
 	c.User = NewUserClient(c.config)
 	c.Workspace = NewWorkspaceClient(c.config)
@@ -223,6 +255,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		CalendarWatchedMember: NewCalendarWatchedMemberClient(cfg),
 		Comment:               NewCommentClient(cfg),
 		CommentMention:        NewCommentMentionClient(cfg),
+		DMAttachment:          NewDMAttachmentClient(cfg),
+		DMChannel:             NewDMChannelClient(cfg),
+		DMChannelMember:       NewDMChannelMemberClient(cfg),
+		DMMessage:             NewDMMessageClient(cfg),
+		Feedback:              NewFeedbackClient(cfg),
 		Notification:          NewNotificationClient(cfg),
 		Project:               NewProjectClient(cfg),
 		ProjectMember:         NewProjectMemberClient(cfg),
@@ -235,7 +272,10 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		TaskAssignee:          NewTaskAssigneeClient(cfg),
 		TaskCalendarEvent:     NewTaskCalendarEventClient(cfg),
 		TaskDependency:        NewTaskDependencyClient(cfg),
+		TaskMemo:              NewTaskMemoClient(cfg),
+		TaskMemoAttachment:    NewTaskMemoAttachmentClient(cfg),
 		TaskMention:           NewTaskMentionClient(cfg),
+		TaskPin:               NewTaskPinClient(cfg),
 		TaskTag:               NewTaskTagClient(cfg),
 		User:                  NewUserClient(cfg),
 		Workspace:             NewWorkspaceClient(cfg),
@@ -265,6 +305,11 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		CalendarWatchedMember: NewCalendarWatchedMemberClient(cfg),
 		Comment:               NewCommentClient(cfg),
 		CommentMention:        NewCommentMentionClient(cfg),
+		DMAttachment:          NewDMAttachmentClient(cfg),
+		DMChannel:             NewDMChannelClient(cfg),
+		DMChannelMember:       NewDMChannelMemberClient(cfg),
+		DMMessage:             NewDMMessageClient(cfg),
+		Feedback:              NewFeedbackClient(cfg),
 		Notification:          NewNotificationClient(cfg),
 		Project:               NewProjectClient(cfg),
 		ProjectMember:         NewProjectMemberClient(cfg),
@@ -277,7 +322,10 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		TaskAssignee:          NewTaskAssigneeClient(cfg),
 		TaskCalendarEvent:     NewTaskCalendarEventClient(cfg),
 		TaskDependency:        NewTaskDependencyClient(cfg),
+		TaskMemo:              NewTaskMemoClient(cfg),
+		TaskMemoAttachment:    NewTaskMemoAttachmentClient(cfg),
 		TaskMention:           NewTaskMentionClient(cfg),
+		TaskPin:               NewTaskPinClient(cfg),
 		TaskTag:               NewTaskTagClient(cfg),
 		User:                  NewUserClient(cfg),
 		Workspace:             NewWorkspaceClient(cfg),
@@ -313,10 +361,12 @@ func (c *Client) Close() error {
 func (c *Client) Use(hooks ...Hook) {
 	for _, n := range []interface{ Use(...Hook) }{
 		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
-		c.CommentMention, c.Notification, c.Project, c.ProjectMember,
-		c.ProjectStatusColumn, c.PushSubscription, c.ReminderSend, c.Section, c.Tag,
-		c.Task, c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
-		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.CommentMention, c.DMAttachment, c.DMChannel, c.DMChannelMember, c.DMMessage,
+		c.Feedback, c.Notification, c.Project, c.ProjectMember, c.ProjectStatusColumn,
+		c.PushSubscription, c.ReminderSend, c.Section, c.Tag, c.Task, c.TaskAssignee,
+		c.TaskCalendarEvent, c.TaskDependency, c.TaskMemo, c.TaskMemoAttachment,
+		c.TaskMention, c.TaskPin, c.TaskTag, c.User, c.Workspace,
+		c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Use(hooks...)
 	}
@@ -327,10 +377,12 @@ func (c *Client) Use(hooks ...Hook) {
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	for _, n := range []interface{ Intercept(...Interceptor) }{
 		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
-		c.CommentMention, c.Notification, c.Project, c.ProjectMember,
-		c.ProjectStatusColumn, c.PushSubscription, c.ReminderSend, c.Section, c.Tag,
-		c.Task, c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMention,
-		c.TaskTag, c.User, c.Workspace, c.WorkspaceInvitation, c.WorkspaceMember,
+		c.CommentMention, c.DMAttachment, c.DMChannel, c.DMChannelMember, c.DMMessage,
+		c.Feedback, c.Notification, c.Project, c.ProjectMember, c.ProjectStatusColumn,
+		c.PushSubscription, c.ReminderSend, c.Section, c.Tag, c.Task, c.TaskAssignee,
+		c.TaskCalendarEvent, c.TaskDependency, c.TaskMemo, c.TaskMemoAttachment,
+		c.TaskMention, c.TaskPin, c.TaskTag, c.User, c.Workspace,
+		c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Intercept(interceptors...)
 	}
@@ -349,6 +401,16 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Comment.mutate(ctx, m)
 	case *CommentMentionMutation:
 		return c.CommentMention.mutate(ctx, m)
+	case *DMAttachmentMutation:
+		return c.DMAttachment.mutate(ctx, m)
+	case *DMChannelMutation:
+		return c.DMChannel.mutate(ctx, m)
+	case *DMChannelMemberMutation:
+		return c.DMChannelMember.mutate(ctx, m)
+	case *DMMessageMutation:
+		return c.DMMessage.mutate(ctx, m)
+	case *FeedbackMutation:
+		return c.Feedback.mutate(ctx, m)
 	case *NotificationMutation:
 		return c.Notification.mutate(ctx, m)
 	case *ProjectMutation:
@@ -373,8 +435,14 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.TaskCalendarEvent.mutate(ctx, m)
 	case *TaskDependencyMutation:
 		return c.TaskDependency.mutate(ctx, m)
+	case *TaskMemoMutation:
+		return c.TaskMemo.mutate(ctx, m)
+	case *TaskMemoAttachmentMutation:
+		return c.TaskMemoAttachment.mutate(ctx, m)
 	case *TaskMentionMutation:
 		return c.TaskMention.mutate(ctx, m)
+	case *TaskPinMutation:
+		return c.TaskPin.mutate(ctx, m)
 	case *TaskTagMutation:
 		return c.TaskTag.mutate(ctx, m)
 	case *UserMutation:
@@ -1276,6 +1344,863 @@ func (c *CommentMentionClient) mutate(ctx context.Context, m *CommentMentionMuta
 		return (&CommentMentionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown CommentMention mutation op: %q", m.Op())
+	}
+}
+
+// DMAttachmentClient is a client for the DMAttachment schema.
+type DMAttachmentClient struct {
+	config
+}
+
+// NewDMAttachmentClient returns a client for the DMAttachment from the given config.
+func NewDMAttachmentClient(c config) *DMAttachmentClient {
+	return &DMAttachmentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `dmattachment.Hooks(f(g(h())))`.
+func (c *DMAttachmentClient) Use(hooks ...Hook) {
+	c.hooks.DMAttachment = append(c.hooks.DMAttachment, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `dmattachment.Intercept(f(g(h())))`.
+func (c *DMAttachmentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DMAttachment = append(c.inters.DMAttachment, interceptors...)
+}
+
+// Create returns a builder for creating a DMAttachment entity.
+func (c *DMAttachmentClient) Create() *DMAttachmentCreate {
+	mutation := newDMAttachmentMutation(c.config, OpCreate)
+	return &DMAttachmentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of DMAttachment entities.
+func (c *DMAttachmentClient) CreateBulk(builders ...*DMAttachmentCreate) *DMAttachmentCreateBulk {
+	return &DMAttachmentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DMAttachmentClient) MapCreateBulk(slice any, setFunc func(*DMAttachmentCreate, int)) *DMAttachmentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DMAttachmentCreateBulk{err: fmt.Errorf("calling to DMAttachmentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DMAttachmentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DMAttachmentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for DMAttachment.
+func (c *DMAttachmentClient) Update() *DMAttachmentUpdate {
+	mutation := newDMAttachmentMutation(c.config, OpUpdate)
+	return &DMAttachmentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DMAttachmentClient) UpdateOne(_m *DMAttachment) *DMAttachmentUpdateOne {
+	mutation := newDMAttachmentMutation(c.config, OpUpdateOne, withDMAttachment(_m))
+	return &DMAttachmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DMAttachmentClient) UpdateOneID(id uuid.UUID) *DMAttachmentUpdateOne {
+	mutation := newDMAttachmentMutation(c.config, OpUpdateOne, withDMAttachmentID(id))
+	return &DMAttachmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for DMAttachment.
+func (c *DMAttachmentClient) Delete() *DMAttachmentDelete {
+	mutation := newDMAttachmentMutation(c.config, OpDelete)
+	return &DMAttachmentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DMAttachmentClient) DeleteOne(_m *DMAttachment) *DMAttachmentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DMAttachmentClient) DeleteOneID(id uuid.UUID) *DMAttachmentDeleteOne {
+	builder := c.Delete().Where(dmattachment.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DMAttachmentDeleteOne{builder}
+}
+
+// Query returns a query builder for DMAttachment.
+func (c *DMAttachmentClient) Query() *DMAttachmentQuery {
+	return &DMAttachmentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDMAttachment},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a DMAttachment entity by its id.
+func (c *DMAttachmentClient) Get(ctx context.Context, id uuid.UUID) (*DMAttachment, error) {
+	return c.Query().Where(dmattachment.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DMAttachmentClient) GetX(ctx context.Context, id uuid.UUID) *DMAttachment {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMessage queries the message edge of a DMAttachment.
+func (c *DMAttachmentClient) QueryMessage(_m *DMAttachment) *DMMessageQuery {
+	query := (&DMMessageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmattachment.Table, dmattachment.FieldID, id),
+			sqlgraph.To(dmmessage.Table, dmmessage.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmattachment.MessageTable, dmattachment.MessageColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUploader queries the uploader edge of a DMAttachment.
+func (c *DMAttachmentClient) QueryUploader(_m *DMAttachment) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmattachment.Table, dmattachment.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmattachment.UploaderTable, dmattachment.UploaderColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *DMAttachmentClient) Hooks() []Hook {
+	return c.hooks.DMAttachment
+}
+
+// Interceptors returns the client interceptors.
+func (c *DMAttachmentClient) Interceptors() []Interceptor {
+	return c.inters.DMAttachment
+}
+
+func (c *DMAttachmentClient) mutate(ctx context.Context, m *DMAttachmentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DMAttachmentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DMAttachmentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DMAttachmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DMAttachmentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown DMAttachment mutation op: %q", m.Op())
+	}
+}
+
+// DMChannelClient is a client for the DMChannel schema.
+type DMChannelClient struct {
+	config
+}
+
+// NewDMChannelClient returns a client for the DMChannel from the given config.
+func NewDMChannelClient(c config) *DMChannelClient {
+	return &DMChannelClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `dmchannel.Hooks(f(g(h())))`.
+func (c *DMChannelClient) Use(hooks ...Hook) {
+	c.hooks.DMChannel = append(c.hooks.DMChannel, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `dmchannel.Intercept(f(g(h())))`.
+func (c *DMChannelClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DMChannel = append(c.inters.DMChannel, interceptors...)
+}
+
+// Create returns a builder for creating a DMChannel entity.
+func (c *DMChannelClient) Create() *DMChannelCreate {
+	mutation := newDMChannelMutation(c.config, OpCreate)
+	return &DMChannelCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of DMChannel entities.
+func (c *DMChannelClient) CreateBulk(builders ...*DMChannelCreate) *DMChannelCreateBulk {
+	return &DMChannelCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DMChannelClient) MapCreateBulk(slice any, setFunc func(*DMChannelCreate, int)) *DMChannelCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DMChannelCreateBulk{err: fmt.Errorf("calling to DMChannelClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DMChannelCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DMChannelCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for DMChannel.
+func (c *DMChannelClient) Update() *DMChannelUpdate {
+	mutation := newDMChannelMutation(c.config, OpUpdate)
+	return &DMChannelUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DMChannelClient) UpdateOne(_m *DMChannel) *DMChannelUpdateOne {
+	mutation := newDMChannelMutation(c.config, OpUpdateOne, withDMChannel(_m))
+	return &DMChannelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DMChannelClient) UpdateOneID(id uuid.UUID) *DMChannelUpdateOne {
+	mutation := newDMChannelMutation(c.config, OpUpdateOne, withDMChannelID(id))
+	return &DMChannelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for DMChannel.
+func (c *DMChannelClient) Delete() *DMChannelDelete {
+	mutation := newDMChannelMutation(c.config, OpDelete)
+	return &DMChannelDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DMChannelClient) DeleteOne(_m *DMChannel) *DMChannelDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DMChannelClient) DeleteOneID(id uuid.UUID) *DMChannelDeleteOne {
+	builder := c.Delete().Where(dmchannel.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DMChannelDeleteOne{builder}
+}
+
+// Query returns a query builder for DMChannel.
+func (c *DMChannelClient) Query() *DMChannelQuery {
+	return &DMChannelQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDMChannel},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a DMChannel entity by its id.
+func (c *DMChannelClient) Get(ctx context.Context, id uuid.UUID) (*DMChannel, error) {
+	return c.Query().Where(dmchannel.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DMChannelClient) GetX(ctx context.Context, id uuid.UUID) *DMChannel {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryWorkspace queries the workspace edge of a DMChannel.
+func (c *DMChannelClient) QueryWorkspace(_m *DMChannel) *WorkspaceQuery {
+	query := (&WorkspaceClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmchannel.Table, dmchannel.FieldID, id),
+			sqlgraph.To(workspace.Table, workspace.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmchannel.WorkspaceTable, dmchannel.WorkspaceColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCreator queries the creator edge of a DMChannel.
+func (c *DMChannelClient) QueryCreator(_m *DMChannel) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmchannel.Table, dmchannel.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmchannel.CreatorTable, dmchannel.CreatorColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMembers queries the members edge of a DMChannel.
+func (c *DMChannelClient) QueryMembers(_m *DMChannel) *DMChannelMemberQuery {
+	query := (&DMChannelMemberClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmchannel.Table, dmchannel.FieldID, id),
+			sqlgraph.To(dmchannelmember.Table, dmchannelmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, dmchannel.MembersTable, dmchannel.MembersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMessages queries the messages edge of a DMChannel.
+func (c *DMChannelClient) QueryMessages(_m *DMChannel) *DMMessageQuery {
+	query := (&DMMessageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmchannel.Table, dmchannel.FieldID, id),
+			sqlgraph.To(dmmessage.Table, dmmessage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, dmchannel.MessagesTable, dmchannel.MessagesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *DMChannelClient) Hooks() []Hook {
+	return c.hooks.DMChannel
+}
+
+// Interceptors returns the client interceptors.
+func (c *DMChannelClient) Interceptors() []Interceptor {
+	return c.inters.DMChannel
+}
+
+func (c *DMChannelClient) mutate(ctx context.Context, m *DMChannelMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DMChannelCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DMChannelUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DMChannelUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DMChannelDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown DMChannel mutation op: %q", m.Op())
+	}
+}
+
+// DMChannelMemberClient is a client for the DMChannelMember schema.
+type DMChannelMemberClient struct {
+	config
+}
+
+// NewDMChannelMemberClient returns a client for the DMChannelMember from the given config.
+func NewDMChannelMemberClient(c config) *DMChannelMemberClient {
+	return &DMChannelMemberClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `dmchannelmember.Hooks(f(g(h())))`.
+func (c *DMChannelMemberClient) Use(hooks ...Hook) {
+	c.hooks.DMChannelMember = append(c.hooks.DMChannelMember, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `dmchannelmember.Intercept(f(g(h())))`.
+func (c *DMChannelMemberClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DMChannelMember = append(c.inters.DMChannelMember, interceptors...)
+}
+
+// Create returns a builder for creating a DMChannelMember entity.
+func (c *DMChannelMemberClient) Create() *DMChannelMemberCreate {
+	mutation := newDMChannelMemberMutation(c.config, OpCreate)
+	return &DMChannelMemberCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of DMChannelMember entities.
+func (c *DMChannelMemberClient) CreateBulk(builders ...*DMChannelMemberCreate) *DMChannelMemberCreateBulk {
+	return &DMChannelMemberCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DMChannelMemberClient) MapCreateBulk(slice any, setFunc func(*DMChannelMemberCreate, int)) *DMChannelMemberCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DMChannelMemberCreateBulk{err: fmt.Errorf("calling to DMChannelMemberClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DMChannelMemberCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DMChannelMemberCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for DMChannelMember.
+func (c *DMChannelMemberClient) Update() *DMChannelMemberUpdate {
+	mutation := newDMChannelMemberMutation(c.config, OpUpdate)
+	return &DMChannelMemberUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DMChannelMemberClient) UpdateOne(_m *DMChannelMember) *DMChannelMemberUpdateOne {
+	mutation := newDMChannelMemberMutation(c.config, OpUpdateOne, withDMChannelMember(_m))
+	return &DMChannelMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DMChannelMemberClient) UpdateOneID(id uuid.UUID) *DMChannelMemberUpdateOne {
+	mutation := newDMChannelMemberMutation(c.config, OpUpdateOne, withDMChannelMemberID(id))
+	return &DMChannelMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for DMChannelMember.
+func (c *DMChannelMemberClient) Delete() *DMChannelMemberDelete {
+	mutation := newDMChannelMemberMutation(c.config, OpDelete)
+	return &DMChannelMemberDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DMChannelMemberClient) DeleteOne(_m *DMChannelMember) *DMChannelMemberDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DMChannelMemberClient) DeleteOneID(id uuid.UUID) *DMChannelMemberDeleteOne {
+	builder := c.Delete().Where(dmchannelmember.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DMChannelMemberDeleteOne{builder}
+}
+
+// Query returns a query builder for DMChannelMember.
+func (c *DMChannelMemberClient) Query() *DMChannelMemberQuery {
+	return &DMChannelMemberQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDMChannelMember},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a DMChannelMember entity by its id.
+func (c *DMChannelMemberClient) Get(ctx context.Context, id uuid.UUID) (*DMChannelMember, error) {
+	return c.Query().Where(dmchannelmember.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DMChannelMemberClient) GetX(ctx context.Context, id uuid.UUID) *DMChannelMember {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryChannel queries the channel edge of a DMChannelMember.
+func (c *DMChannelMemberClient) QueryChannel(_m *DMChannelMember) *DMChannelQuery {
+	query := (&DMChannelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmchannelmember.Table, dmchannelmember.FieldID, id),
+			sqlgraph.To(dmchannel.Table, dmchannel.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmchannelmember.ChannelTable, dmchannelmember.ChannelColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a DMChannelMember.
+func (c *DMChannelMemberClient) QueryUser(_m *DMChannelMember) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmchannelmember.Table, dmchannelmember.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmchannelmember.UserTable, dmchannelmember.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *DMChannelMemberClient) Hooks() []Hook {
+	return c.hooks.DMChannelMember
+}
+
+// Interceptors returns the client interceptors.
+func (c *DMChannelMemberClient) Interceptors() []Interceptor {
+	return c.inters.DMChannelMember
+}
+
+func (c *DMChannelMemberClient) mutate(ctx context.Context, m *DMChannelMemberMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DMChannelMemberCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DMChannelMemberUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DMChannelMemberUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DMChannelMemberDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown DMChannelMember mutation op: %q", m.Op())
+	}
+}
+
+// DMMessageClient is a client for the DMMessage schema.
+type DMMessageClient struct {
+	config
+}
+
+// NewDMMessageClient returns a client for the DMMessage from the given config.
+func NewDMMessageClient(c config) *DMMessageClient {
+	return &DMMessageClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `dmmessage.Hooks(f(g(h())))`.
+func (c *DMMessageClient) Use(hooks ...Hook) {
+	c.hooks.DMMessage = append(c.hooks.DMMessage, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `dmmessage.Intercept(f(g(h())))`.
+func (c *DMMessageClient) Intercept(interceptors ...Interceptor) {
+	c.inters.DMMessage = append(c.inters.DMMessage, interceptors...)
+}
+
+// Create returns a builder for creating a DMMessage entity.
+func (c *DMMessageClient) Create() *DMMessageCreate {
+	mutation := newDMMessageMutation(c.config, OpCreate)
+	return &DMMessageCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of DMMessage entities.
+func (c *DMMessageClient) CreateBulk(builders ...*DMMessageCreate) *DMMessageCreateBulk {
+	return &DMMessageCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *DMMessageClient) MapCreateBulk(slice any, setFunc func(*DMMessageCreate, int)) *DMMessageCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &DMMessageCreateBulk{err: fmt.Errorf("calling to DMMessageClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*DMMessageCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &DMMessageCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for DMMessage.
+func (c *DMMessageClient) Update() *DMMessageUpdate {
+	mutation := newDMMessageMutation(c.config, OpUpdate)
+	return &DMMessageUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *DMMessageClient) UpdateOne(_m *DMMessage) *DMMessageUpdateOne {
+	mutation := newDMMessageMutation(c.config, OpUpdateOne, withDMMessage(_m))
+	return &DMMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *DMMessageClient) UpdateOneID(id uuid.UUID) *DMMessageUpdateOne {
+	mutation := newDMMessageMutation(c.config, OpUpdateOne, withDMMessageID(id))
+	return &DMMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for DMMessage.
+func (c *DMMessageClient) Delete() *DMMessageDelete {
+	mutation := newDMMessageMutation(c.config, OpDelete)
+	return &DMMessageDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *DMMessageClient) DeleteOne(_m *DMMessage) *DMMessageDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *DMMessageClient) DeleteOneID(id uuid.UUID) *DMMessageDeleteOne {
+	builder := c.Delete().Where(dmmessage.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &DMMessageDeleteOne{builder}
+}
+
+// Query returns a query builder for DMMessage.
+func (c *DMMessageClient) Query() *DMMessageQuery {
+	return &DMMessageQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeDMMessage},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a DMMessage entity by its id.
+func (c *DMMessageClient) Get(ctx context.Context, id uuid.UUID) (*DMMessage, error) {
+	return c.Query().Where(dmmessage.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *DMMessageClient) GetX(ctx context.Context, id uuid.UUID) *DMMessage {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryChannel queries the channel edge of a DMMessage.
+func (c *DMMessageClient) QueryChannel(_m *DMMessage) *DMChannelQuery {
+	query := (&DMChannelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmmessage.Table, dmmessage.FieldID, id),
+			sqlgraph.To(dmchannel.Table, dmchannel.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmmessage.ChannelTable, dmmessage.ChannelColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a DMMessage.
+func (c *DMMessageClient) QueryUser(_m *DMMessage) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmmessage.Table, dmmessage.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, dmmessage.UserTable, dmmessage.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAttachments queries the attachments edge of a DMMessage.
+func (c *DMMessageClient) QueryAttachments(_m *DMMessage) *DMAttachmentQuery {
+	query := (&DMAttachmentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(dmmessage.Table, dmmessage.FieldID, id),
+			sqlgraph.To(dmattachment.Table, dmattachment.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, dmmessage.AttachmentsTable, dmmessage.AttachmentsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *DMMessageClient) Hooks() []Hook {
+	return c.hooks.DMMessage
+}
+
+// Interceptors returns the client interceptors.
+func (c *DMMessageClient) Interceptors() []Interceptor {
+	return c.inters.DMMessage
+}
+
+func (c *DMMessageClient) mutate(ctx context.Context, m *DMMessageMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&DMMessageCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&DMMessageUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&DMMessageUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&DMMessageDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown DMMessage mutation op: %q", m.Op())
+	}
+}
+
+// FeedbackClient is a client for the Feedback schema.
+type FeedbackClient struct {
+	config
+}
+
+// NewFeedbackClient returns a client for the Feedback from the given config.
+func NewFeedbackClient(c config) *FeedbackClient {
+	return &FeedbackClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `feedback.Hooks(f(g(h())))`.
+func (c *FeedbackClient) Use(hooks ...Hook) {
+	c.hooks.Feedback = append(c.hooks.Feedback, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `feedback.Intercept(f(g(h())))`.
+func (c *FeedbackClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Feedback = append(c.inters.Feedback, interceptors...)
+}
+
+// Create returns a builder for creating a Feedback entity.
+func (c *FeedbackClient) Create() *FeedbackCreate {
+	mutation := newFeedbackMutation(c.config, OpCreate)
+	return &FeedbackCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Feedback entities.
+func (c *FeedbackClient) CreateBulk(builders ...*FeedbackCreate) *FeedbackCreateBulk {
+	return &FeedbackCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *FeedbackClient) MapCreateBulk(slice any, setFunc func(*FeedbackCreate, int)) *FeedbackCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &FeedbackCreateBulk{err: fmt.Errorf("calling to FeedbackClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*FeedbackCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &FeedbackCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Feedback.
+func (c *FeedbackClient) Update() *FeedbackUpdate {
+	mutation := newFeedbackMutation(c.config, OpUpdate)
+	return &FeedbackUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *FeedbackClient) UpdateOne(_m *Feedback) *FeedbackUpdateOne {
+	mutation := newFeedbackMutation(c.config, OpUpdateOne, withFeedback(_m))
+	return &FeedbackUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *FeedbackClient) UpdateOneID(id uuid.UUID) *FeedbackUpdateOne {
+	mutation := newFeedbackMutation(c.config, OpUpdateOne, withFeedbackID(id))
+	return &FeedbackUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Feedback.
+func (c *FeedbackClient) Delete() *FeedbackDelete {
+	mutation := newFeedbackMutation(c.config, OpDelete)
+	return &FeedbackDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *FeedbackClient) DeleteOne(_m *Feedback) *FeedbackDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *FeedbackClient) DeleteOneID(id uuid.UUID) *FeedbackDeleteOne {
+	builder := c.Delete().Where(feedback.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &FeedbackDeleteOne{builder}
+}
+
+// Query returns a query builder for Feedback.
+func (c *FeedbackClient) Query() *FeedbackQuery {
+	return &FeedbackQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeFeedback},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Feedback entity by its id.
+func (c *FeedbackClient) Get(ctx context.Context, id uuid.UUID) (*Feedback, error) {
+	return c.Query().Where(feedback.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *FeedbackClient) GetX(ctx context.Context, id uuid.UUID) *Feedback {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a Feedback.
+func (c *FeedbackClient) QueryUser(_m *Feedback) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(feedback.Table, feedback.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, feedback.UserTable, feedback.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *FeedbackClient) Hooks() []Hook {
+	return c.hooks.Feedback
+}
+
+// Interceptors returns the client interceptors.
+func (c *FeedbackClient) Interceptors() []Interceptor {
+	return c.inters.Feedback
+}
+
+func (c *FeedbackClient) mutate(ctx context.Context, m *FeedbackMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&FeedbackCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&FeedbackUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&FeedbackUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&FeedbackDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Feedback mutation op: %q", m.Op())
 	}
 }
 
@@ -2995,6 +3920,38 @@ func (c *TaskClient) QueryMentions(_m *Task) *TaskMentionQuery {
 	return query
 }
 
+// QueryPins queries the pins edge of a Task.
+func (c *TaskClient) QueryPins(_m *Task) *TaskPinQuery {
+	query := (&TaskPinClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(task.Table, task.FieldID, id),
+			sqlgraph.To(taskpin.Table, taskpin.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, task.PinsTable, task.PinsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryMemos queries the memos edge of a Task.
+func (c *TaskClient) QueryMemos(_m *Task) *TaskMemoQuery {
+	query := (&TaskMemoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(task.Table, task.FieldID, id),
+			sqlgraph.To(taskmemo.Table, taskmemo.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, task.MemosTable, task.MemosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *TaskClient) Hooks() []Hook {
 	return c.hooks.Task
@@ -3515,6 +4472,352 @@ func (c *TaskDependencyClient) mutate(ctx context.Context, m *TaskDependencyMuta
 	}
 }
 
+// TaskMemoClient is a client for the TaskMemo schema.
+type TaskMemoClient struct {
+	config
+}
+
+// NewTaskMemoClient returns a client for the TaskMemo from the given config.
+func NewTaskMemoClient(c config) *TaskMemoClient {
+	return &TaskMemoClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `taskmemo.Hooks(f(g(h())))`.
+func (c *TaskMemoClient) Use(hooks ...Hook) {
+	c.hooks.TaskMemo = append(c.hooks.TaskMemo, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `taskmemo.Intercept(f(g(h())))`.
+func (c *TaskMemoClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TaskMemo = append(c.inters.TaskMemo, interceptors...)
+}
+
+// Create returns a builder for creating a TaskMemo entity.
+func (c *TaskMemoClient) Create() *TaskMemoCreate {
+	mutation := newTaskMemoMutation(c.config, OpCreate)
+	return &TaskMemoCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TaskMemo entities.
+func (c *TaskMemoClient) CreateBulk(builders ...*TaskMemoCreate) *TaskMemoCreateBulk {
+	return &TaskMemoCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TaskMemoClient) MapCreateBulk(slice any, setFunc func(*TaskMemoCreate, int)) *TaskMemoCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TaskMemoCreateBulk{err: fmt.Errorf("calling to TaskMemoClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TaskMemoCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TaskMemoCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TaskMemo.
+func (c *TaskMemoClient) Update() *TaskMemoUpdate {
+	mutation := newTaskMemoMutation(c.config, OpUpdate)
+	return &TaskMemoUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TaskMemoClient) UpdateOne(_m *TaskMemo) *TaskMemoUpdateOne {
+	mutation := newTaskMemoMutation(c.config, OpUpdateOne, withTaskMemo(_m))
+	return &TaskMemoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TaskMemoClient) UpdateOneID(id uuid.UUID) *TaskMemoUpdateOne {
+	mutation := newTaskMemoMutation(c.config, OpUpdateOne, withTaskMemoID(id))
+	return &TaskMemoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TaskMemo.
+func (c *TaskMemoClient) Delete() *TaskMemoDelete {
+	mutation := newTaskMemoMutation(c.config, OpDelete)
+	return &TaskMemoDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TaskMemoClient) DeleteOne(_m *TaskMemo) *TaskMemoDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TaskMemoClient) DeleteOneID(id uuid.UUID) *TaskMemoDeleteOne {
+	builder := c.Delete().Where(taskmemo.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TaskMemoDeleteOne{builder}
+}
+
+// Query returns a query builder for TaskMemo.
+func (c *TaskMemoClient) Query() *TaskMemoQuery {
+	return &TaskMemoQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTaskMemo},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TaskMemo entity by its id.
+func (c *TaskMemoClient) Get(ctx context.Context, id uuid.UUID) (*TaskMemo, error) {
+	return c.Query().Where(taskmemo.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TaskMemoClient) GetX(ctx context.Context, id uuid.UUID) *TaskMemo {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryTask queries the task edge of a TaskMemo.
+func (c *TaskMemoClient) QueryTask(_m *TaskMemo) *TaskQuery {
+	query := (&TaskClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskmemo.Table, taskmemo.FieldID, id),
+			sqlgraph.To(task.Table, task.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskmemo.TaskTable, taskmemo.TaskColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUser queries the user edge of a TaskMemo.
+func (c *TaskMemoClient) QueryUser(_m *TaskMemo) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskmemo.Table, taskmemo.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskmemo.UserTable, taskmemo.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryAttachments queries the attachments edge of a TaskMemo.
+func (c *TaskMemoClient) QueryAttachments(_m *TaskMemo) *TaskMemoAttachmentQuery {
+	query := (&TaskMemoAttachmentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskmemo.Table, taskmemo.FieldID, id),
+			sqlgraph.To(taskmemoattachment.Table, taskmemoattachment.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, taskmemo.AttachmentsTable, taskmemo.AttachmentsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TaskMemoClient) Hooks() []Hook {
+	return c.hooks.TaskMemo
+}
+
+// Interceptors returns the client interceptors.
+func (c *TaskMemoClient) Interceptors() []Interceptor {
+	return c.inters.TaskMemo
+}
+
+func (c *TaskMemoClient) mutate(ctx context.Context, m *TaskMemoMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TaskMemoCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TaskMemoUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TaskMemoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TaskMemoDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TaskMemo mutation op: %q", m.Op())
+	}
+}
+
+// TaskMemoAttachmentClient is a client for the TaskMemoAttachment schema.
+type TaskMemoAttachmentClient struct {
+	config
+}
+
+// NewTaskMemoAttachmentClient returns a client for the TaskMemoAttachment from the given config.
+func NewTaskMemoAttachmentClient(c config) *TaskMemoAttachmentClient {
+	return &TaskMemoAttachmentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `taskmemoattachment.Hooks(f(g(h())))`.
+func (c *TaskMemoAttachmentClient) Use(hooks ...Hook) {
+	c.hooks.TaskMemoAttachment = append(c.hooks.TaskMemoAttachment, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `taskmemoattachment.Intercept(f(g(h())))`.
+func (c *TaskMemoAttachmentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TaskMemoAttachment = append(c.inters.TaskMemoAttachment, interceptors...)
+}
+
+// Create returns a builder for creating a TaskMemoAttachment entity.
+func (c *TaskMemoAttachmentClient) Create() *TaskMemoAttachmentCreate {
+	mutation := newTaskMemoAttachmentMutation(c.config, OpCreate)
+	return &TaskMemoAttachmentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TaskMemoAttachment entities.
+func (c *TaskMemoAttachmentClient) CreateBulk(builders ...*TaskMemoAttachmentCreate) *TaskMemoAttachmentCreateBulk {
+	return &TaskMemoAttachmentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TaskMemoAttachmentClient) MapCreateBulk(slice any, setFunc func(*TaskMemoAttachmentCreate, int)) *TaskMemoAttachmentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TaskMemoAttachmentCreateBulk{err: fmt.Errorf("calling to TaskMemoAttachmentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TaskMemoAttachmentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TaskMemoAttachmentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TaskMemoAttachment.
+func (c *TaskMemoAttachmentClient) Update() *TaskMemoAttachmentUpdate {
+	mutation := newTaskMemoAttachmentMutation(c.config, OpUpdate)
+	return &TaskMemoAttachmentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TaskMemoAttachmentClient) UpdateOne(_m *TaskMemoAttachment) *TaskMemoAttachmentUpdateOne {
+	mutation := newTaskMemoAttachmentMutation(c.config, OpUpdateOne, withTaskMemoAttachment(_m))
+	return &TaskMemoAttachmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TaskMemoAttachmentClient) UpdateOneID(id uuid.UUID) *TaskMemoAttachmentUpdateOne {
+	mutation := newTaskMemoAttachmentMutation(c.config, OpUpdateOne, withTaskMemoAttachmentID(id))
+	return &TaskMemoAttachmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TaskMemoAttachment.
+func (c *TaskMemoAttachmentClient) Delete() *TaskMemoAttachmentDelete {
+	mutation := newTaskMemoAttachmentMutation(c.config, OpDelete)
+	return &TaskMemoAttachmentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TaskMemoAttachmentClient) DeleteOne(_m *TaskMemoAttachment) *TaskMemoAttachmentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TaskMemoAttachmentClient) DeleteOneID(id uuid.UUID) *TaskMemoAttachmentDeleteOne {
+	builder := c.Delete().Where(taskmemoattachment.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TaskMemoAttachmentDeleteOne{builder}
+}
+
+// Query returns a query builder for TaskMemoAttachment.
+func (c *TaskMemoAttachmentClient) Query() *TaskMemoAttachmentQuery {
+	return &TaskMemoAttachmentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTaskMemoAttachment},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TaskMemoAttachment entity by its id.
+func (c *TaskMemoAttachmentClient) Get(ctx context.Context, id uuid.UUID) (*TaskMemoAttachment, error) {
+	return c.Query().Where(taskmemoattachment.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TaskMemoAttachmentClient) GetX(ctx context.Context, id uuid.UUID) *TaskMemoAttachment {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryMemo queries the memo edge of a TaskMemoAttachment.
+func (c *TaskMemoAttachmentClient) QueryMemo(_m *TaskMemoAttachment) *TaskMemoQuery {
+	query := (&TaskMemoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskmemoattachment.Table, taskmemoattachment.FieldID, id),
+			sqlgraph.To(taskmemo.Table, taskmemo.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskmemoattachment.MemoTable, taskmemoattachment.MemoColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryUploader queries the uploader edge of a TaskMemoAttachment.
+func (c *TaskMemoAttachmentClient) QueryUploader(_m *TaskMemoAttachment) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskmemoattachment.Table, taskmemoattachment.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskmemoattachment.UploaderTable, taskmemoattachment.UploaderColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TaskMemoAttachmentClient) Hooks() []Hook {
+	return c.hooks.TaskMemoAttachment
+}
+
+// Interceptors returns the client interceptors.
+func (c *TaskMemoAttachmentClient) Interceptors() []Interceptor {
+	return c.inters.TaskMemoAttachment
+}
+
+func (c *TaskMemoAttachmentClient) mutate(ctx context.Context, m *TaskMemoAttachmentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TaskMemoAttachmentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TaskMemoAttachmentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TaskMemoAttachmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TaskMemoAttachmentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TaskMemoAttachment mutation op: %q", m.Op())
+	}
+}
+
 // TaskMentionClient is a client for the TaskMention schema.
 type TaskMentionClient struct {
 	config
@@ -3677,6 +4980,171 @@ func (c *TaskMentionClient) mutate(ctx context.Context, m *TaskMentionMutation) 
 		return (&TaskMentionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown TaskMention mutation op: %q", m.Op())
+	}
+}
+
+// TaskPinClient is a client for the TaskPin schema.
+type TaskPinClient struct {
+	config
+}
+
+// NewTaskPinClient returns a client for the TaskPin from the given config.
+func NewTaskPinClient(c config) *TaskPinClient {
+	return &TaskPinClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `taskpin.Hooks(f(g(h())))`.
+func (c *TaskPinClient) Use(hooks ...Hook) {
+	c.hooks.TaskPin = append(c.hooks.TaskPin, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `taskpin.Intercept(f(g(h())))`.
+func (c *TaskPinClient) Intercept(interceptors ...Interceptor) {
+	c.inters.TaskPin = append(c.inters.TaskPin, interceptors...)
+}
+
+// Create returns a builder for creating a TaskPin entity.
+func (c *TaskPinClient) Create() *TaskPinCreate {
+	mutation := newTaskPinMutation(c.config, OpCreate)
+	return &TaskPinCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of TaskPin entities.
+func (c *TaskPinClient) CreateBulk(builders ...*TaskPinCreate) *TaskPinCreateBulk {
+	return &TaskPinCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *TaskPinClient) MapCreateBulk(slice any, setFunc func(*TaskPinCreate, int)) *TaskPinCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &TaskPinCreateBulk{err: fmt.Errorf("calling to TaskPinClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*TaskPinCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &TaskPinCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for TaskPin.
+func (c *TaskPinClient) Update() *TaskPinUpdate {
+	mutation := newTaskPinMutation(c.config, OpUpdate)
+	return &TaskPinUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *TaskPinClient) UpdateOne(_m *TaskPin) *TaskPinUpdateOne {
+	mutation := newTaskPinMutation(c.config, OpUpdateOne, withTaskPin(_m))
+	return &TaskPinUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *TaskPinClient) UpdateOneID(id uuid.UUID) *TaskPinUpdateOne {
+	mutation := newTaskPinMutation(c.config, OpUpdateOne, withTaskPinID(id))
+	return &TaskPinUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for TaskPin.
+func (c *TaskPinClient) Delete() *TaskPinDelete {
+	mutation := newTaskPinMutation(c.config, OpDelete)
+	return &TaskPinDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *TaskPinClient) DeleteOne(_m *TaskPin) *TaskPinDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *TaskPinClient) DeleteOneID(id uuid.UUID) *TaskPinDeleteOne {
+	builder := c.Delete().Where(taskpin.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &TaskPinDeleteOne{builder}
+}
+
+// Query returns a query builder for TaskPin.
+func (c *TaskPinClient) Query() *TaskPinQuery {
+	return &TaskPinQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeTaskPin},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a TaskPin entity by its id.
+func (c *TaskPinClient) Get(ctx context.Context, id uuid.UUID) (*TaskPin, error) {
+	return c.Query().Where(taskpin.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *TaskPinClient) GetX(ctx context.Context, id uuid.UUID) *TaskPin {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a TaskPin.
+func (c *TaskPinClient) QueryUser(_m *TaskPin) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskpin.Table, taskpin.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskpin.UserTable, taskpin.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTask queries the task edge of a TaskPin.
+func (c *TaskPinClient) QueryTask(_m *TaskPin) *TaskQuery {
+	query := (&TaskClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(taskpin.Table, taskpin.FieldID, id),
+			sqlgraph.To(task.Table, task.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, taskpin.TaskTable, taskpin.TaskColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *TaskPinClient) Hooks() []Hook {
+	return c.hooks.TaskPin
+}
+
+// Interceptors returns the client interceptors.
+func (c *TaskPinClient) Interceptors() []Interceptor {
+	return c.inters.TaskPin
+}
+
+func (c *TaskPinClient) mutate(ctx context.Context, m *TaskPinMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&TaskPinCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&TaskPinUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&TaskPinUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&TaskPinDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown TaskPin mutation op: %q", m.Op())
 	}
 }
 
@@ -4193,6 +5661,134 @@ func (c *UserClient) QueryReminderSends(_m *User) *ReminderSendQuery {
 	return query
 }
 
+// QueryTaskPins queries the task_pins edge of a User.
+func (c *UserClient) QueryTaskPins(_m *User) *TaskPinQuery {
+	query := (&TaskPinClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(taskpin.Table, taskpin.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.TaskPinsTable, user.TaskPinsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryFeedbacks queries the feedbacks edge of a User.
+func (c *UserClient) QueryFeedbacks(_m *User) *FeedbackQuery {
+	query := (&FeedbackClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(feedback.Table, feedback.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.FeedbacksTable, user.FeedbacksColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryCreatedDmChannels queries the created_dm_channels edge of a User.
+func (c *UserClient) QueryCreatedDmChannels(_m *User) *DMChannelQuery {
+	query := (&DMChannelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(dmchannel.Table, dmchannel.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.CreatedDmChannelsTable, user.CreatedDmChannelsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDmChannelMembers queries the dm_channel_members edge of a User.
+func (c *UserClient) QueryDmChannelMembers(_m *User) *DMChannelMemberQuery {
+	query := (&DMChannelMemberClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(dmchannelmember.Table, dmchannelmember.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.DmChannelMembersTable, user.DmChannelMembersColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDmMessages queries the dm_messages edge of a User.
+func (c *UserClient) QueryDmMessages(_m *User) *DMMessageQuery {
+	query := (&DMMessageClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(dmmessage.Table, dmmessage.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.DmMessagesTable, user.DmMessagesColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDmAttachments queries the dm_attachments edge of a User.
+func (c *UserClient) QueryDmAttachments(_m *User) *DMAttachmentQuery {
+	query := (&DMAttachmentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(dmattachment.Table, dmattachment.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.DmAttachmentsTable, user.DmAttachmentsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTaskMemos queries the task_memos edge of a User.
+func (c *UserClient) QueryTaskMemos(_m *User) *TaskMemoQuery {
+	query := (&TaskMemoClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(taskmemo.Table, taskmemo.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.TaskMemosTable, user.TaskMemosColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryTaskMemoAttachments queries the task_memo_attachments edge of a User.
+func (c *UserClient) QueryTaskMemoAttachments(_m *User) *TaskMemoAttachmentQuery {
+	query := (&TaskMemoAttachmentClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, id),
+			sqlgraph.To(taskmemoattachment.Table, taskmemoattachment.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, user.TaskMemoAttachmentsTable, user.TaskMemoAttachmentsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
 	return c.hooks.User
@@ -4415,6 +6011,22 @@ func (c *WorkspaceClient) QueryInvitations(_m *Workspace) *WorkspaceInvitationQu
 			sqlgraph.From(workspace.Table, workspace.FieldID, id),
 			sqlgraph.To(workspaceinvitation.Table, workspaceinvitation.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, true, workspace.InvitationsTable, workspace.InvitationsColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// QueryDmChannels queries the dm_channels edge of a Workspace.
+func (c *WorkspaceClient) QueryDmChannels(_m *Workspace) *DMChannelQuery {
+	query := (&DMChannelClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(workspace.Table, workspace.FieldID, id),
+			sqlgraph.To(dmchannel.Table, dmchannel.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, workspace.DmChannelsTable, workspace.DmChannelsColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -4781,16 +6393,18 @@ func (c *WorkspaceMemberClient) mutate(ctx context.Context, m *WorkspaceMemberMu
 type (
 	hooks struct {
 		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
-		Notification, Project, ProjectMember, ProjectStatusColumn, PushSubscription,
-		ReminderSend, Section, Tag, Task, TaskAssignee, TaskCalendarEvent,
-		TaskDependency, TaskMention, TaskTag, User, Workspace, WorkspaceInvitation,
-		WorkspaceMember []ent.Hook
+		DMAttachment, DMChannel, DMChannelMember, DMMessage, Feedback, Notification,
+		Project, ProjectMember, ProjectStatusColumn, PushSubscription, ReminderSend,
+		Section, Tag, Task, TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMemo,
+		TaskMemoAttachment, TaskMention, TaskPin, TaskTag, User, Workspace,
+		WorkspaceInvitation, WorkspaceMember []ent.Hook
 	}
 	inters struct {
 		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
-		Notification, Project, ProjectMember, ProjectStatusColumn, PushSubscription,
-		ReminderSend, Section, Tag, Task, TaskAssignee, TaskCalendarEvent,
-		TaskDependency, TaskMention, TaskTag, User, Workspace, WorkspaceInvitation,
-		WorkspaceMember []ent.Interceptor
+		DMAttachment, DMChannel, DMChannelMember, DMMessage, Feedback, Notification,
+		Project, ProjectMember, ProjectStatusColumn, PushSubscription, ReminderSend,
+		Section, Tag, Task, TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMemo,
+		TaskMemoAttachment, TaskMention, TaskPin, TaskTag, User, Workspace,
+		WorkspaceInvitation, WorkspaceMember []ent.Interceptor
 	}
 )

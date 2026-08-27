@@ -17,7 +17,9 @@ import (
 
 const (
 	primaryCalendarID = "primary"
-	dateLayout        = "2006-01-02"
+	// eventTimeZoneはUpsertEventが作成する時間指定イベントのタイムゾーン
+	// （handler.jstと同じくAsia/Tokyo固定、ワークスペース/ユーザーごとの設定はしない）。
+	eventTimeZone = "Asia/Tokyo"
 )
 
 // Client はrefresh tokenを1本だけ保持するユーザースコープのCalendar APIクライアント。
@@ -36,16 +38,16 @@ func NewClient(ctx context.Context, oauthCfg *oauth2.Config, refreshToken string
 	return &Client{svc: svc}, nil
 }
 
-// UpsertEvent は終日イベントを作成/更新する。existingEventIDが空文字なら新規作成、
-// 指定されていれば更新する。endDateExclusiveはGoogle Calendarの終日イベント仕様
-// （end.dateはその日を含まない排他的な日付）に従い、呼び出し側で最終日の翌日を渡すこと。
+// UpsertEvent は時間指定イベントを作成/更新する。existingEventIDが空文字なら新規作成、
+// 指定されていれば更新する。start/endは呼び出し側でAsia/Tokyoに変換済みのタイムゾーンを
+// 保持したtime.Timeを渡すこと（RFC3339フォーマットに正しいオフセットが乗る）。
 // 戻り値はGoogle Calendar側のイベントID。
-func (c *Client) UpsertEvent(ctx context.Context, existingEventID, title, description string, startDate, endDateExclusive time.Time) (string, error) {
+func (c *Client) UpsertEvent(ctx context.Context, existingEventID, title, description string, start, end time.Time) (string, error) {
 	event := &calendar.Event{
 		Summary:     title,
 		Description: description,
-		Start:       &calendar.EventDateTime{Date: startDate.Format(dateLayout)},
-		End:         &calendar.EventDateTime{Date: endDateExclusive.Format(dateLayout)},
+		Start:       &calendar.EventDateTime{DateTime: start.Format(time.RFC3339), TimeZone: eventTimeZone},
+		End:         &calendar.EventDateTime{DateTime: end.Format(time.RFC3339), TimeZone: eventTimeZone},
 	}
 
 	if existingEventID != "" {

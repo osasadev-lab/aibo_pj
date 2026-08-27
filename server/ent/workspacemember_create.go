@@ -69,6 +69,12 @@ func (_c *WorkspaceMemberCreate) SetRole(v workspacemember.Role) *WorkspaceMembe
 	return _c
 }
 
+// SetProjectOrder sets the "project_order" field.
+func (_c *WorkspaceMemberCreate) SetProjectOrder(v []uuid.UUID) *WorkspaceMemberCreate {
+	_c.mutation.SetProjectOrder(v)
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *WorkspaceMemberCreate) SetID(v uuid.UUID) *WorkspaceMemberCreate {
 	_c.mutation.SetID(v)
@@ -216,6 +222,10 @@ func (_c *WorkspaceMemberCreate) createSpec() (*WorkspaceMember, *sqlgraph.Creat
 	if value, ok := _c.mutation.Role(); ok {
 		_spec.SetField(workspacemember.FieldRole, field.TypeEnum, value)
 		_node.Role = value
+	}
+	if value, ok := _c.mutation.ProjectOrder(); ok {
+		_spec.SetField(workspacemember.FieldProjectOrder, field.TypeJSON, value)
+		_node.ProjectOrder = value
 	}
 	if nodes := _c.mutation.WorkspaceIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

@@ -21,14 +21,13 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
-	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
-	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
@@ -39,6 +38,10 @@ import (
 )
 
 const dateLayout = "2006-01-02"
+
+// dateTimeLayoutはタスクの開始日時・期限（2026-08-27追加、日時範囲での管理）専用。
+// 基準日フィルタ等、日単位で十分な箇所は引き続きdateLayoutを使う。
+const dateTimeLayout = "2006-01-02 15:04"
 
 var errInvalidIDs = errors.New("one or more ids are invalid")
 
@@ -71,8 +74,8 @@ func taskJSON(t *ent.Task) gin.H {
 		"title":            t.Title,
 		"description":      t.Description,
 		"priority":         t.Priority,
-		"start_date":       formatDate(t.StartDate),
-		"due_date":         formatDate(t.DueDate),
+		"start_date":       formatDateTime(t.StartDate),
+		"due_date":         formatDateTime(t.DueDate),
 		"created_by":       t.CreatedBy,
 	}
 	// assigneesがeager-load済み（WithAssignees()）の場合のみassignee_idsを含める。
@@ -125,11 +128,11 @@ func taskJSON(t *ent.Task) gin.H {
 	return row
 }
 
-func formatDate(t *time.Time) *string {
+func formatDateTime(t *time.Time) *string {
 	if t == nil {
 		return nil
 	}
-	s := t.Format(dateLayout)
+	s := t.In(jst).Format(dateTimeLayout)
 	return &s
 }
 
@@ -177,7 +180,7 @@ func (h *TaskHandler) Search(c *gin.Context) {
 		query = query.Where(task.StatusColumnIDEQ(id))
 	}
 	if v := c.Query("due_before"); v != "" {
-		d, err := time.Parse(dateLayout, v)
+		d, err := time.ParseInLocation(dateLayout, v, jst)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_before"})
 			return
@@ -186,6 +189,10 @@ func (h *TaskHandler) Search(c *gin.Context) {
 	}
 
 	tasks, err := query.
+		// M8追加：プロジェクトカンバンの同一列内D&D並び替え用。positionが未設定
+		// （nil）のタスクはNullsLastでcreated_at順の末尾寄せに扱う（段階的移行、
+		// docs/aibo/m8-implementation-plan.md スコープ追加A参照）。
+		Order(task.ByStatusColumnID(), task.ByPosition(sql.OrderNullsLast()), task.ByCreatedAt()).
 		WithAssignees().
 		WithDependencies(func(q *ent.TaskDependencyQuery) { q.WithDependsOn() }).
 		// Tagsはプロジェクトカンバンのタグバッジ・ホバー強調（tagモード）用。
@@ -339,13 +346,21 @@ func (h *TaskHandler) MyTasks(c *gin.Context) {
 
 	referenceDate := time.Now()
 	if v := c.Query("date"); v != "" {
-		d, err := time.Parse(dateLayout, v)
+		d, err := time.ParseInLocation(dateLayout, v, jst)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date"})
 			return
 		}
 		referenceDate = d
-		query = query.Where(task.DueDateLTE(d))
+		// due_dateが時刻を持つようになったため、基準日当日中（〜翌日0時未満）を
+		// 「基準日以前」に含める（LTEのままだと基準日当日の午後締切を取りこぼす）。
+		// 期限が無く開始日時のみのタスクは開始日時で判定する（2026-08-27、
+		// 「日次範囲が片方だけでもヒットするように」との要望）。
+		dayEnd := d.AddDate(0, 0, 1)
+		query = query.Where(task.Or(
+			task.DueDateLT(dayEnd),
+			task.And(task.DueDateIsNil(), task.StartDateNotNil(), task.StartDateLT(dayEnd)),
+		))
 	}
 
 	tasks, err := query.
@@ -357,11 +372,16 @@ func (h *TaskHandler) MyTasks(c *gin.Context) {
 		return
 	}
 
-	refDateStr := referenceDate.Format(dateLayout)
+	refDateStr := referenceDate.In(jst).Format(dateLayout)
 	out := make([]gin.H, 0, len(tasks))
 	for _, t := range tasks {
 		row := taskJSON(t)
-		row["due_today"] = t.DueDate != nil && t.DueDate.Format(dateLayout) == refDateStr
+		// due_todayも同様に、期限が無ければ開始日時を基準日と比較する。
+		effectiveDate := t.DueDate
+		if effectiveDate == nil {
+			effectiveDate = t.StartDate
+		}
+		row["due_today"] = effectiveDate != nil && effectiveDate.In(jst).Format(dateLayout) == refDateStr
 		out = append(out, row)
 	}
 	c.JSON(http.StatusOK, out)
@@ -421,14 +441,18 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		return
 	}
 
-	startDate, err := parseOptionalDate(req.StartDate)
+	startDate, err := parseDateTimeInput(req.StartDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date"})
 		return
 	}
-	dueDate, err := parseOptionalDate(req.DueDate)
+	dueDate, err := parseDateTimeInput(req.DueDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_date"})
+		return
+	}
+	if err := validateDateRange(startDate, dueDate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -459,11 +483,11 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		if req.Priority != nil {
 			builder = builder.SetPriority(task.Priority(*req.Priority))
 		}
-		if startDate != nil {
-			builder = builder.SetStartDate(*startDate)
+		if startDate.provided && !startDate.clear {
+			builder = builder.SetStartDate(startDate.value)
 		}
-		if dueDate != nil {
-			builder = builder.SetDueDate(*dueDate)
+		if dueDate.provided && !dueDate.clear {
+			builder = builder.SetDueDate(dueDate.value)
 		}
 		if req.SectionID != nil {
 			builder = builder.SetSectionID(*req.SectionID)
@@ -536,17 +560,29 @@ func (h *TaskHandler) Create(c *gin.Context) {
 // 意図的に軽量化してある）。
 func (h *TaskHandler) Get(c *gin.Context) {
 	t := middleware.CurrentTask(c)
+	u := middleware.CurrentUser(c)
+	ctx := c.Request.Context()
 	full, err := h.client.Task.Query().
 		Where(task.IDEQ(t.ID)).
 		WithAssignees().
 		WithMentions().
 		WithTags(func(q *ent.TaskTagQuery) { q.WithTag() }).
-		Only(c.Request.Context())
+		Only(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load task"})
 		return
 	}
-	c.JSON(http.StatusOK, taskJSON(full))
+	row := taskJSON(full)
+	// M8追加：呼び出しユーザー視点のピン留め状態（タスク詳細のピンボタン用）。
+	pinned, err := h.client.TaskPin.Query().
+		Where(taskpin.UserIDEQ(u.ID), taskpin.TaskIDEQ(t.ID)).
+		Exist(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load task"})
+		return
+	}
+	row["is_pinned"] = pinned
+	c.JSON(http.StatusOK, row)
 }
 
 type updateTaskRequest struct {
@@ -560,6 +596,10 @@ type updateTaskRequest struct {
 	// ポインタにして「フィールド省略＝メンション不変」と「空配列＝全メンション解除」を
 	// 区別する（ステータス変更等の部分PATCHが誤ってメンションを消さないようにするため）。
 	MentionedUserIDs *[]uuid.UUID `json:"mentioned_user_ids"`
+	// M8追加：プロジェクトカンバンの同一列内D&D並び替え用。列を跨ぐ移動時は
+	// status_column_idと同時送信、同一列内の並び替え時はpositionのみ送信する
+	// （docs/aibo/m8-implementation-plan.md スコープ追加A）。
+	Position *int `json:"position"`
 }
 
 // Update は PATCH /tasks/:task_id。
@@ -575,14 +615,18 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		return
 	}
 
-	startDate, err := parseOptionalDate(req.StartDate)
+	startDate, err := parseDateTimeInput(req.StartDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date"})
 		return
 	}
-	dueDate, err := parseOptionalDate(req.DueDate)
+	dueDate, err := parseDateTimeInput(req.DueDate)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_date"})
+		return
+	}
+	if err := validateDateRange(startDate, dueDate); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -631,13 +675,26 @@ func (h *TaskHandler) Update(c *gin.Context) {
 			builder = builder.SetPriority(task.Priority(*req.Priority))
 			changes["priority"] = *req.Priority
 		}
-		if startDate != nil {
-			builder = builder.SetStartDate(*startDate)
-			changes["start_date"] = *req.StartDate
+		if startDate.provided {
+			if startDate.clear {
+				builder = builder.ClearStartDate()
+				changes["start_date"] = nil
+			} else {
+				builder = builder.SetStartDate(startDate.value)
+				changes["start_date"] = *req.StartDate
+			}
 		}
-		if dueDate != nil {
-			builder = builder.SetDueDate(*dueDate)
-			changes["due_date"] = *req.DueDate
+		if dueDate.provided {
+			if dueDate.clear {
+				builder = builder.ClearDueDate()
+				changes["due_date"] = nil
+			} else {
+				builder = builder.SetDueDate(dueDate.value)
+				changes["due_date"] = *req.DueDate
+			}
+		}
+		if req.Position != nil {
+			builder = builder.SetPosition(*req.Position)
 		}
 
 		switch {
@@ -746,7 +803,7 @@ func (h *TaskHandler) Update(c *gin.Context) {
 	// フィールドの変更時のみ同期する（無条件に同期すると外部API呼び出しが過剰になる
 	// ため。docs/aibo/m6-implementation-plan.md 設計判断4）。バックグラウンド化の
 	// 理由はCreateと同じ（体感速度対策、2026-08-21）。
-	if req.Title != nil || startDate != nil || dueDate != nil {
+	if req.Title != nil || startDate.provided || dueDate.provided {
 		calendarsync.Async(func(ctx context.Context) {
 			calendarsync.SyncTask(ctx, h.client, h.calCfg, h.encKey, updated, h.frontendURL)
 		})
@@ -809,6 +866,14 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		if _, err := tx.TaskMention.Delete().Where(taskmention.TaskIDIn(ids...)).Exec(ctx); err != nil {
 			return err
 		}
+		if _, err := tx.TaskPin.Delete().Where(taskpin.TaskIDIn(ids...)).Exec(ctx); err != nil {
+			return err
+		}
+		memoKeys, err := deleteTaskMemosForTasks(ctx, tx, ids)
+		if err != nil {
+			return err
+		}
+		attachmentKeys = append(attachmentKeys, memoKeys...)
 		if _, err := tx.CommentMention.Delete().
 			Where(commentmention.HasCommentWith(comment.TaskIDIn(ids...))).
 			Exec(ctx); err != nil {
@@ -854,588 +919,38 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-type createSubtaskRequest struct {
-	Title       string      `json:"title" binding:"required"`
-	Description *string     `json:"description"`
-	Priority    *string     `json:"priority" binding:"omitempty,oneof=low medium high"`
-	StartDate   *string     `json:"start_date"`
-	DueDate     *string     `json:"due_date"`
-	AssigneeIDs []uuid.UUID `json:"assignee_ids"`
-	TagIDs      []uuid.UUID `json:"tag_ids"`
-}
-
-// CreateSubtask は POST /tasks/:task_id/subtasks。親タスク画面からの
-// 「＋子タスクを追加」用。孫タスク作成はエラー。project_id/section_idは親から継承する。
-func (h *TaskHandler) CreateSubtask(c *gin.Context) {
-	parent := middleware.CurrentTask(c)
-	u := middleware.CurrentUser(c)
-
-	if parent.ParentTaskID != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot create a subtask of a subtask"})
-		return
-	}
-
-	var req createSubtaskRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-		return
-	}
-
-	ctx := c.Request.Context()
-
-	startDate, err := parseOptionalDate(req.StartDate)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid start_date"})
-		return
-	}
-	dueDate, err := parseOptionalDate(req.DueDate)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid due_date"})
-		return
-	}
-
-	assigneeIDs, err := h.validWorkspaceUserIDs(ctx, parent.WorkspaceID, req.AssigneeIDs)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "assignee_ids must all be workspace members"})
-		return
-	}
-	tagIDs, err := h.validTaskTagIDs(ctx, parent.WorkspaceID, parent.ProjectID, req.TagIDs)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must be assignable to this task"})
-		return
-	}
-
-	var created *ent.Task
-	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
-		builder := tx.Task.Create().
-			SetWorkspaceID(parent.WorkspaceID).
-			SetParentTaskID(parent.ID).
-			SetTitle(req.Title).
-			SetCreatedBy(u.ID)
-		if req.Description != nil {
-			builder = builder.SetDescription(*req.Description)
-		}
-		if req.Priority != nil {
-			builder = builder.SetPriority(task.Priority(*req.Priority))
-		}
-		if startDate != nil {
-			builder = builder.SetStartDate(*startDate)
-		}
-		if dueDate != nil {
-			builder = builder.SetDueDate(*dueDate)
-		}
-		if parent.ProjectID != nil {
-			builder = builder.SetProjectID(*parent.ProjectID)
-			if parent.SectionID != nil {
-				builder = builder.SetSectionID(*parent.SectionID)
-			}
-			statusColumnID, status, err := resolveStatusColumn(ctx, tx.Client(), *parent.ProjectID, nil, nil)
-			if err != nil {
-				return err
-			}
-			if statusColumnID != nil {
-				builder = builder.SetStatusColumnID(*statusColumnID)
-			}
-			builder = builder.SetStatus(status)
-		}
-
-		t, err := builder.Save(ctx)
-		if err != nil {
-			return err
-		}
-
-		if len(assigneeIDs) > 0 {
-			builders := make([]*ent.TaskAssigneeCreate, 0, len(assigneeIDs))
-			for _, uid := range assigneeIDs {
-				builders = append(builders, tx.TaskAssignee.Create().SetTaskID(t.ID).SetUserID(uid))
-			}
-			if _, err := tx.TaskAssignee.CreateBulk(builders...).Save(ctx); err != nil {
-				return err
-			}
-		}
-		if len(tagIDs) > 0 {
-			builders := make([]*ent.TaskTagCreate, 0, len(tagIDs))
-			for _, tid := range tagIDs {
-				builders = append(builders, tx.TaskTag.Create().SetTaskID(t.ID).SetTagID(tid))
-			}
-			if _, err := tx.TaskTag.CreateBulk(builders...).Save(ctx); err != nil {
-				return err
-			}
-		}
-
-		if err := activity.Record(ctx, tx, parent.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.created",
-			map[string]any{"title": t.Title, "parent_task_id": parent.ID}); err != nil {
-			return err
-		}
-
-		created = t
-		return nil
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create subtask"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, taskJSON(created))
-}
-
-// ListSubtasks は GET /tasks/:task_id/subtasks。
-func (h *TaskHandler) ListSubtasks(c *gin.Context) {
-	parent := middleware.CurrentTask(c)
-
-	children, err := h.client.Task.Query().
-		Where(task.ParentTaskIDEQ(parent.ID)).
-		All(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list subtasks"})
-		return
-	}
-
-	out := make([]gin.H, 0, len(children))
-	for _, ch := range children {
-		out = append(out, taskJSON(ch))
-	}
-	c.JSON(http.StatusOK, out)
-}
-
-type putAssigneesRequest struct {
-	UserIDs []uuid.UUID `json:"user_ids" binding:"required"`
-}
-
-// PutAssignees は PUT /tasks/:task_id/assignees。担当者を入れ替える。
-func (h *TaskHandler) PutAssignees(c *gin.Context) {
-	t := middleware.CurrentTask(c)
-	u := middleware.CurrentUser(c)
-
-	var req putAssigneesRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_ids is required"})
-		return
-	}
-
-	ctx := c.Request.Context()
-	ids, err := h.validWorkspaceUserIDs(ctx, t.WorkspaceID, req.UserIDs)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "user_ids must all be workspace members"})
-		return
-	}
-
-	var addedIDs, removedIDs []uuid.UUID
-	var pendingPush []pushdelivery.Item
-	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
-		existing, err := tx.TaskAssignee.Query().Where(taskassignee.TaskIDEQ(t.ID)).All(ctx)
-		if err != nil {
-			return err
-		}
-		oldSet := make(map[uuid.UUID]struct{}, len(existing))
-		for _, a := range existing {
-			oldSet[a.UserID] = struct{}{}
-		}
-		newSet := make(map[uuid.UUID]struct{}, len(ids))
-		for _, id := range ids {
-			newSet[id] = struct{}{}
-		}
-		for _, id := range ids {
-			if _, was := oldSet[id]; !was {
-				addedIDs = append(addedIDs, id)
-			}
-		}
-		for id := range oldSet {
-			if _, still := newSet[id]; !still {
-				removedIDs = append(removedIDs, id)
-			}
-		}
-
-		if _, err := tx.TaskAssignee.Delete().Where(taskassignee.TaskIDEQ(t.ID)).Exec(ctx); err != nil {
-			return err
-		}
-		if len(ids) > 0 {
-			builders := make([]*ent.TaskAssigneeCreate, 0, len(ids))
-			for _, uid := range ids {
-				builders = append(builders, tx.TaskAssignee.Create().SetTaskID(t.ID).SetUserID(uid))
-			}
-			if _, err := tx.TaskAssignee.CreateBulk(builders...).Save(ctx); err != nil {
-				return err
-			}
-		}
-
-		for _, id := range ids {
-			if _, was := oldSet[id]; was {
-				continue
-			}
-			payload := map[string]any{
-				"task_id":         t.ID,
-				"project_id":      t.ProjectID,
-				"changed_by":      u.ID,
-				"changed_by_name": u.Name,
-				"task_title":      t.Title,
-			}
-			if _, err := tx.Notification.Create().
-				SetUserID(id).
-				SetType("assigned").
-				SetPayload(payload).
-				Save(ctx); err != nil {
-				return err
-			}
-			pendingPush = append(pendingPush, pushdelivery.BuildItem(id, h.frontendURL, t.WorkspaceID.String(), "assigned", payload))
-		}
-		for id := range oldSet {
-			if _, still := newSet[id]; still {
-				continue
-			}
-			payload := map[string]any{
-				"task_id":         t.ID,
-				"project_id":      t.ProjectID,
-				"changed_by":      u.ID,
-				"changed_by_name": u.Name,
-				"task_title":      t.Title,
-			}
-			if _, err := tx.Notification.Create().
-				SetUserID(id).
-				SetType("unassigned").
-				SetPayload(payload).
-				Save(ctx); err != nil {
-				return err
-			}
-			pendingPush = append(pendingPush, pushdelivery.BuildItem(id, h.frontendURL, t.WorkspaceID.String(), "unassigned", payload))
-		}
-
-		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.assigned",
-			map[string]any{"assignee_ids": ids})
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update assignees"})
-		return
-	}
-
-	// Googleカレンダー自動同期（M6）。新規追加された担当者にはイベントを作成、
-	// 外れた担当者のイベントは削除する（他の担当者には影響しない）。
-	// バックグラウンド化の理由はCreate/Updateと同じ（体感速度対策、2026-08-21）。
-	for _, id := range addedIDs {
-		calendarsync.Async(func(ctx context.Context) {
-			calendarsync.SyncTaskForUser(ctx, h.client, h.calCfg, h.encKey, t, id, h.frontendURL)
-		})
-	}
-	for _, id := range removedIDs {
-		calendarsync.Async(func(ctx context.Context) {
-			calendarsync.SyncTaskForUserOnUnassign(ctx, h.client, h.calCfg, h.encKey, t.ID, id)
-		})
-	}
-
-	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
-
-	c.Status(http.StatusNoContent)
-}
-
-type putTagsRequest struct {
-	TagIDs []uuid.UUID `json:"tag_ids" binding:"required"`
-}
-
-func dependencyTaskJSON(t *ent.Task) gin.H {
-	return gin.H{"id": t.ID, "title": t.Title, "status": t.Status, "project_id": t.ProjectID}
-}
-
-// ListDependencies は GET /tasks/:task_id/dependencies。
-// predecessors=このタスクが依存している先行タスク、successors=このタスクに
-// 依存している後続タスク。
-func (h *TaskHandler) ListDependencies(c *gin.Context) {
-	t := middleware.CurrentTask(c)
-	ctx := c.Request.Context()
-
-	preds, err := h.client.TaskDependency.Query().
-		Where(taskdependency.TaskIDEQ(t.ID)).
-		WithDependsOn().
-		All(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list dependencies"})
-		return
-	}
-	succs, err := h.client.TaskDependency.Query().
-		Where(taskdependency.DependsOnTaskIDEQ(t.ID)).
-		WithTask().
-		All(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list dependencies"})
-		return
-	}
-
-	predecessors := make([]gin.H, 0, len(preds))
-	for _, d := range preds {
-		if d.Edges.DependsOn == nil {
-			continue
-		}
-		predecessors = append(predecessors, gin.H{"id": d.ID, "task": dependencyTaskJSON(d.Edges.DependsOn)})
-	}
-	successors := make([]gin.H, 0, len(succs))
-	for _, d := range succs {
-		if d.Edges.Task == nil {
-			continue
-		}
-		successors = append(successors, gin.H{"id": d.ID, "task": dependencyTaskJSON(d.Edges.Task)})
-	}
-	c.JSON(http.StatusOK, gin.H{"predecessors": predecessors, "successors": successors})
-}
-
-// wouldCreateCycle は、taskIDがdependsOnTaskIDに依存する辺を追加した場合に
-// 循環依存が生じるかを判定する。dependsOnTaskIDを起点に既存のdepends_on辺を
-// 辿って（＝depends_on_task_idがさらに依存している先行タスクを辿って）taskIDに
-// 到達できれば、新しい辺を足すと閉路になる。
-func (h *TaskHandler) wouldCreateCycle(ctx context.Context, taskID, dependsOnTaskID uuid.UUID) (bool, error) {
-	visited := map[uuid.UUID]struct{}{}
-	queue := []uuid.UUID{dependsOnTaskID}
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-		if current == taskID {
-			return true, nil
-		}
-		if _, ok := visited[current]; ok {
-			continue
-		}
-		visited[current] = struct{}{}
-
-		preds, err := h.client.TaskDependency.Query().Where(taskdependency.TaskIDEQ(current)).All(ctx)
-		if err != nil {
-			return false, err
-		}
-		for _, d := range preds {
-			queue = append(queue, d.DependsOnTaskID)
-		}
-	}
-	return false, nil
-}
-
-type createDependencyRequest struct {
-	DependsOnTaskID uuid.UUID `json:"depends_on_task_id" binding:"required"`
-}
-
-// CreateDependency は POST /tasks/:task_id/dependencies。先行タスクを追加する。
-// 自己参照・ワークスペース跨ぎ・循環依存を拒否する。
-func (h *TaskHandler) CreateDependency(c *gin.Context) {
-	t := middleware.CurrentTask(c)
-	u := middleware.CurrentUser(c)
-
-	var req createDependencyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "depends_on_task_id is required"})
-		return
-	}
-	if req.DependsOnTaskID == t.ID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "task cannot depend on itself"})
-		return
-	}
-
-	ctx := c.Request.Context()
-
-	target, err := h.client.Task.Get(ctx, req.DependsOnTaskID)
-	if err != nil || target.WorkspaceID != t.WorkspaceID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "depends_on_task_id must be in the same workspace"})
-		return
-	}
-
-	cyclic, err := h.wouldCreateCycle(ctx, t.ID, req.DependsOnTaskID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check circular dependency"})
-		return
-	}
-	if cyclic {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "circular_dependency"})
-		return
-	}
-
-	var created *ent.TaskDependency
-	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
-		var txErr error
-		created, txErr = tx.TaskDependency.Create().
-			SetTaskID(t.ID).
-			SetDependsOnTaskID(req.DependsOnTaskID).
-			Save(ctx)
-		if txErr != nil {
-			return txErr
-		}
-		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.dependency_added",
-			map[string]any{"depends_on_task_id": req.DependsOnTaskID})
-	})
-	if ent.IsConstraintError(err) {
-		c.JSON(http.StatusConflict, gin.H{"error": "already_depends_on"})
-		return
-	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create dependency"})
-		return
-	}
-	c.JSON(http.StatusCreated, gin.H{"id": created.ID, "task": dependencyTaskJSON(target)})
-}
-
-// DeleteDependency は DELETE /tasks/:task_id/dependencies/:dependency_id。
-// このタスクの先行タスク一覧からの解除のみを扱う（＝task_idがこのタスクである行に限定）。
-func (h *TaskHandler) DeleteDependency(c *gin.Context) {
-	t := middleware.CurrentTask(c)
-	u := middleware.CurrentUser(c)
-
-	depID, err := uuid.Parse(c.Param("dependency_id"))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "dependency not found"})
-		return
-	}
-
-	ctx := c.Request.Context()
-
-	existing, err := h.client.TaskDependency.Query().
-		Where(taskdependency.IDEQ(depID), taskdependency.TaskIDEQ(t.ID)).
-		Only(ctx)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "dependency not found"})
-		return
-	}
-
-	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
-		if err := tx.TaskDependency.DeleteOneID(existing.ID).Exec(ctx); err != nil {
-			return err
-		}
-		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.dependency_removed",
-			map[string]any{"depends_on_task_id": existing.DependsOnTaskID})
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete dependency"})
-		return
-	}
-	c.Status(http.StatusNoContent)
-}
-
-// ListAssignableTags は GET /tasks/:task_id/assignable-tags。
-// このタスクに付与可能なタグ一覧（プロジェクト所属タスクならそのプロジェクト専用タグ＋
-// ワークスペース共通タグ、単体タスクなら共通タグのみ）を返す。タスク詳細のタグピッカー用。
-func (h *TaskHandler) ListAssignableTags(c *gin.Context) {
-	t := middleware.CurrentTask(c)
-
-	scope := tag.ProjectIDIsNil()
-	if t.ProjectID != nil {
-		scope = tag.Or(tag.ProjectIDEQ(*t.ProjectID), tag.ProjectIDIsNil())
-	}
-
-	tags, err := h.client.Tag.Query().
-		Where(tag.WorkspaceIDEQ(t.WorkspaceID), scope).
-		Order(tag.ByName()).
-		All(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list assignable tags"})
-		return
-	}
-
-	out := make([]gin.H, 0, len(tags))
-	for _, tg := range tags {
-		out = append(out, tagJSON(tg))
-	}
-	c.JSON(http.StatusOK, out)
-}
-
-// PutTags は PUT /tasks/:task_id/tags。タグを入れ替える。
-func (h *TaskHandler) PutTags(c *gin.Context) {
-	t := middleware.CurrentTask(c)
-	u := middleware.CurrentUser(c)
-
-	var req putTagsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids is required"})
-		return
-	}
-
-	ctx := c.Request.Context()
-	ids, err := h.validTaskTagIDs(ctx, t.WorkspaceID, t.ProjectID, req.TagIDs)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "tag_ids must be assignable to this task"})
-		return
-	}
-
-	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
-		if _, err := tx.TaskTag.Delete().Where(tasktag.TaskIDEQ(t.ID)).Exec(ctx); err != nil {
-			return err
-		}
-		if len(ids) > 0 {
-			builders := make([]*ent.TaskTagCreate, 0, len(ids))
-			for _, tid := range ids {
-				builders = append(builders, tx.TaskTag.Create().SetTaskID(t.ID).SetTagID(tid))
-			}
-			if _, err := tx.TaskTag.CreateBulk(builders...).Save(ctx); err != nil {
-				return err
-			}
-		}
-		return activity.Record(ctx, tx, t.WorkspaceID, &t.ID, t.ProjectID, u.ID, "task.tagged",
-			map[string]any{"tag_ids": ids})
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update tags"})
-		return
-	}
-	c.Status(http.StatusNoContent)
-}
-
 // --- helpers ---
 
-func parseOptionalDate(s *string) (*time.Time, error) {
+// dateTimeInputはstart_date/due_dateのPATCH入力を3状態で表す
+// （未指定=変更なし／空文字=クリア／値あり=設定。mentioned_user_idsと同じ「ポインタで
+// 区別する」考え方をtime.Timeに適用したもの）。
+type dateTimeInput struct {
+	provided bool
+	clear    bool
+	value    time.Time
+}
+
+func parseDateTimeInput(s *string) (dateTimeInput, error) {
 	if s == nil {
-		return nil, nil
+		return dateTimeInput{}, nil
 	}
-	d, err := time.Parse(dateLayout, *s)
+	if *s == "" {
+		return dateTimeInput{provided: true, clear: true}, nil
+	}
+	t, err := time.ParseInLocation(dateTimeLayout, *s, jst)
 	if err != nil {
-		return nil, err
+		return dateTimeInput{}, err
 	}
-	return &d, nil
+	return dateTimeInput{provided: true, value: t}, nil
 }
 
-func (h *TaskHandler) validWorkspaceUserIDs(ctx context.Context, workspaceID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
-	if len(ids) == 0 {
-		return nil, nil
+// validateDateRange は開始日時・期限が同じリクエストで両方指定されている場合のみ、
+// 開始が期限より後になっていないかを検証する（日時範囲としての整合性チェック）。
+func validateDateRange(start, due dateTimeInput) error {
+	if start.provided && !start.clear && due.provided && !due.clear && start.value.After(due.value) {
+		return errors.New("start_date must not be after due_date")
 	}
-	deduped := dedupUUIDs(ids)
-	count, err := h.client.WorkspaceMember.Query().
-		Where(workspacemember.WorkspaceIDEQ(workspaceID), workspacemember.UserIDIn(deduped...)).
-		Count(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if count != len(deduped) {
-		return nil, errInvalidIDs
-	}
-	return deduped, nil
-}
-
-// validTaskTagIDs はtag_idsが、このタスクに付与可能なタグ（projectIDが非nilなら
-// そのプロジェクト専用タグ＋ワークスペース共通タグ、nilなら共通タグのみ）に
-// すべて属することを検証する。
-func (h *TaskHandler) validTaskTagIDs(ctx context.Context, workspaceID uuid.UUID, projectID *uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
-	if len(ids) == 0 {
-		return nil, nil
-	}
-	deduped := dedupUUIDs(ids)
-	scope := tag.ProjectIDIsNil()
-	if projectID != nil {
-		scope = tag.Or(tag.ProjectIDEQ(*projectID), tag.ProjectIDIsNil())
-	}
-	count, err := h.client.Tag.Query().
-		Where(tag.WorkspaceIDEQ(workspaceID), tag.IDIn(deduped...), scope).
-		Count(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if count != len(deduped) {
-		return nil, errInvalidIDs
-	}
-	return deduped, nil
-}
-
-func dedupUUIDs(ids []uuid.UUID) []uuid.UUID {
-	seen := map[uuid.UUID]struct{}{}
-	out := make([]uuid.UUID, 0, len(ids))
-	for _, id := range ids {
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		out = append(out, id)
-	}
-	return out
+	return nil
 }
 
 // resolveStatusColumn は指定されたstatus_column_id/statusから

@@ -16,6 +16,11 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
+	"github.com/osasadev-lab/aibo_pj/server/ent/feedback"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
@@ -24,6 +29,9 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemoattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspaceinvitation"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
@@ -445,6 +453,126 @@ func (_c *UserCreate) AddReminderSends(v ...*ReminderSend) *UserCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddReminderSendIDs(ids...)
+}
+
+// AddTaskPinIDs adds the "task_pins" edge to the TaskPin entity by IDs.
+func (_c *UserCreate) AddTaskPinIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddTaskPinIDs(ids...)
+	return _c
+}
+
+// AddTaskPins adds the "task_pins" edges to the TaskPin entity.
+func (_c *UserCreate) AddTaskPins(v ...*TaskPin) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddTaskPinIDs(ids...)
+}
+
+// AddFeedbackIDs adds the "feedbacks" edge to the Feedback entity by IDs.
+func (_c *UserCreate) AddFeedbackIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddFeedbackIDs(ids...)
+	return _c
+}
+
+// AddFeedbacks adds the "feedbacks" edges to the Feedback entity.
+func (_c *UserCreate) AddFeedbacks(v ...*Feedback) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddFeedbackIDs(ids...)
+}
+
+// AddCreatedDmChannelIDs adds the "created_dm_channels" edge to the DMChannel entity by IDs.
+func (_c *UserCreate) AddCreatedDmChannelIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddCreatedDmChannelIDs(ids...)
+	return _c
+}
+
+// AddCreatedDmChannels adds the "created_dm_channels" edges to the DMChannel entity.
+func (_c *UserCreate) AddCreatedDmChannels(v ...*DMChannel) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddCreatedDmChannelIDs(ids...)
+}
+
+// AddDmChannelMemberIDs adds the "dm_channel_members" edge to the DMChannelMember entity by IDs.
+func (_c *UserCreate) AddDmChannelMemberIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddDmChannelMemberIDs(ids...)
+	return _c
+}
+
+// AddDmChannelMembers adds the "dm_channel_members" edges to the DMChannelMember entity.
+func (_c *UserCreate) AddDmChannelMembers(v ...*DMChannelMember) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDmChannelMemberIDs(ids...)
+}
+
+// AddDmMessageIDs adds the "dm_messages" edge to the DMMessage entity by IDs.
+func (_c *UserCreate) AddDmMessageIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddDmMessageIDs(ids...)
+	return _c
+}
+
+// AddDmMessages adds the "dm_messages" edges to the DMMessage entity.
+func (_c *UserCreate) AddDmMessages(v ...*DMMessage) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDmMessageIDs(ids...)
+}
+
+// AddDmAttachmentIDs adds the "dm_attachments" edge to the DMAttachment entity by IDs.
+func (_c *UserCreate) AddDmAttachmentIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddDmAttachmentIDs(ids...)
+	return _c
+}
+
+// AddDmAttachments adds the "dm_attachments" edges to the DMAttachment entity.
+func (_c *UserCreate) AddDmAttachments(v ...*DMAttachment) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDmAttachmentIDs(ids...)
+}
+
+// AddTaskMemoIDs adds the "task_memos" edge to the TaskMemo entity by IDs.
+func (_c *UserCreate) AddTaskMemoIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddTaskMemoIDs(ids...)
+	return _c
+}
+
+// AddTaskMemos adds the "task_memos" edges to the TaskMemo entity.
+func (_c *UserCreate) AddTaskMemos(v ...*TaskMemo) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddTaskMemoIDs(ids...)
+}
+
+// AddTaskMemoAttachmentIDs adds the "task_memo_attachments" edge to the TaskMemoAttachment entity by IDs.
+func (_c *UserCreate) AddTaskMemoAttachmentIDs(ids ...uuid.UUID) *UserCreate {
+	_c.mutation.AddTaskMemoAttachmentIDs(ids...)
+	return _c
+}
+
+// AddTaskMemoAttachments adds the "task_memo_attachments" edges to the TaskMemoAttachment entity.
+func (_c *UserCreate) AddTaskMemoAttachments(v ...*TaskMemoAttachment) *UserCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddTaskMemoAttachmentIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -890,6 +1018,134 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(remindersend.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.TaskPinsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.TaskPinsTable,
+			Columns: []string{user.TaskPinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.FeedbacksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.FeedbacksTable,
+			Columns: []string{user.FeedbacksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(feedback.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.CreatedDmChannelsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.CreatedDmChannelsTable,
+			Columns: []string{user.CreatedDmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DmChannelMembersIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.DmChannelMembersTable,
+			Columns: []string{user.DmChannelMembersColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannelmember.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DmMessagesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.DmMessagesTable,
+			Columns: []string{user.DmMessagesColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmmessage.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DmAttachmentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.DmAttachmentsTable,
+			Columns: []string{user.DmAttachmentsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmattachment.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.TaskMemosIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.TaskMemosTable,
+			Columns: []string{user.TaskMemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.TaskMemoAttachmentsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   user.TaskMemoAttachmentsTable,
+			Columns: []string{user.TaskMemoAttachmentsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemoattachment.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

@@ -27,6 +27,9 @@ export type Workspace = {
   id: string;
   name: string;
   role: "owner" | "member";
+  // 左サイドバーのプロジェクト一覧の個人ごとの並び順（M8）。含まれないプロジェクトは
+  // API返却順（末尾）で補う。
+  project_order?: string[];
 };
 
 // タグ。project_idがnullならワークスペース共通タグ（Owner限定管理、単体タスク・

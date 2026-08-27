@@ -23,7 +23,9 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -51,6 +53,8 @@ type TaskQuery struct {
 	withComments       *CommentQuery
 	withAttachments    *AttachmentQuery
 	withMentions       *TaskMentionQuery
+	withPins           *TaskPinQuery
+	withMemos          *TaskMemoQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -417,6 +421,50 @@ func (_q *TaskQuery) QueryMentions() *TaskMentionQuery {
 	return query
 }
 
+// QueryPins chains the current query on the "pins" edge.
+func (_q *TaskQuery) QueryPins() *TaskPinQuery {
+	query := (&TaskPinClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(task.Table, task.FieldID, selector),
+			sqlgraph.To(taskpin.Table, taskpin.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, task.PinsTable, task.PinsColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryMemos chains the current query on the "memos" edge.
+func (_q *TaskQuery) QueryMemos() *TaskMemoQuery {
+	query := (&TaskMemoClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(task.Table, task.FieldID, selector),
+			sqlgraph.To(taskmemo.Table, taskmemo.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, task.MemosTable, task.MemosColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
 // First returns the first Task entity from the query.
 // Returns a *NotFoundError when no Task was found.
 func (_q *TaskQuery) First(ctx context.Context) (*Task, error) {
@@ -624,6 +672,8 @@ func (_q *TaskQuery) Clone() *TaskQuery {
 		withComments:       _q.withComments.Clone(),
 		withAttachments:    _q.withAttachments.Clone(),
 		withMentions:       _q.withMentions.Clone(),
+		withPins:           _q.withPins.Clone(),
+		withMemos:          _q.withMemos.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
@@ -795,6 +845,28 @@ func (_q *TaskQuery) WithMentions(opts ...func(*TaskMentionQuery)) *TaskQuery {
 	return _q
 }
 
+// WithPins tells the query-builder to eager-load the nodes that are connected to
+// the "pins" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TaskQuery) WithPins(opts ...func(*TaskPinQuery)) *TaskQuery {
+	query := (&TaskPinClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withPins = query
+	return _q
+}
+
+// WithMemos tells the query-builder to eager-load the nodes that are connected to
+// the "memos" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *TaskQuery) WithMemos(opts ...func(*TaskMemoQuery)) *TaskQuery {
+	query := (&TaskMemoClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withMemos = query
+	return _q
+}
+
 // GroupBy is used to group vertices by one or more fields/columns.
 // It is often used with aggregate functions, like: count, max, mean, min, sum.
 //
@@ -873,7 +945,7 @@ func (_q *TaskQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Task, e
 	var (
 		nodes       = []*Task{}
 		_spec       = _q.querySpec()
-		loadedTypes = [15]bool{
+		loadedTypes = [17]bool{
 			_q.withWorkspace != nil,
 			_q.withProject != nil,
 			_q.withSection != nil,
@@ -889,6 +961,8 @@ func (_q *TaskQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Task, e
 			_q.withComments != nil,
 			_q.withAttachments != nil,
 			_q.withMentions != nil,
+			_q.withPins != nil,
+			_q.withMemos != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -1005,6 +1079,20 @@ func (_q *TaskQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Task, e
 		if err := _q.loadMentions(ctx, query, nodes,
 			func(n *Task) { n.Edges.Mentions = []*TaskMention{} },
 			func(n *Task, e *TaskMention) { n.Edges.Mentions = append(n.Edges.Mentions, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withPins; query != nil {
+		if err := _q.loadPins(ctx, query, nodes,
+			func(n *Task) { n.Edges.Pins = []*TaskPin{} },
+			func(n *Task, e *TaskPin) { n.Edges.Pins = append(n.Edges.Pins, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withMemos; query != nil {
+		if err := _q.loadMemos(ctx, query, nodes,
+			func(n *Task) { n.Edges.Memos = []*TaskMemo{} },
+			func(n *Task, e *TaskMemo) { n.Edges.Memos = append(n.Edges.Memos, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -1455,6 +1543,66 @@ func (_q *TaskQuery) loadMentions(ctx context.Context, query *TaskMentionQuery, 
 	}
 	query.Where(predicate.TaskMention(func(s *sql.Selector) {
 		s.Where(sql.InValues(s.C(task.MentionsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.TaskID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "task_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TaskQuery) loadPins(ctx context.Context, query *TaskPinQuery, nodes []*Task, init func(*Task), assign func(*Task, *TaskPin)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Task)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(taskpin.FieldTaskID)
+	}
+	query.Where(predicate.TaskPin(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(task.PinsColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.TaskID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "task_id" returned %v for node %v`, fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *TaskQuery) loadMemos(ctx context.Context, query *TaskMemoQuery, nodes []*Task, init func(*Task), assign func(*Task, *TaskMemo)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[uuid.UUID]*Task)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(taskmemo.FieldTaskID)
+	}
+	query.Where(predicate.TaskMemo(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(task.MemosColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

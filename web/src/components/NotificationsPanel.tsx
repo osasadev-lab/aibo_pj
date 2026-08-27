@@ -10,6 +10,7 @@ import {
   Clock,
   FolderPlus,
   FolderX,
+  Loader2,
   LogIn,
   LogOut,
   UserMinus,
@@ -37,29 +38,57 @@ type Notification = {
   created_at: string;
 };
 
+type ListResponse = {
+  items: Notification[];
+  has_more: boolean;
+};
+
 const SUMMARY_TYPES = new Set(["due_today_summary", "overdue_summary"]);
+const PAGE_SIZE = 20;
 
 // 通知一覧の右サイドバーパネル。左サイドバー「通知」から開く（現在のページを
 // 維持したまま重ねて表示するため、/notifications ルートへは遷移しない）。
 // /w/[workspaceId]/notifications への直接アクセス用にpage.tsxからも使う。
+// ページネーション（2026-08-27追加）：既定で最新PAGE_SIZE件を表示し、末尾の
+// 「もっと見る」でさらに古いものを追加取得する。
 export default function NotificationsPanel({ onClose }: { onClose: () => void }) {
   const { user } = useAuth();
   const router = useRouter();
   const params = useParams<{ workspaceId: string }>();
   const workspaceId = params.workspaceId;
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!user) return;
-    apiFetch<Notification[]>("/notifications")
-      .then(setNotifications)
+    apiFetch<ListResponse>(`/notifications?limit=${PAGE_SIZE}`)
+      .then((res) => {
+        setNotifications(res.items);
+        setHasMore(res.has_more);
+      })
       .catch(() => setError("通知の取得に失敗しました"));
   }, [user]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  async function handleLoadMore() {
+    if (notifications.length === 0 || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const lastId = notifications[notifications.length - 1].id;
+      const res = await apiFetch<ListResponse>(`/notifications?limit=${PAGE_SIZE}&before=${lastId}`);
+      setNotifications((prev) => [...prev, ...res.items]);
+      setHasMore(res.has_more);
+    } catch {
+      setError("通知の追加取得に失敗しました");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function handleMarkRead(id: string) {
     try {
@@ -79,13 +108,18 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
   function handleOpen(n: Notification) {
     const taskId = n.payload?.task_id as string | undefined;
     const projectId = n.payload?.project_id as string | null | undefined;
+    // コメントへのメンション通知はcomment_idを持つ（説明欄メンションには無い）。
+    // 遷移先にこれを含めることで、そのコメントを直接表示・ハイライトできる
+    // （2026-08-27追加、CommentThread.initialCommentId参照）。
+    const commentId = n.payload?.comment_id as string | undefined;
     if (!taskId && !projectId) return;
     if (!n.read_at) handleMarkRead(n.id);
     onClose();
+    const commentQuery = commentId ? `&comment=${commentId}` : "";
     const href = taskId
       ? projectId
-        ? `/w/${workspaceId}/projects/${projectId}?task=${taskId}`
-        : `/w/${workspaceId}/my-tasks?task=${taskId}`
+        ? `/w/${workspaceId}/projects/${projectId}?task=${taskId}${commentQuery}`
+        : `/w/${workspaceId}/my-tasks?task=${taskId}${commentQuery}`
       : `/w/${workspaceId}/projects/${projectId}`;
     router.push(href);
   }
@@ -175,6 +209,18 @@ export default function NotificationsPanel({ onClose }: { onClose: () => void })
               );
             })}
           </ul>
+        )}
+
+        {hasMore && (
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="flex items-center justify-center gap-1.5 self-center text-xs text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
+          >
+            {loadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+            もっと見る
+          </button>
         )}
       </div>
     </SidePanel>

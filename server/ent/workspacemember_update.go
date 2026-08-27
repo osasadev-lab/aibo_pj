@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/predicate"
@@ -76,6 +77,24 @@ func (_u *WorkspaceMemberUpdate) SetNillableRole(v *workspacemember.Role) *Works
 	if v != nil {
 		_u.SetRole(*v)
 	}
+	return _u
+}
+
+// SetProjectOrder sets the "project_order" field.
+func (_u *WorkspaceMemberUpdate) SetProjectOrder(v []uuid.UUID) *WorkspaceMemberUpdate {
+	_u.mutation.SetProjectOrder(v)
+	return _u
+}
+
+// AppendProjectOrder appends value to the "project_order" field.
+func (_u *WorkspaceMemberUpdate) AppendProjectOrder(v []uuid.UUID) *WorkspaceMemberUpdate {
+	_u.mutation.AppendProjectOrder(v)
+	return _u
+}
+
+// ClearProjectOrder clears the value of the "project_order" field.
+func (_u *WorkspaceMemberUpdate) ClearProjectOrder() *WorkspaceMemberUpdate {
+	_u.mutation.ClearProjectOrder()
 	return _u
 }
 
@@ -175,6 +194,17 @@ func (_u *WorkspaceMemberUpdate) sqlSave(ctx context.Context) (_node int, err er
 	}
 	if value, ok := _u.mutation.Role(); ok {
 		_spec.SetField(workspacemember.FieldRole, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ProjectOrder(); ok {
+		_spec.SetField(workspacemember.FieldProjectOrder, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedProjectOrder(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, workspacemember.FieldProjectOrder, value)
+		})
+	}
+	if _u.mutation.ProjectOrderCleared() {
+		_spec.ClearField(workspacemember.FieldProjectOrder, field.TypeJSON)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -299,6 +329,24 @@ func (_u *WorkspaceMemberUpdateOne) SetNillableRole(v *workspacemember.Role) *Wo
 	if v != nil {
 		_u.SetRole(*v)
 	}
+	return _u
+}
+
+// SetProjectOrder sets the "project_order" field.
+func (_u *WorkspaceMemberUpdateOne) SetProjectOrder(v []uuid.UUID) *WorkspaceMemberUpdateOne {
+	_u.mutation.SetProjectOrder(v)
+	return _u
+}
+
+// AppendProjectOrder appends value to the "project_order" field.
+func (_u *WorkspaceMemberUpdateOne) AppendProjectOrder(v []uuid.UUID) *WorkspaceMemberUpdateOne {
+	_u.mutation.AppendProjectOrder(v)
+	return _u
+}
+
+// ClearProjectOrder clears the value of the "project_order" field.
+func (_u *WorkspaceMemberUpdateOne) ClearProjectOrder() *WorkspaceMemberUpdateOne {
+	_u.mutation.ClearProjectOrder()
 	return _u
 }
 
@@ -428,6 +476,17 @@ func (_u *WorkspaceMemberUpdateOne) sqlSave(ctx context.Context) (_node *Workspa
 	}
 	if value, ok := _u.mutation.Role(); ok {
 		_spec.SetField(workspacemember.FieldRole, field.TypeEnum, value)
+	}
+	if value, ok := _u.mutation.ProjectOrder(); ok {
+		_spec.SetField(workspacemember.FieldProjectOrder, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedProjectOrder(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, workspacemember.FieldProjectOrder, value)
+		})
+	}
+	if _u.mutation.ProjectOrderCleared() {
+		_spec.ClearField(workspacemember.FieldProjectOrder, field.TypeJSON)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{

@@ -34,6 +34,7 @@ type Task = {
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high" | null;
+  start_date: string | null;
   due_date: string | null;
   assignee_ids?: string[];
   has_incomplete_dependencies?: boolean;
@@ -63,6 +64,7 @@ export default function ProjectDetailPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const openTaskId = searchParams.get("task");
+  const openCommentId = searchParams.get("comment") ?? undefined;
   const { refresh: refreshProjects } = useProjects();
   const { project, isManager, reload: reloadCurrentProject } = useCurrentProject();
 
@@ -269,6 +271,29 @@ export default function ProjectDetailPage() {
     }
   }
 
+  // M8追加：カンバンの同一列内でのD&D並び替え（誰でも操作可能、列自体の並び替えとは
+  // 異なりタスクの並び替えは「タスクの編集」と同種の操作のためmanager限定にしない）。
+  // 列を跨ぐ移動時はhandleDrop側のoptimistic updateが先に適用された後に呼ばれるため、
+  // functional updateでその結果を引き継いで並び替える。
+  async function handleReorderCards(columnId: string, orderedTaskIds: string[]) {
+    setTasks((prev) => {
+      const others = prev.filter((t) => t.status_column_id !== columnId);
+      const byId = new Map(prev.filter((t) => t.status_column_id === columnId).map((t) => [t.id, t]));
+      const reordered = orderedTaskIds.map((id) => byId.get(id)).filter((t): t is Task => !!t);
+      return [...others, ...reordered];
+    });
+    try {
+      await Promise.all(
+        orderedTaskIds.map((id, i) =>
+          apiFetch(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify({ position: i }) }),
+        ),
+      );
+    } catch {
+      setError("タスクの並び替えに失敗しました");
+      load();
+    }
+  }
+
   // 列名の変更。既定列（未対応/対応中/対応済）は名前も固定表示のまま変更不可とし、
   // カスタム列（is_default=false）かつ責任者(isManager)のみ編集可能にする（削除制限と同じ線引き）。
   async function handleRenameColumn(columnId: string) {
@@ -439,6 +464,7 @@ export default function ProjectDetailPage() {
         }
         onDrop={handleDrop}
         onReorderColumns={isManager ? handleReorderColumns : undefined}
+        onReorderCards={handleReorderCards}
         renderColumnLabel={(columnId, label) => {
           const col = columns.find((c) => c.id === columnId);
           if (editingColumnId === columnId) {
@@ -497,7 +523,8 @@ export default function ProjectDetailPage() {
             </div>
           );
         }}
-        renderCard={(t) => (
+        renderCard={(t) => {
+          return (
           <button
             type="button"
             onClick={() => openTask(t.id)}
@@ -531,27 +558,34 @@ export default function ProjectDetailPage() {
                 ))}
               </div>
             )}
-            {(t.due_date || (t.assignee_ids && t.assignee_ids.length > 0)) && (
-              <div className="flex w-full items-center justify-between gap-2">
-                {t.due_date ? (
-                  <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    {t.due_date}
+            {/* 開始日時・期限は横に並べず1行ずつ改行して表示する（2026-08-27、
+                横幅ではなく縦方向に広げてほしいとのユーザー要望）。 */}
+            {(t.start_date || t.due_date) && (
+              <div className="flex w-full flex-col gap-0.5">
+                {t.start_date && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    開始: {t.start_date}
                   </span>
-                ) : (
-                  <span />
                 )}
-                {t.assignee_ids && t.assignee_ids.length > 0 && (
-                  <div className="flex -space-x-1.5">
-                    {t.assignee_ids.slice(0, 3).map((id) => (
-                      <Avatar key={id} size="sm" name={nameFor(id)} seed={id} />
-                    ))}
-                  </div>
+                {t.due_date && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    期限: {t.due_date}
+                  </span>
                 )}
               </div>
             )}
+            {t.assignee_ids && t.assignee_ids.length > 0 && (
+              <div className="flex w-full items-center justify-end -space-x-1.5">
+                {t.assignee_ids.slice(0, 3).map((id) => (
+                  <Avatar key={id} size="sm" name={nameFor(id)} seed={id} />
+                ))}
+              </div>
+            )}
           </button>
-        )}
+          );
+        }}
         renderColumnFooter={(columnId) =>
           addingToColumn === columnId ? (
             <form
@@ -594,7 +628,7 @@ export default function ProjectDetailPage() {
           isManager ? (
             <form
               onSubmit={handleAddColumn}
-              className="flex w-72 shrink-0 flex-col gap-2 rounded-xl border border-dashed border-border p-3"
+              className="flex w-full shrink-0 flex-col gap-2 rounded-xl border border-dashed border-border p-3 sm:w-72"
             >
               <Input
                 value={newColumnName}
@@ -624,6 +658,7 @@ export default function ProjectDetailPage() {
           workspaceId={workspaceId}
           onClose={closeTaskPanel}
           onChanged={load}
+          initialCommentId={openCommentId}
         />
       )}
 

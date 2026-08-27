@@ -216,6 +216,16 @@ func RoleNotIn(vs ...Role) predicate.WorkspaceMember {
 	return predicate.WorkspaceMember(sql.FieldNotIn(FieldRole, vs...))
 }
 
+// ProjectOrderIsNil applies the IsNil predicate on the "project_order" field.
+func ProjectOrderIsNil() predicate.WorkspaceMember {
+	return predicate.WorkspaceMember(sql.FieldIsNull(FieldProjectOrder))
+}
+
+// ProjectOrderNotNil applies the NotNil predicate on the "project_order" field.
+func ProjectOrderNotNil() predicate.WorkspaceMember {
+	return predicate.WorkspaceMember(sql.FieldNotNull(FieldProjectOrder))
+}
+
 // HasWorkspace applies the HasEdge predicate on the "workspace" edge.
 func HasWorkspace() predicate.WorkspaceMember {
 	return predicate.WorkspaceMember(func(s *sql.Selector) {

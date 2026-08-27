@@ -19,7 +19,7 @@ export default function Home() {
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-2xl font-bold text-white shadow-lg shadow-indigo-600/30">
         a
       </span>
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">aibo</h1>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">aisu</h1>
     </div>
   );
 }

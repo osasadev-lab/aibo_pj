@@ -116,6 +116,11 @@ func CreatedBy(v uuid.UUID) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldCreatedBy, v))
 }
 
+// Position applies equality check predicate on the "position" field. It's identical to PositionEQ.
+func Position(v int) predicate.Task {
+	return predicate.Task(sql.FieldEQ(FieldPosition, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldCreatedAt, v))
@@ -646,6 +651,56 @@ func CreatedByNotIn(vs ...uuid.UUID) predicate.Task {
 	return predicate.Task(sql.FieldNotIn(FieldCreatedBy, vs...))
 }
 
+// PositionEQ applies the EQ predicate on the "position" field.
+func PositionEQ(v int) predicate.Task {
+	return predicate.Task(sql.FieldEQ(FieldPosition, v))
+}
+
+// PositionNEQ applies the NEQ predicate on the "position" field.
+func PositionNEQ(v int) predicate.Task {
+	return predicate.Task(sql.FieldNEQ(FieldPosition, v))
+}
+
+// PositionIn applies the In predicate on the "position" field.
+func PositionIn(vs ...int) predicate.Task {
+	return predicate.Task(sql.FieldIn(FieldPosition, vs...))
+}
+
+// PositionNotIn applies the NotIn predicate on the "position" field.
+func PositionNotIn(vs ...int) predicate.Task {
+	return predicate.Task(sql.FieldNotIn(FieldPosition, vs...))
+}
+
+// PositionGT applies the GT predicate on the "position" field.
+func PositionGT(v int) predicate.Task {
+	return predicate.Task(sql.FieldGT(FieldPosition, v))
+}
+
+// PositionGTE applies the GTE predicate on the "position" field.
+func PositionGTE(v int) predicate.Task {
+	return predicate.Task(sql.FieldGTE(FieldPosition, v))
+}
+
+// PositionLT applies the LT predicate on the "position" field.
+func PositionLT(v int) predicate.Task {
+	return predicate.Task(sql.FieldLT(FieldPosition, v))
+}
+
+// PositionLTE applies the LTE predicate on the "position" field.
+func PositionLTE(v int) predicate.Task {
+	return predicate.Task(sql.FieldLTE(FieldPosition, v))
+}
+
+// PositionIsNil applies the IsNil predicate on the "position" field.
+func PositionIsNil() predicate.Task {
+	return predicate.Task(sql.FieldIsNull(FieldPosition))
+}
+
+// PositionNotNil applies the NotNil predicate on the "position" field.
+func PositionNotNil() predicate.Task {
+	return predicate.Task(sql.FieldNotNull(FieldPosition))
+}
+
 // HasWorkspace applies the HasEdge predicate on the "workspace" edge.
 func HasWorkspace() predicate.Task {
 	return predicate.Task(func(s *sql.Selector) {
@@ -983,6 +1038,52 @@ func HasMentions() predicate.Task {
 func HasMentionsWith(preds ...predicate.TaskMention) predicate.Task {
 	return predicate.Task(func(s *sql.Selector) {
 		step := newMentionsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasPins applies the HasEdge predicate on the "pins" edge.
+func HasPins() predicate.Task {
+	return predicate.Task(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, PinsTable, PinsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPinsWith applies the HasEdge predicate on the "pins" edge with a given conditions (other predicates).
+func HasPinsWith(preds ...predicate.TaskPin) predicate.Task {
+	return predicate.Task(func(s *sql.Selector) {
+		step := newPinsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasMemos applies the HasEdge predicate on the "memos" edge.
+func HasMemos() predicate.Task {
+	return predicate.Task(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, MemosTable, MemosColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMemosWith applies the HasEdge predicate on the "memos" edge with a given conditions (other predicates).
+func HasMemosWith(preds ...predicate.TaskMemo) predicate.Task {
+	return predicate.Task(func(s *sql.Selector) {
+		step := newMemosStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

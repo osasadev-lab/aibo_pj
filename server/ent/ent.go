@@ -17,6 +17,11 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
+	"github.com/osasadev-lab/aibo_pj/server/ent/feedback"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
@@ -29,7 +34,10 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemoattachment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -100,6 +108,11 @@ func checkColumn(t, c string) error {
 			calendarwatchedmember.Table: calendarwatchedmember.ValidColumn,
 			comment.Table:               comment.ValidColumn,
 			commentmention.Table:        commentmention.ValidColumn,
+			dmattachment.Table:          dmattachment.ValidColumn,
+			dmchannel.Table:             dmchannel.ValidColumn,
+			dmchannelmember.Table:       dmchannelmember.ValidColumn,
+			dmmessage.Table:             dmmessage.ValidColumn,
+			feedback.Table:              feedback.ValidColumn,
 			notification.Table:          notification.ValidColumn,
 			project.Table:               project.ValidColumn,
 			projectmember.Table:         projectmember.ValidColumn,
@@ -112,7 +125,10 @@ func checkColumn(t, c string) error {
 			taskassignee.Table:          taskassignee.ValidColumn,
 			taskcalendarevent.Table:     taskcalendarevent.ValidColumn,
 			taskdependency.Table:        taskdependency.ValidColumn,
+			taskmemo.Table:              taskmemo.ValidColumn,
+			taskmemoattachment.Table:    taskmemoattachment.ValidColumn,
 			taskmention.Table:           taskmention.ValidColumn,
+			taskpin.Table:               taskpin.ValidColumn,
 			tasktag.Table:               tasktag.ValidColumn,
 			user.Table:                  user.ValidColumn,
 			workspace.Table:             workspace.ValidColumn,

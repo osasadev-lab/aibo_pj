@@ -69,6 +69,66 @@ func (f CommentMentionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.CommentMentionMutation", m)
 }
 
+// The DMAttachmentFunc type is an adapter to allow the use of ordinary
+// function as DMAttachment mutator.
+type DMAttachmentFunc func(context.Context, *ent.DMAttachmentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DMAttachmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DMAttachmentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DMAttachmentMutation", m)
+}
+
+// The DMChannelFunc type is an adapter to allow the use of ordinary
+// function as DMChannel mutator.
+type DMChannelFunc func(context.Context, *ent.DMChannelMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DMChannelFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DMChannelMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DMChannelMutation", m)
+}
+
+// The DMChannelMemberFunc type is an adapter to allow the use of ordinary
+// function as DMChannelMember mutator.
+type DMChannelMemberFunc func(context.Context, *ent.DMChannelMemberMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DMChannelMemberFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DMChannelMemberMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DMChannelMemberMutation", m)
+}
+
+// The DMMessageFunc type is an adapter to allow the use of ordinary
+// function as DMMessage mutator.
+type DMMessageFunc func(context.Context, *ent.DMMessageMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f DMMessageFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.DMMessageMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DMMessageMutation", m)
+}
+
+// The FeedbackFunc type is an adapter to allow the use of ordinary
+// function as Feedback mutator.
+type FeedbackFunc func(context.Context, *ent.FeedbackMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f FeedbackFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.FeedbackMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.FeedbackMutation", m)
+}
+
 // The NotificationFunc type is an adapter to allow the use of ordinary
 // function as Notification mutator.
 type NotificationFunc func(context.Context, *ent.NotificationMutation) (ent.Value, error)
@@ -213,6 +273,30 @@ func (f TaskDependencyFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TaskDependencyMutation", m)
 }
 
+// The TaskMemoFunc type is an adapter to allow the use of ordinary
+// function as TaskMemo mutator.
+type TaskMemoFunc func(context.Context, *ent.TaskMemoMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TaskMemoFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TaskMemoMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TaskMemoMutation", m)
+}
+
+// The TaskMemoAttachmentFunc type is an adapter to allow the use of ordinary
+// function as TaskMemoAttachment mutator.
+type TaskMemoAttachmentFunc func(context.Context, *ent.TaskMemoAttachmentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TaskMemoAttachmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TaskMemoAttachmentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TaskMemoAttachmentMutation", m)
+}
+
 // The TaskMentionFunc type is an adapter to allow the use of ordinary
 // function as TaskMention mutator.
 type TaskMentionFunc func(context.Context, *ent.TaskMentionMutation) (ent.Value, error)
@@ -223,6 +307,18 @@ func (f TaskMentionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value,
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TaskMentionMutation", m)
+}
+
+// The TaskPinFunc type is an adapter to allow the use of ordinary
+// function as TaskPin mutator.
+type TaskPinFunc func(context.Context, *ent.TaskPinMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f TaskPinFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.TaskPinMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.TaskPinMutation", m)
 }
 
 // The TaskTagFunc type is an adapter to allow the use of ordinary

@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -30,6 +31,8 @@ type WorkspaceMember struct {
 	UserID uuid.UUID `json:"user_id,omitempty"`
 	// Role holds the value of the "role" field.
 	Role workspacemember.Role `json:"role,omitempty"`
+	// ProjectOrder holds the value of the "project_order" field.
+	ProjectOrder []uuid.UUID `json:"project_order,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the WorkspaceMemberQuery when eager-loading is set.
 	Edges        WorkspaceMemberEdges `json:"edges"`
@@ -74,6 +77,8 @@ func (*WorkspaceMember) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case workspacemember.FieldProjectOrder:
+			values[i] = new([]byte)
 		case workspacemember.FieldRole:
 			values[i] = new(sql.NullString)
 		case workspacemember.FieldCreatedAt, workspacemember.FieldUpdatedAt:
@@ -130,6 +135,14 @@ func (_m *WorkspaceMember) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field role", values[i])
 			} else if value.Valid {
 				_m.Role = workspacemember.Role(value.String)
+			}
+		case workspacemember.FieldProjectOrder:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field project_order", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ProjectOrder); err != nil {
+					return fmt.Errorf("unmarshal field project_order: %w", err)
+				}
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -191,6 +204,9 @@ func (_m *WorkspaceMember) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("role=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Role))
+	builder.WriteString(", ")
+	builder.WriteString("project_order=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ProjectOrder))
 	builder.WriteByte(')')
 	return builder.String()
 }

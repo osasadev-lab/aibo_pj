@@ -34,6 +34,40 @@ import (
 // Calendar API呼び出し1〜数回分の余裕を見て設定）。
 const asyncTimeout = 20 * time.Second
 
+// defaultEventDuration は開始日時・期限のどちらか一方しか設定されていないタスクを
+// Googleカレンダーへ同期する際の予定の長さ（2026-08-27追加、日時範囲対応）。
+// 時間指定イベントは開始=終了だと見えづらいため、片方のみ設定時は30分の
+// 予定ブロックとして表示する（due_dateのみ→期限の30分前を開始時刻に、
+// start_dateのみ→開始日時の30分後を終了時刻に補う）。
+const defaultEventDuration = 30 * time.Minute
+
+// jst はGoogleカレンダーへ渡す日時のタイムゾーン（handler.jstと同じくAsia/Tokyo固定、
+// LoadLocation失敗時はFixedZoneにフォールバックする同じパターンをここでも使う）。
+var jst = func() *time.Location {
+	loc, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		return time.FixedZone("Asia/Tokyo", 9*60*60)
+	}
+	return loc
+}()
+
+// resolveEventWindow はタスクのstart_date/due_dateからGoogleカレンダーイベントの
+// 開始・終了時刻を決める純粋関数（テスト容易性のため副作用を切り離す）。
+// 呼び出し側はstartDate/dueDateの少なくとも一方が非nilであることを保証すること
+// （両方nilの場合は同期対象外として呼ばれない想定、syncOne参照）。
+func resolveEventWindow(startDate, dueDate *time.Time) (start, end time.Time) {
+	switch {
+	case startDate != nil && dueDate != nil:
+		return startDate.In(jst), dueDate.In(jst)
+	case dueDate != nil:
+		end = dueDate.In(jst)
+		return end.Add(-defaultEventDuration), end
+	default:
+		start = startDate.In(jst)
+		return start, start.Add(defaultEventDuration)
+	}
+}
+
 // Async はfnをHTTPリクエストのライフサイクルから切り離したcontextで
 // バックグラウンド実行する。c.Request.Context()はハンドラ関数がreturnし
 // レスポンスが返った時点でキャンセルされるため、goroutine側では使えない
@@ -60,8 +94,9 @@ func SyncTask(ctx context.Context, client *ent.Client, calCfg *oauth2.Config, en
 }
 
 // SyncTaskForUser は1ユーザー分の同期を行う。連携OFF・手動モードのユーザーには何もしない。
-// due_dateが無いタスクは同期対象外（spec.md 5章「期限が設定されているタスクのみ同期」）
-// のため、既存イベントがあれば削除する（期限を消した場合の後始末）。
+// start_date/due_dateが両方とも無いタスクは同期対象外（2026-08-27、開始日時のみの
+// タスクも同期対象に含めるようspec.md 5章の方針を更新）のため、既存イベントがあれば
+// 削除する（両方とも消した場合の後始末）。
 func SyncTaskForUser(ctx context.Context, client *ent.Client, calCfg *oauth2.Config, encKey []byte, t *ent.Task, userID uuid.UUID, frontendURL string) {
 	u, err := client.User.Get(ctx, userID)
 	if err != nil {
@@ -80,7 +115,7 @@ func ManualSyncForUser(ctx context.Context, client *ent.Client, calCfg *oauth2.C
 }
 
 func syncOne(ctx context.Context, client *ent.Client, calCfg *oauth2.Config, encKey []byte, u *ent.User, t *ent.Task, frontendURL string) error {
-	if t.DueDate == nil {
+	if t.StartDate == nil && t.DueDate == nil {
 		deleteEventForUser(ctx, client, calCfg, encKey, u, t.ID)
 		return nil
 	}
@@ -110,13 +145,9 @@ func syncOne(ctx context.Context, client *ent.Client, calCfg *oauth2.Config, enc
 		return err
 	}
 
-	startDate := t.DueDate
-	if t.StartDate != nil {
-		startDate = t.StartDate
-	}
-	endExclusive := t.DueDate.AddDate(0, 0, 1)
+	start, end := resolveEventWindow(t.StartDate, t.DueDate)
 
-	eventID, err := calClient.UpsertEvent(ctx, existingEventID, t.Title, eventDescription(ctx, client, t, frontendURL), *startDate, endExclusive)
+	eventID, err := calClient.UpsertEvent(ctx, existingEventID, t.Title, eventDescription(ctx, client, t, frontendURL), start, end)
 	if err != nil {
 		return handleSyncFailure(ctx, client, u, t, err)
 	}
@@ -226,16 +257,29 @@ func deleteEventForUser(ctx context.Context, client *ent.Client, calCfg *oauth2.
 // eventDescription はイベント説明欄の文言を組み立てる（プロジェクト名＋タスク詳細への
 // フロントリンク）。プロジェクト取得に失敗してもリンクだけは含めて返す（低確度の見た目、
 // 実機確認時に調整する。docs/aibo/m6-implementation-plan.md 設計判断3参照）。
+// 2026-08-27追加：開始日時・期限のどちらか一方しか設定されていないタスクは、
+// イベントの表示時間帯がresolveEventWindowによる補完（defaultEventDuration分の
+// 仮の予定枠）であって実際の範囲ではないことが説明欄からも分かるよう、
+// その旨を先頭に注記する。
 func eventDescription(ctx context.Context, client *ent.Client, t *ent.Task, frontendURL string) string {
 	link := fmt.Sprintf("%s/w/%s/my-tasks?task=%s", frontendURL, t.WorkspaceID, t.ID)
+
+	var note string
+	switch {
+	case t.StartDate != nil && t.DueDate == nil:
+		note = "※期限は未設定です（表示中の時間帯は開始日時のみを基にした仮の予定枠です）\n"
+	case t.StartDate == nil && t.DueDate != nil:
+		note = "※開始日時は未設定です（表示中の時間帯は期限のみを基にした仮の予定枠です）\n"
+	}
+
 	if t.ProjectID == nil {
-		return link
+		return note + link
 	}
 	p, err := client.Project.Get(ctx, *t.ProjectID)
 	if err != nil {
-		return link
+		return note + link
 	}
-	return fmt.Sprintf("プロジェクト: %s\n%s", p.Name, link)
+	return fmt.Sprintf("%sプロジェクト: %s\n%s", note, p.Name, link)
 }
 
 // handleSyncFailure はGoogle Calendar API呼び出し失敗時の共通処理。

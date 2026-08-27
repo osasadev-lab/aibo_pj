@@ -84,9 +84,25 @@ type UserEdges struct {
 	PushSubscriptions []*PushSubscription `json:"push_subscriptions,omitempty"`
 	// ReminderSends holds the value of the reminder_sends edge.
 	ReminderSends []*ReminderSend `json:"reminder_sends,omitempty"`
+	// TaskPins holds the value of the task_pins edge.
+	TaskPins []*TaskPin `json:"task_pins,omitempty"`
+	// Feedbacks holds the value of the feedbacks edge.
+	Feedbacks []*Feedback `json:"feedbacks,omitempty"`
+	// CreatedDmChannels holds the value of the created_dm_channels edge.
+	CreatedDmChannels []*DMChannel `json:"created_dm_channels,omitempty"`
+	// DmChannelMembers holds the value of the dm_channel_members edge.
+	DmChannelMembers []*DMChannelMember `json:"dm_channel_members,omitempty"`
+	// DmMessages holds the value of the dm_messages edge.
+	DmMessages []*DMMessage `json:"dm_messages,omitempty"`
+	// DmAttachments holds the value of the dm_attachments edge.
+	DmAttachments []*DMAttachment `json:"dm_attachments,omitempty"`
+	// TaskMemos holds the value of the task_memos edge.
+	TaskMemos []*TaskMemo `json:"task_memos,omitempty"`
+	// TaskMemoAttachments holds the value of the task_memo_attachments edge.
+	TaskMemoAttachments []*TaskMemoAttachment `json:"task_memo_attachments,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [15]bool
+	loadedTypes [23]bool
 }
 
 // WorkspaceMembersOrErr returns the WorkspaceMembers value or an error if the edge
@@ -222,6 +238,78 @@ func (e UserEdges) ReminderSendsOrErr() ([]*ReminderSend, error) {
 		return e.ReminderSends, nil
 	}
 	return nil, &NotLoadedError{edge: "reminder_sends"}
+}
+
+// TaskPinsOrErr returns the TaskPins value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) TaskPinsOrErr() ([]*TaskPin, error) {
+	if e.loadedTypes[15] {
+		return e.TaskPins, nil
+	}
+	return nil, &NotLoadedError{edge: "task_pins"}
+}
+
+// FeedbacksOrErr returns the Feedbacks value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) FeedbacksOrErr() ([]*Feedback, error) {
+	if e.loadedTypes[16] {
+		return e.Feedbacks, nil
+	}
+	return nil, &NotLoadedError{edge: "feedbacks"}
+}
+
+// CreatedDmChannelsOrErr returns the CreatedDmChannels value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) CreatedDmChannelsOrErr() ([]*DMChannel, error) {
+	if e.loadedTypes[17] {
+		return e.CreatedDmChannels, nil
+	}
+	return nil, &NotLoadedError{edge: "created_dm_channels"}
+}
+
+// DmChannelMembersOrErr returns the DmChannelMembers value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) DmChannelMembersOrErr() ([]*DMChannelMember, error) {
+	if e.loadedTypes[18] {
+		return e.DmChannelMembers, nil
+	}
+	return nil, &NotLoadedError{edge: "dm_channel_members"}
+}
+
+// DmMessagesOrErr returns the DmMessages value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) DmMessagesOrErr() ([]*DMMessage, error) {
+	if e.loadedTypes[19] {
+		return e.DmMessages, nil
+	}
+	return nil, &NotLoadedError{edge: "dm_messages"}
+}
+
+// DmAttachmentsOrErr returns the DmAttachments value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) DmAttachmentsOrErr() ([]*DMAttachment, error) {
+	if e.loadedTypes[20] {
+		return e.DmAttachments, nil
+	}
+	return nil, &NotLoadedError{edge: "dm_attachments"}
+}
+
+// TaskMemosOrErr returns the TaskMemos value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) TaskMemosOrErr() ([]*TaskMemo, error) {
+	if e.loadedTypes[21] {
+		return e.TaskMemos, nil
+	}
+	return nil, &NotLoadedError{edge: "task_memos"}
+}
+
+// TaskMemoAttachmentsOrErr returns the TaskMemoAttachments value or an error if the edge
+// was not loaded in eager-loading.
+func (e UserEdges) TaskMemoAttachmentsOrErr() ([]*TaskMemoAttachment, error) {
+	if e.loadedTypes[22] {
+		return e.TaskMemoAttachments, nil
+	}
+	return nil, &NotLoadedError{edge: "task_memo_attachments"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -433,6 +521,46 @@ func (_m *User) QueryPushSubscriptions() *PushSubscriptionQuery {
 // QueryReminderSends queries the "reminder_sends" edge of the User entity.
 func (_m *User) QueryReminderSends() *ReminderSendQuery {
 	return NewUserClient(_m.config).QueryReminderSends(_m)
+}
+
+// QueryTaskPins queries the "task_pins" edge of the User entity.
+func (_m *User) QueryTaskPins() *TaskPinQuery {
+	return NewUserClient(_m.config).QueryTaskPins(_m)
+}
+
+// QueryFeedbacks queries the "feedbacks" edge of the User entity.
+func (_m *User) QueryFeedbacks() *FeedbackQuery {
+	return NewUserClient(_m.config).QueryFeedbacks(_m)
+}
+
+// QueryCreatedDmChannels queries the "created_dm_channels" edge of the User entity.
+func (_m *User) QueryCreatedDmChannels() *DMChannelQuery {
+	return NewUserClient(_m.config).QueryCreatedDmChannels(_m)
+}
+
+// QueryDmChannelMembers queries the "dm_channel_members" edge of the User entity.
+func (_m *User) QueryDmChannelMembers() *DMChannelMemberQuery {
+	return NewUserClient(_m.config).QueryDmChannelMembers(_m)
+}
+
+// QueryDmMessages queries the "dm_messages" edge of the User entity.
+func (_m *User) QueryDmMessages() *DMMessageQuery {
+	return NewUserClient(_m.config).QueryDmMessages(_m)
+}
+
+// QueryDmAttachments queries the "dm_attachments" edge of the User entity.
+func (_m *User) QueryDmAttachments() *DMAttachmentQuery {
+	return NewUserClient(_m.config).QueryDmAttachments(_m)
+}
+
+// QueryTaskMemos queries the "task_memos" edge of the User entity.
+func (_m *User) QueryTaskMemos() *TaskMemoQuery {
+	return NewUserClient(_m.config).QueryTaskMemos(_m)
+}
+
+// QueryTaskMemoAttachments queries the "task_memo_attachments" edge of the User entity.
+func (_m *User) QueryTaskMemoAttachments() *TaskMemoAttachmentQuery {
+	return NewUserClient(_m.config).QueryTaskMemoAttachments(_m)
 }
 
 // Update returns a builder for updating this User.

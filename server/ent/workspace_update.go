@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
 	"github.com/osasadev-lab/aibo_pj/server/ent/predicate"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
@@ -145,6 +146,21 @@ func (_u *WorkspaceUpdate) AddInvitations(v ...*WorkspaceInvitation) *WorkspaceU
 	return _u.AddInvitationIDs(ids...)
 }
 
+// AddDmChannelIDs adds the "dm_channels" edge to the DMChannel entity by IDs.
+func (_u *WorkspaceUpdate) AddDmChannelIDs(ids ...uuid.UUID) *WorkspaceUpdate {
+	_u.mutation.AddDmChannelIDs(ids...)
+	return _u
+}
+
+// AddDmChannels adds the "dm_channels" edges to the DMChannel entity.
+func (_u *WorkspaceUpdate) AddDmChannels(v ...*DMChannel) *WorkspaceUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddDmChannelIDs(ids...)
+}
+
 // Mutation returns the WorkspaceMutation object of the builder.
 func (_u *WorkspaceUpdate) Mutation() *WorkspaceMutation {
 	return _u.mutation
@@ -274,6 +290,27 @@ func (_u *WorkspaceUpdate) RemoveInvitations(v ...*WorkspaceInvitation) *Workspa
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveInvitationIDs(ids...)
+}
+
+// ClearDmChannels clears all "dm_channels" edges to the DMChannel entity.
+func (_u *WorkspaceUpdate) ClearDmChannels() *WorkspaceUpdate {
+	_u.mutation.ClearDmChannels()
+	return _u
+}
+
+// RemoveDmChannelIDs removes the "dm_channels" edge to DMChannel entities by IDs.
+func (_u *WorkspaceUpdate) RemoveDmChannelIDs(ids ...uuid.UUID) *WorkspaceUpdate {
+	_u.mutation.RemoveDmChannelIDs(ids...)
+	return _u
+}
+
+// RemoveDmChannels removes "dm_channels" edges to DMChannel entities.
+func (_u *WorkspaceUpdate) RemoveDmChannels(v ...*DMChannel) *WorkspaceUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveDmChannelIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -610,6 +647,51 @@ func (_u *WorkspaceUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.DmChannelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.DmChannelsTable,
+			Columns: []string{workspace.DmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedDmChannelsIDs(); len(nodes) > 0 && !_u.mutation.DmChannelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.DmChannelsTable,
+			Columns: []string{workspace.DmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DmChannelsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.DmChannelsTable,
+			Columns: []string{workspace.DmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{workspace.Label}
@@ -738,6 +820,21 @@ func (_u *WorkspaceUpdateOne) AddInvitations(v ...*WorkspaceInvitation) *Workspa
 		ids[i] = v[i].ID
 	}
 	return _u.AddInvitationIDs(ids...)
+}
+
+// AddDmChannelIDs adds the "dm_channels" edge to the DMChannel entity by IDs.
+func (_u *WorkspaceUpdateOne) AddDmChannelIDs(ids ...uuid.UUID) *WorkspaceUpdateOne {
+	_u.mutation.AddDmChannelIDs(ids...)
+	return _u
+}
+
+// AddDmChannels adds the "dm_channels" edges to the DMChannel entity.
+func (_u *WorkspaceUpdateOne) AddDmChannels(v ...*DMChannel) *WorkspaceUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddDmChannelIDs(ids...)
 }
 
 // Mutation returns the WorkspaceMutation object of the builder.
@@ -869,6 +966,27 @@ func (_u *WorkspaceUpdateOne) RemoveInvitations(v ...*WorkspaceInvitation) *Work
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveInvitationIDs(ids...)
+}
+
+// ClearDmChannels clears all "dm_channels" edges to the DMChannel entity.
+func (_u *WorkspaceUpdateOne) ClearDmChannels() *WorkspaceUpdateOne {
+	_u.mutation.ClearDmChannels()
+	return _u
+}
+
+// RemoveDmChannelIDs removes the "dm_channels" edge to DMChannel entities by IDs.
+func (_u *WorkspaceUpdateOne) RemoveDmChannelIDs(ids ...uuid.UUID) *WorkspaceUpdateOne {
+	_u.mutation.RemoveDmChannelIDs(ids...)
+	return _u
+}
+
+// RemoveDmChannels removes "dm_channels" edges to DMChannel entities.
+func (_u *WorkspaceUpdateOne) RemoveDmChannels(v ...*DMChannel) *WorkspaceUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveDmChannelIDs(ids...)
 }
 
 // Where appends a list predicates to the WorkspaceUpdate builder.
@@ -1228,6 +1346,51 @@ func (_u *WorkspaceUpdateOne) sqlSave(ctx context.Context) (_node *Workspace, er
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.DmChannelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.DmChannelsTable,
+			Columns: []string{workspace.DmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedDmChannelsIDs(); len(nodes) > 0 && !_u.mutation.DmChannelsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.DmChannelsTable,
+			Columns: []string{workspace.DmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.DmChannelsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.DmChannelsTable,
+			Columns: []string{workspace.DmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

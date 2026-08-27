@@ -46,7 +46,7 @@ func (h *CalendarHandler) GetCalendar(c *gin.Context) {
 		}
 		monthStart = t
 	}
-	rangeStart := time.Date(monthStart.Year(), monthStart.Month(), 1, 0, 0, 0, 0, time.UTC)
+	rangeStart := time.Date(monthStart.Year(), monthStart.Month(), 1, 0, 0, 0, 0, jst)
 	rangeEnd := rangeStart.AddDate(0, 1, 0)
 
 	watchedIDs, err := h.client.CalendarWatchedMember.Query().
@@ -68,9 +68,13 @@ func (h *CalendarHandler) GetCalendar(c *gin.Context) {
 	tasks, err := h.client.Task.Query().
 		Where(
 			task.WorkspaceIDEQ(m.WorkspaceID),
-			task.DueDateNotNil(),
-			task.DueDateGTE(rangeStart),
-			task.DueDateLT(rangeEnd),
+			// 期限（due_date）があればそちらを優先してその月に属するかを判定し、
+			// 期限が無く開始日時（start_date）のみのタスクは開始日時で判定する
+			// （2026-08-27、「日次範囲が片方だけでも表示してほしい」との要望）。
+			task.Or(
+				task.And(task.DueDateNotNil(), task.DueDateGTE(rangeStart), task.DueDateLT(rangeEnd)),
+				task.And(task.DueDateIsNil(), task.StartDateNotNil(), task.StartDateGTE(rangeStart), task.StartDateLT(rangeEnd)),
+			),
 			task.HasAssigneesWith(taskassignee.UserIDIn(targetUserIDs...)),
 			task.Or(
 				task.ProjectIDIsNil(),

@@ -52,7 +52,7 @@ func (h *CronHandler) Reminders(c *gin.Context) {
 
 	now := time.Now().In(jst)
 	currentSlot := fmt.Sprintf("%02d:%02d", now.Hour(), (now.Minute()/15)*15)
-	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, jst)
 
 	users, err := h.client.User.Query().
 		Where(user.Or(
@@ -106,7 +106,9 @@ func (h *CronHandler) processReminder(ctx context.Context, u *ent.User, remType 
 		task.StatusNEQ(task.StatusDone),
 	)
 	if remType == remindersend.TypeDueToday {
-		query = query.Where(task.DueDateEQ(today))
+		// due_dateが時刻を持つようになったため、当日中（今日0時〜翌日0時未満）を
+		// 範囲で判定する（等価比較のままだと午前0時ちょうど以外一致しなくなる）。
+		query = query.Where(task.DueDateGTE(today), task.DueDateLT(today.AddDate(0, 0, 1)))
 	} else {
 		query = query.Where(task.DueDateLT(today))
 	}

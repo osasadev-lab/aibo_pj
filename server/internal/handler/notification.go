@@ -36,28 +36,62 @@ func notificationJSON(n *ent.Notification) gin.H {
 	}
 }
 
+const notificationDefaultLimit = 20
+const notificationMaxLimit = 100
+
 // List は GET /notifications。?unread=true で未読のみ。
+// ページネーション（2026-08-27追加）：`limit`（既定20、最大100）・`before`
+// （通知ID、これより古いものを返す）。レスポンスは`{items, has_more}`。
+// 常に作成日時の降順（最新が先頭）で返すため、フロント側は「もっと見る」で
+// 末尾の通知IDを`before`に渡せば続きを取得できる。
 func (h *NotificationHandler) List(c *gin.Context) {
 	u := middleware.CurrentUser(c)
+	ctx := c.Request.Context()
+
+	limit := parseLimit(c.Query("limit"), notificationDefaultLimit, notificationMaxLimit)
 
 	query := h.client.Notification.Query().
 		Where(notification.UserIDEQ(u.ID)).
-		Order(notification.ByCreatedAt(sql.OrderDesc()))
+		Order(notification.ByCreatedAt(sql.OrderDesc()), notification.ByID(sql.OrderDesc()))
 	if c.Query("unread") == "true" {
 		query = query.Where(notification.ReadAtIsNil())
 	}
+	if before := c.Query("before"); before != "" {
+		beforeID, err := uuid.Parse(before)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid before"})
+			return
+		}
+		cursor, err := h.client.Notification.Query().
+			Where(notification.IDEQ(beforeID), notification.UserIDEQ(u.ID)).
+			Only(ctx)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid before"})
+			return
+		}
+		query = query.Where(notification.Or(
+			notification.CreatedAtLT(cursor.CreatedAt),
+			notification.And(notification.CreatedAtEQ(cursor.CreatedAt), notification.IDLT(cursor.ID)),
+		))
+	}
 
-	notifications, err := query.All(c.Request.Context())
+	// limit+1件取得し、実際にlimitを超えていれば「まだ続きがある」と判定する
+	// （COUNTクエリを別途発行せずに済む定番の手法）。
+	notifications, err := query.Limit(limit + 1).All(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list notifications"})
 		return
+	}
+	hasMore := len(notifications) > limit
+	if hasMore {
+		notifications = notifications[:limit]
 	}
 
 	out := make([]gin.H, 0, len(notifications))
 	for _, n := range notifications {
 		out = append(out, notificationJSON(n))
 	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, gin.H{"items": out, "has_more": hasMore})
 }
 
 // MarkRead は PATCH /notifications/:notification_id/read。本人の通知のみ既読化できる。

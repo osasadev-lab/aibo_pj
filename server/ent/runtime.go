@@ -11,6 +11,11 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/calendarwatchedmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmattachment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
+	"github.com/osasadev-lab/aibo_pj/server/ent/feedback"
 	"github.com/osasadev-lab/aibo_pj/server/ent/notification"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
@@ -24,7 +29,10 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemoattachment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -151,6 +159,121 @@ func init() {
 	commentmentionDescID := commentmentionMixinFields0[0].Descriptor()
 	// commentmention.DefaultID holds the default value on creation for the id field.
 	commentmention.DefaultID = commentmentionDescID.Default.(func() uuid.UUID)
+	dmattachmentMixin := schema.DMAttachment{}.Mixin()
+	dmattachmentMixinFields0 := dmattachmentMixin[0].Fields()
+	_ = dmattachmentMixinFields0
+	dmattachmentFields := schema.DMAttachment{}.Fields()
+	_ = dmattachmentFields
+	// dmattachmentDescCreatedAt is the schema descriptor for created_at field.
+	dmattachmentDescCreatedAt := dmattachmentMixinFields0[1].Descriptor()
+	// dmattachment.DefaultCreatedAt holds the default value on creation for the created_at field.
+	dmattachment.DefaultCreatedAt = dmattachmentDescCreatedAt.Default.(func() time.Time)
+	// dmattachmentDescUpdatedAt is the schema descriptor for updated_at field.
+	dmattachmentDescUpdatedAt := dmattachmentMixinFields0[2].Descriptor()
+	// dmattachment.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	dmattachment.DefaultUpdatedAt = dmattachmentDescUpdatedAt.Default.(func() time.Time)
+	// dmattachment.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	dmattachment.UpdateDefaultUpdatedAt = dmattachmentDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// dmattachmentDescFileName is the schema descriptor for file_name field.
+	dmattachmentDescFileName := dmattachmentFields[2].Descriptor()
+	// dmattachment.FileNameValidator is a validator for the "file_name" field. It is called by the builders before save.
+	dmattachment.FileNameValidator = dmattachmentDescFileName.Validators[0].(func(string) error)
+	// dmattachmentDescStorageKey is the schema descriptor for storage_key field.
+	dmattachmentDescStorageKey := dmattachmentFields[3].Descriptor()
+	// dmattachment.StorageKeyValidator is a validator for the "storage_key" field. It is called by the builders before save.
+	dmattachment.StorageKeyValidator = dmattachmentDescStorageKey.Validators[0].(func(string) error)
+	// dmattachmentDescContentType is the schema descriptor for content_type field.
+	dmattachmentDescContentType := dmattachmentFields[5].Descriptor()
+	// dmattachment.ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
+	dmattachment.ContentTypeValidator = dmattachmentDescContentType.Validators[0].(func(string) error)
+	// dmattachmentDescID is the schema descriptor for id field.
+	dmattachmentDescID := dmattachmentMixinFields0[0].Descriptor()
+	// dmattachment.DefaultID holds the default value on creation for the id field.
+	dmattachment.DefaultID = dmattachmentDescID.Default.(func() uuid.UUID)
+	dmchannelMixin := schema.DMChannel{}.Mixin()
+	dmchannelMixinFields0 := dmchannelMixin[0].Fields()
+	_ = dmchannelMixinFields0
+	dmchannelFields := schema.DMChannel{}.Fields()
+	_ = dmchannelFields
+	// dmchannelDescCreatedAt is the schema descriptor for created_at field.
+	dmchannelDescCreatedAt := dmchannelMixinFields0[1].Descriptor()
+	// dmchannel.DefaultCreatedAt holds the default value on creation for the created_at field.
+	dmchannel.DefaultCreatedAt = dmchannelDescCreatedAt.Default.(func() time.Time)
+	// dmchannelDescUpdatedAt is the schema descriptor for updated_at field.
+	dmchannelDescUpdatedAt := dmchannelMixinFields0[2].Descriptor()
+	// dmchannel.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	dmchannel.DefaultUpdatedAt = dmchannelDescUpdatedAt.Default.(func() time.Time)
+	// dmchannel.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	dmchannel.UpdateDefaultUpdatedAt = dmchannelDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// dmchannelDescIsGroup is the schema descriptor for is_group field.
+	dmchannelDescIsGroup := dmchannelFields[1].Descriptor()
+	// dmchannel.DefaultIsGroup holds the default value on creation for the is_group field.
+	dmchannel.DefaultIsGroup = dmchannelDescIsGroup.Default.(bool)
+	// dmchannelDescID is the schema descriptor for id field.
+	dmchannelDescID := dmchannelMixinFields0[0].Descriptor()
+	// dmchannel.DefaultID holds the default value on creation for the id field.
+	dmchannel.DefaultID = dmchannelDescID.Default.(func() uuid.UUID)
+	dmchannelmemberMixin := schema.DMChannelMember{}.Mixin()
+	dmchannelmemberMixinFields0 := dmchannelmemberMixin[0].Fields()
+	_ = dmchannelmemberMixinFields0
+	dmchannelmemberFields := schema.DMChannelMember{}.Fields()
+	_ = dmchannelmemberFields
+	// dmchannelmemberDescCreatedAt is the schema descriptor for created_at field.
+	dmchannelmemberDescCreatedAt := dmchannelmemberMixinFields0[1].Descriptor()
+	// dmchannelmember.DefaultCreatedAt holds the default value on creation for the created_at field.
+	dmchannelmember.DefaultCreatedAt = dmchannelmemberDescCreatedAt.Default.(func() time.Time)
+	// dmchannelmemberDescUpdatedAt is the schema descriptor for updated_at field.
+	dmchannelmemberDescUpdatedAt := dmchannelmemberMixinFields0[2].Descriptor()
+	// dmchannelmember.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	dmchannelmember.DefaultUpdatedAt = dmchannelmemberDescUpdatedAt.Default.(func() time.Time)
+	// dmchannelmember.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	dmchannelmember.UpdateDefaultUpdatedAt = dmchannelmemberDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// dmchannelmemberDescID is the schema descriptor for id field.
+	dmchannelmemberDescID := dmchannelmemberMixinFields0[0].Descriptor()
+	// dmchannelmember.DefaultID holds the default value on creation for the id field.
+	dmchannelmember.DefaultID = dmchannelmemberDescID.Default.(func() uuid.UUID)
+	dmmessageMixin := schema.DMMessage{}.Mixin()
+	dmmessageMixinFields0 := dmmessageMixin[0].Fields()
+	_ = dmmessageMixinFields0
+	dmmessageFields := schema.DMMessage{}.Fields()
+	_ = dmmessageFields
+	// dmmessageDescCreatedAt is the schema descriptor for created_at field.
+	dmmessageDescCreatedAt := dmmessageMixinFields0[1].Descriptor()
+	// dmmessage.DefaultCreatedAt holds the default value on creation for the created_at field.
+	dmmessage.DefaultCreatedAt = dmmessageDescCreatedAt.Default.(func() time.Time)
+	// dmmessageDescUpdatedAt is the schema descriptor for updated_at field.
+	dmmessageDescUpdatedAt := dmmessageMixinFields0[2].Descriptor()
+	// dmmessage.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	dmmessage.DefaultUpdatedAt = dmmessageDescUpdatedAt.Default.(func() time.Time)
+	// dmmessage.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	dmmessage.UpdateDefaultUpdatedAt = dmmessageDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// dmmessageDescID is the schema descriptor for id field.
+	dmmessageDescID := dmmessageMixinFields0[0].Descriptor()
+	// dmmessage.DefaultID holds the default value on creation for the id field.
+	dmmessage.DefaultID = dmmessageDescID.Default.(func() uuid.UUID)
+	feedbackMixin := schema.Feedback{}.Mixin()
+	feedbackMixinFields0 := feedbackMixin[0].Fields()
+	_ = feedbackMixinFields0
+	feedbackFields := schema.Feedback{}.Fields()
+	_ = feedbackFields
+	// feedbackDescCreatedAt is the schema descriptor for created_at field.
+	feedbackDescCreatedAt := feedbackMixinFields0[1].Descriptor()
+	// feedback.DefaultCreatedAt holds the default value on creation for the created_at field.
+	feedback.DefaultCreatedAt = feedbackDescCreatedAt.Default.(func() time.Time)
+	// feedbackDescUpdatedAt is the schema descriptor for updated_at field.
+	feedbackDescUpdatedAt := feedbackMixinFields0[2].Descriptor()
+	// feedback.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	feedback.DefaultUpdatedAt = feedbackDescUpdatedAt.Default.(func() time.Time)
+	// feedback.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	feedback.UpdateDefaultUpdatedAt = feedbackDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// feedbackDescBody is the schema descriptor for body field.
+	feedbackDescBody := feedbackFields[2].Descriptor()
+	// feedback.BodyValidator is a validator for the "body" field. It is called by the builders before save.
+	feedback.BodyValidator = feedbackDescBody.Validators[0].(func(string) error)
+	// feedbackDescID is the schema descriptor for id field.
+	feedbackDescID := feedbackMixinFields0[0].Descriptor()
+	// feedback.DefaultID holds the default value on creation for the id field.
+	feedback.DefaultID = feedbackDescID.Default.(func() uuid.UUID)
 	notificationMixin := schema.Notification{}.Mixin()
 	notificationMixinFields0 := notificationMixin[0].Fields()
 	_ = notificationMixinFields0
@@ -431,6 +554,56 @@ func init() {
 	taskdependencyDescID := taskdependencyMixinFields0[0].Descriptor()
 	// taskdependency.DefaultID holds the default value on creation for the id field.
 	taskdependency.DefaultID = taskdependencyDescID.Default.(func() uuid.UUID)
+	taskmemoMixin := schema.TaskMemo{}.Mixin()
+	taskmemoMixinFields0 := taskmemoMixin[0].Fields()
+	_ = taskmemoMixinFields0
+	taskmemoFields := schema.TaskMemo{}.Fields()
+	_ = taskmemoFields
+	// taskmemoDescCreatedAt is the schema descriptor for created_at field.
+	taskmemoDescCreatedAt := taskmemoMixinFields0[1].Descriptor()
+	// taskmemo.DefaultCreatedAt holds the default value on creation for the created_at field.
+	taskmemo.DefaultCreatedAt = taskmemoDescCreatedAt.Default.(func() time.Time)
+	// taskmemoDescUpdatedAt is the schema descriptor for updated_at field.
+	taskmemoDescUpdatedAt := taskmemoMixinFields0[2].Descriptor()
+	// taskmemo.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	taskmemo.DefaultUpdatedAt = taskmemoDescUpdatedAt.Default.(func() time.Time)
+	// taskmemo.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	taskmemo.UpdateDefaultUpdatedAt = taskmemoDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// taskmemoDescID is the schema descriptor for id field.
+	taskmemoDescID := taskmemoMixinFields0[0].Descriptor()
+	// taskmemo.DefaultID holds the default value on creation for the id field.
+	taskmemo.DefaultID = taskmemoDescID.Default.(func() uuid.UUID)
+	taskmemoattachmentMixin := schema.TaskMemoAttachment{}.Mixin()
+	taskmemoattachmentMixinFields0 := taskmemoattachmentMixin[0].Fields()
+	_ = taskmemoattachmentMixinFields0
+	taskmemoattachmentFields := schema.TaskMemoAttachment{}.Fields()
+	_ = taskmemoattachmentFields
+	// taskmemoattachmentDescCreatedAt is the schema descriptor for created_at field.
+	taskmemoattachmentDescCreatedAt := taskmemoattachmentMixinFields0[1].Descriptor()
+	// taskmemoattachment.DefaultCreatedAt holds the default value on creation for the created_at field.
+	taskmemoattachment.DefaultCreatedAt = taskmemoattachmentDescCreatedAt.Default.(func() time.Time)
+	// taskmemoattachmentDescUpdatedAt is the schema descriptor for updated_at field.
+	taskmemoattachmentDescUpdatedAt := taskmemoattachmentMixinFields0[2].Descriptor()
+	// taskmemoattachment.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	taskmemoattachment.DefaultUpdatedAt = taskmemoattachmentDescUpdatedAt.Default.(func() time.Time)
+	// taskmemoattachment.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	taskmemoattachment.UpdateDefaultUpdatedAt = taskmemoattachmentDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// taskmemoattachmentDescFileName is the schema descriptor for file_name field.
+	taskmemoattachmentDescFileName := taskmemoattachmentFields[2].Descriptor()
+	// taskmemoattachment.FileNameValidator is a validator for the "file_name" field. It is called by the builders before save.
+	taskmemoattachment.FileNameValidator = taskmemoattachmentDescFileName.Validators[0].(func(string) error)
+	// taskmemoattachmentDescStorageKey is the schema descriptor for storage_key field.
+	taskmemoattachmentDescStorageKey := taskmemoattachmentFields[3].Descriptor()
+	// taskmemoattachment.StorageKeyValidator is a validator for the "storage_key" field. It is called by the builders before save.
+	taskmemoattachment.StorageKeyValidator = taskmemoattachmentDescStorageKey.Validators[0].(func(string) error)
+	// taskmemoattachmentDescContentType is the schema descriptor for content_type field.
+	taskmemoattachmentDescContentType := taskmemoattachmentFields[5].Descriptor()
+	// taskmemoattachment.ContentTypeValidator is a validator for the "content_type" field. It is called by the builders before save.
+	taskmemoattachment.ContentTypeValidator = taskmemoattachmentDescContentType.Validators[0].(func(string) error)
+	// taskmemoattachmentDescID is the schema descriptor for id field.
+	taskmemoattachmentDescID := taskmemoattachmentMixinFields0[0].Descriptor()
+	// taskmemoattachment.DefaultID holds the default value on creation for the id field.
+	taskmemoattachment.DefaultID = taskmemoattachmentDescID.Default.(func() uuid.UUID)
 	taskmentionMixin := schema.TaskMention{}.Mixin()
 	taskmentionMixinFields0 := taskmentionMixin[0].Fields()
 	_ = taskmentionMixinFields0
@@ -450,6 +623,25 @@ func init() {
 	taskmentionDescID := taskmentionMixinFields0[0].Descriptor()
 	// taskmention.DefaultID holds the default value on creation for the id field.
 	taskmention.DefaultID = taskmentionDescID.Default.(func() uuid.UUID)
+	taskpinMixin := schema.TaskPin{}.Mixin()
+	taskpinMixinFields0 := taskpinMixin[0].Fields()
+	_ = taskpinMixinFields0
+	taskpinFields := schema.TaskPin{}.Fields()
+	_ = taskpinFields
+	// taskpinDescCreatedAt is the schema descriptor for created_at field.
+	taskpinDescCreatedAt := taskpinMixinFields0[1].Descriptor()
+	// taskpin.DefaultCreatedAt holds the default value on creation for the created_at field.
+	taskpin.DefaultCreatedAt = taskpinDescCreatedAt.Default.(func() time.Time)
+	// taskpinDescUpdatedAt is the schema descriptor for updated_at field.
+	taskpinDescUpdatedAt := taskpinMixinFields0[2].Descriptor()
+	// taskpin.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	taskpin.DefaultUpdatedAt = taskpinDescUpdatedAt.Default.(func() time.Time)
+	// taskpin.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	taskpin.UpdateDefaultUpdatedAt = taskpinDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// taskpinDescID is the schema descriptor for id field.
+	taskpinDescID := taskpinMixinFields0[0].Descriptor()
+	// taskpin.DefaultID holds the default value on creation for the id field.
+	taskpin.DefaultID = taskpinDescID.Default.(func() uuid.UUID)
 	tasktagMixin := schema.TaskTag{}.Mixin()
 	tasktagMixinFields0 := tasktagMixin[0].Fields()
 	_ = tasktagMixinFields0

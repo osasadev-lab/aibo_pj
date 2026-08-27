@@ -35,8 +35,6 @@ var highlightActionTypes = []string{
 	"task.status_changed",
 }
 
-const activityListLimit = 100
-
 // ハイライト（activity_logs）の保持期間。ユーザー確認済み（データ容量懸念への対応、
 // 2026-08-20）：ハイライト表示は通常「今日」寄りだが直近30日分は遡って見られるように
 // する。この期間を過ぎた行は物理削除する（対象はaction_typeを問わず全行。将来の
@@ -58,57 +56,126 @@ func (h *ActivityHandler) pruneOldLogs(ctx context.Context, workspaceID uuid.UUI
 		Exec(ctx)
 }
 
+const activityDefaultLimit = 30
+const activityMaxLimit = 100
+
+// activityFetchBatchSizeはDBから一度に取得する行数。可視性フィルタ（private
+// projectの非参画メンバー除外）は行取得後にアプリ層で行うため、limit件ぴったり
+// フェッチすると可視な行がlimit未満しか集まらないことがある。フィルタで
+// 弾かれる分を見込んで多めに取得する。
+const activityFetchBatchSize = 100
+
+// activityMaxIterationsは上記バッチ取得を最大何回まで繰り返すか。privateな
+// プロジェクトの操作が大半を占めるワークスペースでも高々この回数で打ち切り、
+// 無限ループやDBへの過剰な往復を避ける安全弁。
+const activityMaxIterations = 5
+
 // List は GET /workspaces/:workspace_id/activity。クエリ`actor_id`任意で絞り込み。
 // 行ごとに可視性を判定する（private projectの操作は非参画メンバーには見せない）。
+// ページネーション（2026-08-27追加）：`limit`（既定30、最大100）・`before`
+// （activity_log ID、これより古いものを返す）。レスポンスは`{items, has_more}`。
 func (h *ActivityHandler) List(c *gin.Context) {
 	m := middleware.CurrentMembership(c)
 	ctx := c.Request.Context()
 
 	h.pruneOldLogs(ctx, m.WorkspaceID)
 
-	query := h.client.ActivityLog.Query().
-		Where(
-			activitylog.WorkspaceIDEQ(m.WorkspaceID),
-			activitylog.ActionTypeIn(highlightActionTypes...),
-		).
-		Order(activitylog.ByCreatedAt(sql.OrderDesc())).
-		Limit(activityListLimit)
+	limit := parseLimit(c.Query("limit"), activityDefaultLimit, activityMaxLimit)
 
+	var actorFilter *uuid.UUID
 	if v := c.Query("actor_id"); v != "" {
 		id, err := uuid.Parse(v)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid actor_id"})
 			return
 		}
-		query = query.Where(activitylog.ActorIDEQ(id))
+		actorFilter = &id
 	}
 
-	logs, err := query.
-		WithActor().
-		WithProject().
-		WithTask().
-		All(ctx)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list activity"})
-		return
-	}
-
-	// project_idごとの可視性判定結果をキャッシュし、同じプロジェクトへの
-	// 往復を1回に抑える。
-	visibilityCache := map[uuid.UUID]bool{}
-	out := make([]gin.H, 0, len(logs))
-	for _, l := range logs {
-		visible, err := h.isVisible(ctx, l, m.UserID, visibilityCache)
+	var cursorCreatedAt *time.Time
+	var cursorID *uuid.UUID
+	if before := c.Query("before"); before != "" {
+		id, err := uuid.Parse(before)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check visibility"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid before"})
 			return
 		}
-		if !visible {
-			continue
+		cursor, err := h.client.ActivityLog.Query().
+			Where(activitylog.IDEQ(id), activitylog.WorkspaceIDEQ(m.WorkspaceID)).
+			Only(ctx)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid before"})
+			return
 		}
+		cursorCreatedAt = &cursor.CreatedAt
+		cursorID = &cursor.ID
+	}
+
+	visibilityCache := map[uuid.UUID]bool{}
+	collected := make([]*ent.ActivityLog, 0, limit+1)
+
+	for iter := 0; iter < activityMaxIterations && len(collected) <= limit; iter++ {
+		q := h.client.ActivityLog.Query().
+			Where(
+				activitylog.WorkspaceIDEQ(m.WorkspaceID),
+				activitylog.ActionTypeIn(highlightActionTypes...),
+			).
+			Order(activitylog.ByCreatedAt(sql.OrderDesc()), activitylog.ByID(sql.OrderDesc())).
+			Limit(activityFetchBatchSize)
+		if actorFilter != nil {
+			q = q.Where(activitylog.ActorIDEQ(*actorFilter))
+		}
+		if cursorCreatedAt != nil {
+			q = q.Where(activitylog.Or(
+				activitylog.CreatedAtLT(*cursorCreatedAt),
+				activitylog.And(activitylog.CreatedAtEQ(*cursorCreatedAt), activitylog.IDLT(*cursorID)),
+			))
+		}
+
+		batch, err := q.WithActor().WithProject().WithTask().All(ctx)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list activity"})
+			return
+		}
+		if len(batch) == 0 {
+			break
+		}
+
+		for _, l := range batch {
+			visible, err := h.isVisible(ctx, l, m.UserID, visibilityCache)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to check visibility"})
+				return
+			}
+			if !visible {
+				continue
+			}
+			collected = append(collected, l)
+			if len(collected) > limit {
+				break
+			}
+		}
+
+		last := batch[len(batch)-1]
+		cursorCreatedAt = &last.CreatedAt
+		cursorID = &last.ID
+
+		if len(batch) < activityFetchBatchSize {
+			// DB側にもうこのworkspace分の行が残っていない。
+			break
+		}
+	}
+
+	hasMore := len(collected) > limit
+	if hasMore {
+		collected = collected[:limit]
+	}
+
+	out := make([]gin.H, 0, len(collected))
+	for _, l := range collected {
 		out = append(out, activityLogJSON(l))
 	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, gin.H{"items": out, "has_more": hasMore})
 }
 
 // isVisible は1行のactivity_logsを呼び出しユーザーが見てよいかを判定する。

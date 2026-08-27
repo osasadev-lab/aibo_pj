@@ -12,6 +12,7 @@ import MemberPicker from "@/components/MemberPicker";
 import SidePanel from "@/components/ui/SidePanel";
 import { Select } from "@/components/ui/fields";
 import { useProjects } from "@/lib/workspace/ProjectsContext";
+import { useRightPanel } from "@/lib/workspace/RightPanelContext";
 import type { MemberSummary, ProjectMemberSummary, Workspace } from "@/lib/types";
 
 export type CurrentProject = {
@@ -49,6 +50,9 @@ export function CurrentProjectProvider({
   const router = useRouter();
   const pathname = usePathname();
   const { refresh: refreshProjects } = useProjects();
+  // 右サイドパネルの開閉はRightPanelContextに一本化している（同時に複数の
+  // パネルが開いて重なって隠れる不具合の修正、2026-08-27）。
+  const { isOpen: isRightPanelOpen, open: openRightPanel, close: closeRightPanel } = useRightPanel();
 
   const projectId = useMemo(() => {
     const m = pathname.match(/^\/w\/[^/]+\/projects\/([^/?]+)/);
@@ -59,7 +63,6 @@ export function CurrentProjectProvider({
   const [project, setProject] = useState<CurrentProject | null>(null);
   const [projectMembers, setProjectMembers] = useState<ProjectMemberSummary[]>([]);
   const [workspaceMembers, setWorkspaceMembers] = useState<MemberSummary[]>([]);
-  const [editingMembers, setEditingMembers] = useState(false);
   const [memberIds, setMemberIds] = useState<string[]>([]);
   const [memberError, setMemberError] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -112,12 +115,14 @@ export function CurrentProjectProvider({
     reload();
   }, [reload]);
 
-  // プロジェクトを切り替えたら開きっぱなしのパネルは閉じる。
+  // プロジェクトを切り替えたら、このプロジェクトの参画メンバーパネルが開きっぱなしなら
+  // 閉じる（無関係な右パネル、例えば通知パネルが開いている場合はそのまま維持する）。
   useEffect(() => {
     Promise.resolve().then(() => {
-      setEditingMembers(false);
+      if (isRightPanelOpen("project-members")) closeRightPanel();
       setConfirmingDelete(false);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
   const isManager =
@@ -141,13 +146,13 @@ export function CurrentProjectProvider({
         .catch(() => setWorkspaceMembers([]));
     }
     setMemberError(null);
-    setEditingMembers(true);
-  }, [project, projectMembers, workspaceId]);
+    openRightPanel("project-members");
+  }, [project, projectMembers, workspaceId, openRightPanel]);
 
   const closeMembersPanel = useCallback(() => {
-    setEditingMembers(false);
+    closeRightPanel();
     setMemberError(null);
-  }, []);
+  }, [closeRightPanel]);
 
   async function handleSaveMembers() {
     if (!projectId) return;
@@ -156,7 +161,7 @@ export function CurrentProjectProvider({
         method: "PUT",
         body: JSON.stringify({ member_ids: memberIds }),
       });
-      setEditingMembers(false);
+      closeRightPanel();
       reload();
     } catch (err) {
       if (err instanceof ApiError && err.status === 400) {
@@ -234,7 +239,7 @@ export function CurrentProjectProvider({
     <CurrentProjectContext.Provider value={value}>
       {children}
 
-      {editingMembers && project && (
+      {isRightPanelOpen("project-members") && project && (
         <SidePanel
           title={project.visibility === "private" ? "参画メンバー" : "責任者の付与"}
           onClose={closeMembersPanel}

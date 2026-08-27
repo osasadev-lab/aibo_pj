@@ -41,6 +41,16 @@ type Config struct {
 	R2AccessKeyID     string
 	R2SecretAccessKey string
 	R2BucketName      string
+
+	// SMTP*はM8（フィードバック機能）用。GmailのSMTPリレー経由でosasadev@gmail.com宛に
+	// フィードバック内容を通知する。R2同様、未設定でもサーバー起動は妨げない
+	// （getEnvで空文字許容）。SMTPHostが空ならfeedbackmail.Asyncは何もせずスキップする
+	// （フィードバック自体のDB保存は引き続き成功する）。
+	SMTPHost            string
+	SMTPPort            string
+	SMTPUsername        string
+	SMTPPassword        string
+	FeedbackNotifyEmail string
 }
 
 // Load は環境変数からConfigを組み立てる。必須項目が欠けていればプロセスを終了する。
@@ -64,6 +74,11 @@ func Load() Config {
 		R2AccessKeyID:             getEnv("R2_ACCESS_KEY_ID", ""),
 		R2SecretAccessKey:         getEnv("R2_SECRET_ACCESS_KEY", ""),
 		R2BucketName:              getEnv("R2_BUCKET_NAME", ""),
+		SMTPHost:                  getEnv("SMTP_HOST", ""),
+		SMTPPort:                  getEnv("SMTP_PORT", "587"),
+		SMTPUsername:              getEnv("SMTP_USERNAME", ""),
+		SMTPPassword:              getEnv("SMTP_PASSWORD", ""),
+		FeedbackNotifyEmail:       getEnv("FEEDBACK_NOTIFY_EMAIL", ""),
 	}
 	return cfg
 }

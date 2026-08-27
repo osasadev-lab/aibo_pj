@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -213,6 +214,35 @@ func (h *AuthHandler) UpdateHoverSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"mode": updated.HoverHighlightMode})
 }
 
+type updateProfileRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// UpdateProfile は PATCH /me/profile。表示名の変更のみを扱う（M8追加）。
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+
+	var req updateProfileRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name is required"})
+		return
+	}
+
+	updated, err := h.client.User.UpdateOneID(u.ID).
+		SetName(name).
+		Save(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"name": updated.Name})
+}
+
 // SupabaseToken は GET /me/supabase-token。Supabase Realtimeのチャンネル認証用に、
 // このアプリのセッションJWTとは別の鍵（SUPABASE_JWT_SECRET）で署名した短命JWTを発行する。
 func (h *AuthHandler) SupabaseToken(c *gin.Context) {
@@ -391,7 +421,7 @@ func (h *AuthHandler) ManualCalendarSync(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "date is required"})
 		return
 	}
-	date, err := time.Parse(dateLayout, req.Date)
+	date, err := time.ParseInLocation(dateLayout, req.Date, jst)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date"})
 		return
@@ -401,8 +431,14 @@ func (h *AuthHandler) ManualCalendarSync(c *gin.Context) {
 		return
 	}
 
+	// due_dateが時刻を持つようになったため、指定日当日中（〜翌日0時未満）を範囲で
+	// 判定する（等価比較のままだと午前0時ちょうど以外一致しなくなる）。
 	tasks, err := h.client.Task.Query().
-		Where(task.DueDateEQ(date), task.HasAssigneesWith(taskassignee.UserIDEQ(u.ID))).
+		Where(
+			task.DueDateGTE(date),
+			task.DueDateLT(date.AddDate(0, 0, 1)),
+			task.HasAssigneesWith(taskassignee.UserIDEQ(u.ID)),
+		).
 		Limit(maxManualSyncTasks).
 		All(ctx)
 	if err != nil {

@@ -207,6 +207,158 @@ var (
 			},
 		},
 	}
+	// DmAttachmentsColumns holds the columns for the "dm_attachments" table.
+	DmAttachmentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "file_name", Type: field.TypeString},
+		{Name: "storage_key", Type: field.TypeString},
+		{Name: "size_bytes", Type: field.TypeInt64},
+		{Name: "content_type", Type: field.TypeString},
+		{Name: "dm_message_id", Type: field.TypeUUID},
+		{Name: "uploaded_by", Type: field.TypeUUID},
+	}
+	// DmAttachmentsTable holds the schema information for the "dm_attachments" table.
+	DmAttachmentsTable = &schema.Table{
+		Name:       "dm_attachments",
+		Columns:    DmAttachmentsColumns,
+		PrimaryKey: []*schema.Column{DmAttachmentsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "dm_attachments_dm_messages_message",
+				Columns:    []*schema.Column{DmAttachmentsColumns[7]},
+				RefColumns: []*schema.Column{DmMessagesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "dm_attachments_users_uploader",
+				Columns:    []*schema.Column{DmAttachmentsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
+	// DmChannelsColumns holds the columns for the "dm_channels" table.
+	DmChannelsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "is_group", Type: field.TypeBool, Default: false},
+		{Name: "name", Type: field.TypeString, Nullable: true},
+		{Name: "dm_key", Type: field.TypeString, Unique: true, Nullable: true},
+		{Name: "workspace_id", Type: field.TypeUUID},
+		{Name: "created_by", Type: field.TypeUUID},
+	}
+	// DmChannelsTable holds the schema information for the "dm_channels" table.
+	DmChannelsTable = &schema.Table{
+		Name:       "dm_channels",
+		Columns:    DmChannelsColumns,
+		PrimaryKey: []*schema.Column{DmChannelsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "dm_channels_workspaces_workspace",
+				Columns:    []*schema.Column{DmChannelsColumns[6]},
+				RefColumns: []*schema.Column{WorkspacesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "dm_channels_users_creator",
+				Columns:    []*schema.Column{DmChannelsColumns[7]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
+	// DmChannelMembersColumns holds the columns for the "dm_channel_members" table.
+	DmChannelMembersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "last_read_at", Type: field.TypeTime, Nullable: true},
+		{Name: "channel_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// DmChannelMembersTable holds the schema information for the "dm_channel_members" table.
+	DmChannelMembersTable = &schema.Table{
+		Name:       "dm_channel_members",
+		Columns:    DmChannelMembersColumns,
+		PrimaryKey: []*schema.Column{DmChannelMembersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "dm_channel_members_dm_channels_channel",
+				Columns:    []*schema.Column{DmChannelMembersColumns[4]},
+				RefColumns: []*schema.Column{DmChannelsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "dm_channel_members_users_user",
+				Columns:    []*schema.Column{DmChannelMembersColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "dmchannelmember_channel_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{DmChannelMembersColumns[4], DmChannelMembersColumns[5]},
+			},
+		},
+	}
+	// DmMessagesColumns holds the columns for the "dm_messages" table.
+	DmMessagesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "body", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "channel_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// DmMessagesTable holds the schema information for the "dm_messages" table.
+	DmMessagesTable = &schema.Table{
+		Name:       "dm_messages",
+		Columns:    DmMessagesColumns,
+		PrimaryKey: []*schema.Column{DmMessagesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "dm_messages_dm_channels_channel",
+				Columns:    []*schema.Column{DmMessagesColumns[4]},
+				RefColumns: []*schema.Column{DmChannelsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "dm_messages_users_user",
+				Columns:    []*schema.Column{DmMessagesColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
+	// FeedbacksColumns holds the columns for the "feedbacks" table.
+	FeedbacksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "workspace_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "body", Type: field.TypeString, Size: 2147483647},
+		{Name: "page_path", Type: field.TypeString, Nullable: true},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// FeedbacksTable holds the schema information for the "feedbacks" table.
+	FeedbacksTable = &schema.Table{
+		Name:       "feedbacks",
+		Columns:    FeedbacksColumns,
+		PrimaryKey: []*schema.Column{FeedbacksColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "feedbacks_users_user",
+				Columns:    []*schema.Column{FeedbacksColumns[6]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
 	// NotificationsColumns holds the columns for the "notifications" table.
 	NotificationsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID, Unique: true},
@@ -446,8 +598,9 @@ var (
 		{Name: "title", Type: field.TypeString},
 		{Name: "description", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "priority", Type: field.TypeEnum, Nullable: true, Enums: []string{"low", "medium", "high"}},
-		{Name: "start_date", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "date"}},
-		{Name: "due_date", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "date"}},
+		{Name: "start_date", Type: field.TypeTime, Nullable: true},
+		{Name: "due_date", Type: field.TypeTime, Nullable: true},
+		{Name: "position", Type: field.TypeInt, Nullable: true},
 		{Name: "workspace_id", Type: field.TypeUUID},
 		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "section_id", Type: field.TypeUUID, Nullable: true},
@@ -463,37 +616,37 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tasks_workspaces_workspace",
-				Columns:    []*schema.Column{TasksColumns[9]},
+				Columns:    []*schema.Column{TasksColumns[10]},
 				RefColumns: []*schema.Column{WorkspacesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "tasks_projects_project",
-				Columns:    []*schema.Column{TasksColumns[10]},
+				Columns:    []*schema.Column{TasksColumns[11]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_sections_section",
-				Columns:    []*schema.Column{TasksColumns[11]},
+				Columns:    []*schema.Column{TasksColumns[12]},
 				RefColumns: []*schema.Column{SectionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_project_status_columns_status_column",
-				Columns:    []*schema.Column{TasksColumns[12]},
+				Columns:    []*schema.Column{TasksColumns[13]},
 				RefColumns: []*schema.Column{ProjectStatusColumnsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_users_creator",
-				Columns:    []*schema.Column{TasksColumns[13]},
+				Columns:    []*schema.Column{TasksColumns[14]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "tasks_tasks_children",
-				Columns:    []*schema.Column{TasksColumns[14]},
+				Columns:    []*schema.Column{TasksColumns[15]},
 				RefColumns: []*schema.Column{TasksColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -502,17 +655,17 @@ var (
 			{
 				Name:    "task_project_id_status_column_id",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[10], TasksColumns[12]},
+				Columns: []*schema.Column{TasksColumns[11], TasksColumns[13]},
 			},
 			{
 				Name:    "task_project_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[10], TasksColumns[3]},
+				Columns: []*schema.Column{TasksColumns[11], TasksColumns[3]},
 			},
 			{
 				Name:    "task_parent_task_id",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[14]},
+				Columns: []*schema.Column{TasksColumns[15]},
 			},
 		},
 	}
@@ -623,6 +776,74 @@ var (
 			},
 		},
 	}
+	// TaskMemosColumns holds the columns for the "task_memos" table.
+	TaskMemosColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "body", Type: field.TypeString, Nullable: true, Size: 2147483647},
+		{Name: "task_id", Type: field.TypeUUID},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// TaskMemosTable holds the schema information for the "task_memos" table.
+	TaskMemosTable = &schema.Table{
+		Name:       "task_memos",
+		Columns:    TaskMemosColumns,
+		PrimaryKey: []*schema.Column{TaskMemosColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "task_memos_tasks_task",
+				Columns:    []*schema.Column{TaskMemosColumns[4]},
+				RefColumns: []*schema.Column{TasksColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "task_memos_users_user",
+				Columns:    []*schema.Column{TaskMemosColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "taskmemo_task_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{TaskMemosColumns[4], TaskMemosColumns[5]},
+			},
+		},
+	}
+	// TaskMemoAttachmentsColumns holds the columns for the "task_memo_attachments" table.
+	TaskMemoAttachmentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "file_name", Type: field.TypeString},
+		{Name: "storage_key", Type: field.TypeString},
+		{Name: "size_bytes", Type: field.TypeInt64},
+		{Name: "content_type", Type: field.TypeString},
+		{Name: "task_memo_id", Type: field.TypeUUID},
+		{Name: "uploaded_by", Type: field.TypeUUID},
+	}
+	// TaskMemoAttachmentsTable holds the schema information for the "task_memo_attachments" table.
+	TaskMemoAttachmentsTable = &schema.Table{
+		Name:       "task_memo_attachments",
+		Columns:    TaskMemoAttachmentsColumns,
+		PrimaryKey: []*schema.Column{TaskMemoAttachmentsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "task_memo_attachments_task_memos_memo",
+				Columns:    []*schema.Column{TaskMemoAttachmentsColumns[7]},
+				RefColumns: []*schema.Column{TaskMemosColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "task_memo_attachments_users_uploader",
+				Columns:    []*schema.Column{TaskMemoAttachmentsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+	}
 	// TaskMentionsColumns holds the columns for the "task_mentions" table.
 	TaskMentionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID, Unique: true},
@@ -655,6 +876,41 @@ var (
 				Name:    "taskmention_task_id_mentioned_user_id",
 				Unique:  true,
 				Columns: []*schema.Column{TaskMentionsColumns[3], TaskMentionsColumns[4]},
+			},
+		},
+	}
+	// TaskPinsColumns holds the columns for the "task_pins" table.
+	TaskPinsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "user_id", Type: field.TypeUUID},
+		{Name: "task_id", Type: field.TypeUUID},
+	}
+	// TaskPinsTable holds the schema information for the "task_pins" table.
+	TaskPinsTable = &schema.Table{
+		Name:       "task_pins",
+		Columns:    TaskPinsColumns,
+		PrimaryKey: []*schema.Column{TaskPinsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "task_pins_users_user",
+				Columns:    []*schema.Column{TaskPinsColumns[3]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "task_pins_tasks_task",
+				Columns:    []*schema.Column{TaskPinsColumns[4]},
+				RefColumns: []*schema.Column{TasksColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "taskpin_user_id_task_id",
+				Unique:  true,
+				Columns: []*schema.Column{TaskPinsColumns[3], TaskPinsColumns[4]},
 			},
 		},
 	}
@@ -772,6 +1028,7 @@ var (
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "role", Type: field.TypeEnum, Enums: []string{"owner", "member"}},
+		{Name: "project_order", Type: field.TypeJSON, Nullable: true},
 		{Name: "workspace_id", Type: field.TypeUUID},
 		{Name: "user_id", Type: field.TypeUUID},
 	}
@@ -783,13 +1040,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "workspace_members_workspaces_workspace",
-				Columns:    []*schema.Column{WorkspaceMembersColumns[4]},
+				Columns:    []*schema.Column{WorkspaceMembersColumns[5]},
 				RefColumns: []*schema.Column{WorkspacesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "workspace_members_users_user",
-				Columns:    []*schema.Column{WorkspaceMembersColumns[5]},
+				Columns:    []*schema.Column{WorkspaceMembersColumns[6]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -798,7 +1055,7 @@ var (
 			{
 				Name:    "workspacemember_workspace_id_user_id",
 				Unique:  true,
-				Columns: []*schema.Column{WorkspaceMembersColumns[4], WorkspaceMembersColumns[5]},
+				Columns: []*schema.Column{WorkspaceMembersColumns[5], WorkspaceMembersColumns[6]},
 			},
 		},
 	}
@@ -809,6 +1066,11 @@ var (
 		CalendarWatchedMembersTable,
 		CommentsTable,
 		CommentMentionsTable,
+		DmAttachmentsTable,
+		DmChannelsTable,
+		DmChannelMembersTable,
+		DmMessagesTable,
+		FeedbacksTable,
 		NotificationsTable,
 		ProjectsTable,
 		ProjectMembersTable,
@@ -821,7 +1083,10 @@ var (
 		TaskAssigneesTable,
 		TaskCalendarEventsTable,
 		TaskDependenciesTable,
+		TaskMemosTable,
+		TaskMemoAttachmentsTable,
 		TaskMentionsTable,
+		TaskPinsTable,
 		TaskTagsTable,
 		UsersTable,
 		WorkspacesTable,
@@ -844,6 +1109,15 @@ func init() {
 	CommentsTable.ForeignKeys[1].RefTable = UsersTable
 	CommentMentionsTable.ForeignKeys[0].RefTable = CommentsTable
 	CommentMentionsTable.ForeignKeys[1].RefTable = UsersTable
+	DmAttachmentsTable.ForeignKeys[0].RefTable = DmMessagesTable
+	DmAttachmentsTable.ForeignKeys[1].RefTable = UsersTable
+	DmChannelsTable.ForeignKeys[0].RefTable = WorkspacesTable
+	DmChannelsTable.ForeignKeys[1].RefTable = UsersTable
+	DmChannelMembersTable.ForeignKeys[0].RefTable = DmChannelsTable
+	DmChannelMembersTable.ForeignKeys[1].RefTable = UsersTable
+	DmMessagesTable.ForeignKeys[0].RefTable = DmChannelsTable
+	DmMessagesTable.ForeignKeys[1].RefTable = UsersTable
+	FeedbacksTable.ForeignKeys[0].RefTable = UsersTable
 	NotificationsTable.ForeignKeys[0].RefTable = UsersTable
 	ProjectsTable.ForeignKeys[0].RefTable = WorkspacesTable
 	ProjectsTable.ForeignKeys[1].RefTable = UsersTable
@@ -867,8 +1141,14 @@ func init() {
 	TaskCalendarEventsTable.ForeignKeys[1].RefTable = UsersTable
 	TaskDependenciesTable.ForeignKeys[0].RefTable = TasksTable
 	TaskDependenciesTable.ForeignKeys[1].RefTable = TasksTable
+	TaskMemosTable.ForeignKeys[0].RefTable = TasksTable
+	TaskMemosTable.ForeignKeys[1].RefTable = UsersTable
+	TaskMemoAttachmentsTable.ForeignKeys[0].RefTable = TaskMemosTable
+	TaskMemoAttachmentsTable.ForeignKeys[1].RefTable = UsersTable
 	TaskMentionsTable.ForeignKeys[0].RefTable = TasksTable
 	TaskMentionsTable.ForeignKeys[1].RefTable = UsersTable
+	TaskPinsTable.ForeignKeys[0].RefTable = UsersTable
+	TaskPinsTable.ForeignKeys[1].RefTable = TasksTable
 	TaskTagsTable.ForeignKeys[0].RefTable = TasksTable
 	TaskTagsTable.ForeignKeys[1].RefTable = TagsTable
 	WorkspaceInvitationsTable.ForeignKeys[0].RefTable = WorkspacesTable

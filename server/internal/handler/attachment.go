@@ -11,6 +11,7 @@ import (
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
+	"github.com/osasadev-lab/aibo_pj/server/internal/logging"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
 )
@@ -178,5 +179,11 @@ func (h *AttachmentHandler) DeleteAttachment(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete attachment"})
 		return
 	}
+	// 削除権限が「そのタスクを閲覧できる全員」に開放されている（アップロード者・
+	// マネージャー限定ではない、api-spec.md記載の意図的仕様）ため、誰が削除したかを
+	// 明示的にログへ残す（docs/aibo/project-audit.md指摘への対応、2026-08-27）。
+	logging.Action(c, "attachment.deleted", map[string]any{
+		"attachment_id": a.ID, "task_id": a.TaskID, "file_name": a.FileName,
+	})
 	c.Status(http.StatusNoContent)
 }

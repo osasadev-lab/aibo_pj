@@ -2,3 +2,12 @@
 # https://opennext.js.org/cloudflare/caching#static-assets-caching
 /_next/static/*
   Cache-Control: public,max-age=31536000,immutable
+
+# M8：sw.jsは更新のたびにブラウザへ即時反映させたいため、_next/staticの
+# immutableキャッシュとは逆に明示的にno-cacheにする（古いSWが居座って
+# 新しいオフライン対応が配信されない事故を防ぐ）。
+/sw.js
+  Cache-Control: no-cache
+
+/manifest.json
+  Cache-Control: public,max-age=3600

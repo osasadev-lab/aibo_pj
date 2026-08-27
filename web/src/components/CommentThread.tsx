@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
+import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
 import { getSupabaseClient } from "@/lib/supabaseClient";
@@ -21,14 +22,40 @@ type Comment = {
   created_at: string;
 };
 
+type ListResponse = {
+  items: Comment[];
+  has_more_older: boolean;
+  has_more_newer: boolean;
+};
+
+const PAGE_SIZE = 30;
+
+type Props = {
+  taskId: string;
+  onLoaded?: () => void;
+  // 通知等、他画面から特定のコメントを指してこのタスクへ遷移してきた場合に渡す
+  // （M8後の追加改修、2026-08-27）。指定時は最新30件ではなく、そのコメントを
+  // 中心とした窓を取得し、表示後にスクロール＋一時ハイライトする。
+  initialCommentId?: string;
+};
+
 // タスク詳細に埋め込むコメントスレッド。初回一覧はREST APIから取得し、
 // 以降の新着はSupabase Realtimeの直接購読で反映する（Goバックエンド非経由）。
 // docs/aibo/m3-implementation-plan.md参照。
 // onLoadedは初回の一覧・メンション候補取得が両方完了した時点で1回呼ぶ
 // （呼び出し元のTaskDetailPanelが「全項目が揃うまでクルクル」を実現するための
 // 完了通知、ユーザーフィードバック）。
-export default function CommentThread({ taskId, onLoaded }: { taskId: string; onLoaded?: () => void }) {
+//
+// ページネーション（2026-08-27追加）：既定は直近PAGE_SIZE件を表示し、上に
+// スクロールする形の「もっと見る」で古いコメントを遡って読み込む。initialCommentId
+// 指定時はその前後の窓を取得し、両端に「もっと見る」を出す。
+export default function CommentThread({ taskId, onLoaded, initialCommentId }: Props) {
   const [comments, setComments] = useState<Comment[]>([]);
+  const [hasMoreOlder, setHasMoreOlder] = useState(false);
+  const [hasMoreNewer, setHasMoreNewer] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [loadingNewer, setLoadingNewer] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
   const [body, setBody] = useState("");
   const [mentionable, setMentionable] = useState<MemberSummary[]>([]);
   const [showMentions, setShowMentions] = useState(false);
@@ -39,12 +66,20 @@ export default function CommentThread({ taskId, onLoaded }: { taskId: string; on
   // 参照してしまうのを避けるため）。
   const mentionableRef = useRef<MemberSummary[]>([]);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const scrolledToHighlightRef = useRef(false);
 
   useEffect(() => {
     let ignore = false;
-    const commentsPromise = apiFetch<Comment[]>(`/tasks/${taskId}/comments`)
-      .then((list) => {
-        if (!ignore) setComments(list);
+    const query = initialCommentId
+      ? `?around=${encodeURIComponent(initialCommentId)}`
+      : `?limit=${PAGE_SIZE}`;
+    const commentsPromise = apiFetch<ListResponse>(`/tasks/${taskId}/comments${query}`)
+      .then((res) => {
+        if (ignore) return;
+        setComments(res.items);
+        setHasMoreOlder(res.has_more_older);
+        setHasMoreNewer(res.has_more_newer);
+        if (initialCommentId) setHighlightId(initialCommentId);
       })
       .catch(() => {});
     const mentionablePromise = apiFetch<MemberSummary[]>(`/tasks/${taskId}/mentionable-members`)
@@ -63,6 +98,19 @@ export default function CommentThread({ taskId, onLoaded }: { taskId: string; on
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taskId]);
+
+  // ハイライト対象コメントが描画されたら1回だけスクロールし、数秒後に強調を消す
+  // （scrolledToHighlightRefで、以後のリアルタイム新着による再レンダーでは
+  // 再スクロールしないようにする）。
+  useEffect(() => {
+    if (!highlightId || scrolledToHighlightRef.current) return;
+    const el = document.getElementById(`comment-${highlightId}`);
+    if (!el) return;
+    scrolledToHighlightRef.current = true;
+    el.scrollIntoView({ block: "center" });
+    const timer = setTimeout(() => setHighlightId(null), 2500);
+    return () => clearTimeout(timer);
+  }, [highlightId, comments]);
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -83,6 +131,40 @@ export default function CommentThread({ taskId, onLoaded }: { taskId: string; on
       void supabase.removeChannel(channel);
     };
   }, [taskId]);
+
+  async function handleLoadOlder() {
+    if (comments.length === 0 || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const oldestId = comments[0].id;
+      const res = await apiFetch<ListResponse>(
+        `/tasks/${taskId}/comments?before=${encodeURIComponent(oldestId)}&limit=${PAGE_SIZE}`,
+      );
+      setComments((prev) => [...res.items, ...prev]);
+      setHasMoreOlder(res.has_more_older);
+    } catch {
+      // 失敗時はhasMoreOlderをtrueのまま残し、再度ボタンから試せるようにする。
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
+
+  async function handleLoadNewer() {
+    if (comments.length === 0 || loadingNewer) return;
+    setLoadingNewer(true);
+    try {
+      const newestId = comments[comments.length - 1].id;
+      const res = await apiFetch<ListResponse>(
+        `/tasks/${taskId}/comments?after=${encodeURIComponent(newestId)}&limit=${PAGE_SIZE}`,
+      );
+      setComments((prev) => [...prev, ...res.items]);
+      setHasMoreNewer(res.has_more_newer);
+    } catch {
+      // 失敗時はhasMoreNewerをtrueのまま残し、再度ボタンから試せるようにする。
+    } finally {
+      setLoadingNewer(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -114,8 +196,28 @@ export default function CommentThread({ taskId, onLoaded }: { taskId: string; on
     <div className="flex flex-col gap-3 border-t border-border pt-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">コメント</p>
       <ul className="flex max-h-[32rem] flex-col gap-3 overflow-y-auto">
+        {hasMoreOlder && (
+          <li className="flex justify-center">
+            <button
+              type="button"
+              onClick={handleLoadOlder}
+              disabled={loadingOlder}
+              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
+            >
+              {loadingOlder && <Loader2 className="h-3 w-3 animate-spin" />}
+              古いコメントを読み込む
+            </button>
+          </li>
+        )}
         {comments.map((c) => (
-          <li key={c.id} className="flex items-start gap-2">
+          <li
+            key={c.id}
+            id={`comment-${c.id}`}
+            className={clsx(
+              "flex items-start gap-2 rounded-lg transition-colors",
+              highlightId === c.id && "ring-2 ring-indigo-400 dark:ring-indigo-500",
+            )}
+          >
             <Avatar name={c.user_name ?? "?"} seed={c.user_id} size="sm" />
             <div className="min-w-0 flex-1 rounded-lg bg-surface-muted px-3 py-2">
               <div className="flex items-baseline gap-2">
@@ -126,6 +228,19 @@ export default function CommentThread({ taskId, onLoaded }: { taskId: string; on
             </div>
           </li>
         ))}
+        {hasMoreNewer && (
+          <li className="flex justify-center">
+            <button
+              type="button"
+              onClick={handleLoadNewer}
+              disabled={loadingNewer}
+              className="flex items-center gap-1.5 text-xs text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
+            >
+              {loadingNewer && <Loader2 className="h-3 w-3 animate-spin" />}
+              新しいコメントを読み込む
+            </button>
+          </li>
+        )}
       </ul>
       <form onSubmit={handleSubmit} className="relative flex flex-col gap-2">
         <div>

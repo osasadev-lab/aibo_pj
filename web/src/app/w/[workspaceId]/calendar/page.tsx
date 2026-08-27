@@ -12,6 +12,7 @@ import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import IconButton from "@/components/ui/IconButton";
 import { Select } from "@/components/ui/fields";
+import { datePart } from "@/lib/dateRange";
 import { useProjects } from "@/lib/workspace/ProjectsContext";
 import type { Tag } from "@/lib/types";
 
@@ -20,6 +21,7 @@ type Task = {
   title: string;
   status: "not_started" | "in_progress" | "done" | "on_hold";
   project_id: string | null;
+  start_date: string | null;
   due_date: string | null;
   tags?: Tag[];
 };
@@ -45,6 +47,7 @@ export default function CalendarPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const openTaskId = searchParams.get("task");
+  const openCommentId = searchParams.get("comment") ?? undefined;
   const { projects } = useProjects();
 
   const today = new Date();
@@ -135,8 +138,14 @@ export default function CalendarPage() {
   const tasksByDate = useMemo(() => {
     const map: Record<string, Task[]> = {};
     for (const t of filteredTasks) {
-      if (!t.due_date) continue;
-      (map[t.due_date] ??= []).push(t);
+      // 期限（due_date）があればそちらを優先し、期限が無く開始日時（start_date）
+      // のみのタスクは開始日時のセルに表示する（2026-08-27、「日次範囲が片方だけでも
+      // 表示してほしい」との要望）。due_dateは時刻付き（"YYYY-MM-DD HH:MM"）になった
+      // ため、日付部分だけをセルのキーにする（そのままだと日付セル側の"YYYY-MM-DD"
+      // キーと一致しなくなる）。
+      const cellDate = t.due_date ?? t.start_date;
+      if (!cellDate) continue;
+      (map[datePart(cellDate)] ??= []).push(t);
     }
     return map;
   }, [filteredTasks]);
@@ -253,7 +262,9 @@ export default function CalendarPage() {
         </IconButton>
       </div>
 
-      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
+      {/* M8：狭い画面では7列を潰さず横スクロールできるようにする（カンバンと同じ考え方）。 */}
+      <div className="overflow-x-auto">
+      <div className="grid min-w-[640px] grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
         {WEEKDAYS.map((w) => (
           <div key={w} className="bg-surface-muted py-2 text-center text-xs font-medium text-muted-foreground">
             {w}
@@ -294,6 +305,7 @@ export default function CalendarPage() {
           );
         })}
       </div>
+      </div>
 
       {openTaskId && (
         <TaskDetailPanel
@@ -302,6 +314,7 @@ export default function CalendarPage() {
           workspaceId={workspaceId}
           onClose={closeTaskPanel}
           onChanged={loadTasks}
+          initialCommentId={openCommentId}
         />
       )}
     </div>

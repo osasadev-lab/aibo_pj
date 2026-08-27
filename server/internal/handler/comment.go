@@ -1,14 +1,18 @@
 package handler
 
 import (
+	"context"
 	"net/http"
+	"sort"
 	"strings"
 
+	"entgo.io/ent/dialect/sql"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/predicate"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
@@ -72,25 +76,179 @@ func commentJSON(cm *ent.Comment) gin.H {
 	return row
 }
 
+const commentDefaultLimit = 30
+const commentMaxLimit = 100
+const commentAroundWindow = 15
+
 // ListComments は GET /tasks/:task_id/comments。初回表示用（以降はSupabase Realtime購読）。
+// ページネーション（2026-08-27追加、最新のものをデフォルトで表示する形に変更）：
+//   - 通常時（`before`/`around`いずれも無し）：直近`limit`件（既定30）を返す。
+//   - `before=<comment_id>`：そのコメントより古いものを`limit`件、チャットを上に
+//     スクロールして遡る「もっと見る」用。
+//   - `around=<comment_id>`：他画面（通知等）からそのコメントへ直接遷移してきた際に
+//     使う。対象コメントの前後それぞれ最大commentAroundWindow件を含む窓を返す
+//     （対象が最新の`limit`件の外にあっても必ず含めるため、専用の取得モードにしている）。
+//
+// レスポンスは常に`{items: [...(昇順=古い順)], has_more_older, has_more_newer}`。
+// has_more_newerは`around`モード以外では常にfalse（通常/before取得は常に「取得済みの
+// 範囲より新しい側」が既にフロント側にある前提のため）。
 func (h *CommentHandler) ListComments(c *gin.Context) {
 	t := middleware.CurrentTask(c)
+	ctx := c.Request.Context()
 
-	comments, err := h.client.Comment.Query().
+	limit := parseLimit(c.Query("limit"), commentDefaultLimit, commentMaxLimit)
+
+	if around := c.Query("around"); around != "" {
+		aroundID, err := uuid.Parse(around)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid around"})
+			return
+		}
+		target, err := h.client.Comment.Query().
+			Where(comment.IDEQ(aroundID), comment.TaskIDEQ(t.ID)).
+			WithUser().
+			Only(ctx)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
+			return
+		}
+
+		before, hasMoreOlder, err := h.fetchCommentWindow(ctx, t.ID, comment.CreatedAtLT(target.CreatedAt), comment.CreatedAtEQ(target.CreatedAt), true, target.ID, commentAroundWindow)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
+			return
+		}
+		after, hasMoreNewer, err := h.fetchCommentWindow(ctx, t.ID, comment.CreatedAtGT(target.CreatedAt), comment.CreatedAtEQ(target.CreatedAt), false, target.ID, commentAroundWindow)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
+			return
+		}
+
+		out := make([]gin.H, 0, len(before)+1+len(after))
+		for _, cm := range before {
+			out = append(out, commentJSON(cm))
+		}
+		out = append(out, commentJSON(target))
+		for _, cm := range after {
+			out = append(out, commentJSON(cm))
+		}
+		c.JSON(http.StatusOK, gin.H{"items": out, "has_more_older": hasMoreOlder, "has_more_newer": hasMoreNewer})
+		return
+	}
+
+	// afterはaroundで開いた画面から「読み込み済みの一番新しいコメントより後」を
+	// 追加取得する（realtime購読が始まる前に投稿された新着コメントを拾うための
+	// 「新しい方へ読み込む」操作用）。beforeと対になる方向違いのカーソル。
+	if after := c.Query("after"); after != "" {
+		afterID, err := uuid.Parse(after)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid after"})
+			return
+		}
+		cursor, err := h.client.Comment.Query().
+			Where(comment.IDEQ(afterID), comment.TaskIDEQ(t.ID)).
+			Only(ctx)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid after"})
+			return
+		}
+		rows, hasMoreNewer, err := h.fetchCommentWindow(ctx, t.ID, comment.CreatedAtGT(cursor.CreatedAt), comment.CreatedAtEQ(cursor.CreatedAt), false, cursor.ID, limit)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
+			return
+		}
+		out := make([]gin.H, 0, len(rows))
+		for _, cm := range rows {
+			out = append(out, commentJSON(cm))
+		}
+		c.JSON(http.StatusOK, gin.H{"items": out, "has_more_older": false, "has_more_newer": hasMoreNewer})
+		return
+	}
+
+	query := h.client.Comment.Query().
 		Where(comment.TaskIDEQ(t.ID)).
 		WithUser().
-		Order(comment.ByCreatedAt()).
-		All(c.Request.Context())
+		Order(comment.ByCreatedAt(sql.OrderDesc()), comment.ByID(sql.OrderDesc()))
+
+	if before := c.Query("before"); before != "" {
+		beforeID, err := uuid.Parse(before)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid before"})
+			return
+		}
+		cursor, err := h.client.Comment.Query().
+			Where(comment.IDEQ(beforeID), comment.TaskIDEQ(t.ID)).
+			Only(ctx)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid before"})
+			return
+		}
+		query = query.Where(comment.Or(
+			comment.CreatedAtLT(cursor.CreatedAt),
+			comment.And(comment.CreatedAtEQ(cursor.CreatedAt), comment.IDLT(cursor.ID)),
+		))
+	}
+
+	comments, err := query.Limit(limit + 1).All(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
 		return
 	}
+	hasMoreOlder := len(comments) > limit
+	if hasMoreOlder {
+		comments = comments[:limit]
+	}
+	// DB取得は新しい順のため、表示用（古い順）に反転する。
+	sort.SliceStable(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
 
 	out := make([]gin.H, 0, len(comments))
 	for _, cm := range comments {
 		out = append(out, commentJSON(cm))
 	}
-	c.JSON(http.StatusOK, out)
+	c.JSON(http.StatusOK, gin.H{"items": out, "has_more_older": hasMoreOlder, "has_more_newer": false})
+}
+
+// fetchCommentWindow はaroundモード用の片側（対象より古い/新しい）取得ヘルパー。
+// olderSide=trueなら降順（対象に近い側から）で取得後に古い順へ反転、falseなら
+// そのまま昇順で取得する。同一created_atの同時投稿を安定して順序付けるため、
+// created_at比較に加えID比較も併用する。
+func (h *CommentHandler) fetchCommentWindow(
+	ctx context.Context,
+	taskID uuid.UUID,
+	primary, eqCreatedAt predicate.Comment,
+	olderSide bool,
+	targetID uuid.UUID,
+	limit int,
+) ([]*ent.Comment, bool, error) {
+	var idCond predicate.Comment
+	if olderSide {
+		idCond = comment.IDLT(targetID)
+	} else {
+		idCond = comment.IDGT(targetID)
+	}
+
+	q := h.client.Comment.Query().
+		Where(comment.TaskIDEQ(taskID), comment.Or(primary, comment.And(eqCreatedAt, idCond))).
+		WithUser()
+	if olderSide {
+		q = q.Order(comment.ByCreatedAt(sql.OrderDesc()), comment.ByID(sql.OrderDesc()))
+	} else {
+		q = q.Order(comment.ByCreatedAt(sql.OrderAsc()), comment.ByID(sql.OrderAsc()))
+	}
+
+	rows, err := q.Limit(limit + 1).All(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	if olderSide {
+		// 降順で取ったものを古い順に反転する。
+		sort.SliceStable(rows, func(i, j int) bool { return rows[i].CreatedAt.Before(rows[j].CreatedAt) })
+	}
+	return rows, hasMore, nil
 }
 
 type createCommentRequest struct {

@@ -22,6 +22,16 @@ type Tx struct {
 	Comment *CommentClient
 	// CommentMention is the client for interacting with the CommentMention builders.
 	CommentMention *CommentMentionClient
+	// DMAttachment is the client for interacting with the DMAttachment builders.
+	DMAttachment *DMAttachmentClient
+	// DMChannel is the client for interacting with the DMChannel builders.
+	DMChannel *DMChannelClient
+	// DMChannelMember is the client for interacting with the DMChannelMember builders.
+	DMChannelMember *DMChannelMemberClient
+	// DMMessage is the client for interacting with the DMMessage builders.
+	DMMessage *DMMessageClient
+	// Feedback is the client for interacting with the Feedback builders.
+	Feedback *FeedbackClient
 	// Notification is the client for interacting with the Notification builders.
 	Notification *NotificationClient
 	// Project is the client for interacting with the Project builders.
@@ -46,8 +56,14 @@ type Tx struct {
 	TaskCalendarEvent *TaskCalendarEventClient
 	// TaskDependency is the client for interacting with the TaskDependency builders.
 	TaskDependency *TaskDependencyClient
+	// TaskMemo is the client for interacting with the TaskMemo builders.
+	TaskMemo *TaskMemoClient
+	// TaskMemoAttachment is the client for interacting with the TaskMemoAttachment builders.
+	TaskMemoAttachment *TaskMemoAttachmentClient
 	// TaskMention is the client for interacting with the TaskMention builders.
 	TaskMention *TaskMentionClient
+	// TaskPin is the client for interacting with the TaskPin builders.
+	TaskPin *TaskPinClient
 	// TaskTag is the client for interacting with the TaskTag builders.
 	TaskTag *TaskTagClient
 	// User is the client for interacting with the User builders.
@@ -194,6 +210,11 @@ func (tx *Tx) init() {
 	tx.CalendarWatchedMember = NewCalendarWatchedMemberClient(tx.config)
 	tx.Comment = NewCommentClient(tx.config)
 	tx.CommentMention = NewCommentMentionClient(tx.config)
+	tx.DMAttachment = NewDMAttachmentClient(tx.config)
+	tx.DMChannel = NewDMChannelClient(tx.config)
+	tx.DMChannelMember = NewDMChannelMemberClient(tx.config)
+	tx.DMMessage = NewDMMessageClient(tx.config)
+	tx.Feedback = NewFeedbackClient(tx.config)
 	tx.Notification = NewNotificationClient(tx.config)
 	tx.Project = NewProjectClient(tx.config)
 	tx.ProjectMember = NewProjectMemberClient(tx.config)
@@ -206,7 +227,10 @@ func (tx *Tx) init() {
 	tx.TaskAssignee = NewTaskAssigneeClient(tx.config)
 	tx.TaskCalendarEvent = NewTaskCalendarEventClient(tx.config)
 	tx.TaskDependency = NewTaskDependencyClient(tx.config)
+	tx.TaskMemo = NewTaskMemoClient(tx.config)
+	tx.TaskMemoAttachment = NewTaskMemoAttachmentClient(tx.config)
 	tx.TaskMention = NewTaskMentionClient(tx.config)
+	tx.TaskPin = NewTaskPinClient(tx.config)
 	tx.TaskTag = NewTaskTagClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 	tx.Workspace = NewWorkspaceClient(tx.config)

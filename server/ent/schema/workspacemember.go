@@ -24,6 +24,10 @@ func (WorkspaceMember) Fields() []ent.Field {
 		field.UUID("user_id", uuid.UUID{}),
 		field.Enum("role").
 			Values("owner", "member"),
+		// M8追加。左サイドバーのプロジェクト一覧の個人ごとの並び順（本人のみが変更可能、
+		// 他メンバーの表示には影響しない）。配列に含まれないプロジェクトはcreated_at順で
+		// 末尾に表示する（フロント側で補完）。
+		field.JSON("project_order", []uuid.UUID{}).Optional(),
 	}
 }
 

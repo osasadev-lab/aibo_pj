@@ -12,7 +12,9 @@ import (
 	internalauth "github.com/osasadev-lab/aibo_pj/server/internal/auth"
 	"github.com/osasadev-lab/aibo_pj/server/internal/config"
 	"github.com/osasadev-lab/aibo_pj/server/internal/db"
+	"github.com/osasadev-lab/aibo_pj/server/internal/feedbackmail"
 	"github.com/osasadev-lab/aibo_pj/server/internal/handler"
+	"github.com/osasadev-lab/aibo_pj/server/internal/logging"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/pushdelivery"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
@@ -31,7 +33,12 @@ func main() {
 	}
 	defer client.Close()
 
-	router := gin.Default()
+	// gin.Default()（テキストログのみ、user_idを含まない）の代わりに、
+	// 「誰が・いつ・どこに・何を」を1行のJSONで残すRequestLoggerを使う
+	// （2026-08-27追加。docs/aibo/project-audit.md「エラートラッキング・
+	// 構造化ログの不在」対応）。
+	router := gin.New()
+	router.Use(logging.RequestLogger(), gin.Recovery())
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins: []string{cfg.FrontendURL},
@@ -66,6 +73,15 @@ func main() {
 		VAPIDSubject:    cfg.VAPIDSubject,
 	}
 
+	// M8（フィードバック機能）。SMTPHostが空なら未設定として送信をスキップする。
+	mailCfg := feedbackmail.Config{
+		Host:        cfg.SMTPHost,
+		Port:        cfg.SMTPPort,
+		Username:    cfg.SMTPUsername,
+		Password:    cfg.SMTPPassword,
+		NotifyEmail: cfg.FeedbackNotifyEmail,
+	}
+
 	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure, r2Client, calendarOAuthConfig, encKey)
 	calendarConnectHandler := handler.NewCalendarConnectHandler(client, calendarOAuthConfig, cfg.JWTSecret, encKey, cfg.FrontendURL)
 	workspaceHandler := handler.NewWorkspaceHandler(client, r2Client, calendarOAuthConfig, encKey)
@@ -80,6 +96,9 @@ func main() {
 	progressHandler := handler.NewProgressHandler(client)
 	activityHandler := handler.NewActivityHandler(client)
 	cronHandler := handler.NewCronHandler(client, pushCfg, cfg.FrontendURL)
+	feedbackHandler := handler.NewFeedbackHandler(client, mailCfg)
+	dmHandler := handler.NewDMHandler(client, r2Client, pushCfg, cfg.FrontendURL)
+	taskMemoHandler := handler.NewTaskMemoHandler(client, r2Client)
 
 	requireAuth := middleware.RequireAuth(client, cfg.JWTSecret)
 	requireWorkspaceMember := middleware.RequireWorkspaceMember(client)
@@ -88,6 +107,7 @@ func main() {
 	requireProjectManager := middleware.RequireProjectManager(client)
 	requireTaskAccess := middleware.RequireTaskAccess(client)
 	requireInternalCronSecret := middleware.RequireInternalCronSecret(cfg.InternalCronSecret)
+	requireDMChannelAccess := middleware.RequireDMChannelAccess(client)
 
 	api := router.Group("/api/v1")
 	{
@@ -121,6 +141,9 @@ func main() {
 				withMember.GET("", workspaceHandler.Get)
 				withMember.PATCH("", requireOwner, workspaceHandler.Update)
 				withMember.DELETE("", requireOwner, workspaceHandler.Delete)
+				// M8追加：左サイドバーのプロジェクト一覧の個人ごとの並び順。誰でも自分の
+				// 表示順は変えられるためrequireOwner等の追加権限チェックは不要。
+				withMember.PATCH("/project-order", workspaceHandler.UpdateProjectOrder)
 
 				withMember.GET("/members", memberHandler.List)
 				withMember.POST("/members/invite", requireOwner, memberHandler.Invite)
@@ -133,6 +156,7 @@ func main() {
 				withMember.POST("/tasks", taskHandler.Create)
 				withMember.GET("/my-tasks", taskHandler.MyTasks)
 				withMember.GET("/search", taskHandler.FullTextSearch)
+				withMember.GET("/pinned-tasks", taskHandler.ListPinned)
 
 				withMember.GET("/calendar", calendarHandler.GetCalendar)
 				withMember.GET("/calendar-watched-users", calendarHandler.GetWatchedMembers)
@@ -145,7 +169,45 @@ func main() {
 				withMember.POST("/common-tags", requireOwner, tagHandler.CreateCommonTag)
 				withMember.PATCH("/common-tags/:tag_id", requireOwner, tagHandler.UpdateCommonTag)
 				withMember.DELETE("/common-tags/:tag_id", requireOwner, tagHandler.DeleteCommonTag)
+
+				// DM（M8.5、メンバー選択は既存の/membersを再利用）
+				withMember.GET("/dm/channels", dmHandler.ListChannels)
+				withMember.POST("/dm/channels", dmHandler.CreateChannel)
+
+				// メモ（M8.5）
+				withMember.GET("/task-memos", taskMemoHandler.ListMine)
 			}
+		}
+
+		// DMチャンネル系エンドポイント（:workspace_idを含まないパス、M8.5）
+		dmChannels := api.Group("/dm/channels", requireAuth)
+		{
+			withDMChannel := dmChannels.Group("/:channel_id", requireDMChannelAccess)
+			{
+				withDMChannel.GET("", dmHandler.GetChannel)
+				withDMChannel.PATCH("", dmHandler.RenameChannel)
+				withDMChannel.POST("/members", dmHandler.AddMembers)
+				withDMChannel.DELETE("/members/me", dmHandler.LeaveChannel)
+				withDMChannel.GET("/messages", dmHandler.ListMessages)
+				withDMChannel.POST("/messages", dmHandler.CreateMessage)
+				withDMChannel.PATCH("/read", dmHandler.MarkRead)
+			}
+		}
+
+		// DMメッセージの添付ファイル（:channel_idを含まないパス、M8.5）
+		dmMessages := api.Group("/dm/messages", requireAuth)
+		{
+			dmMessages.POST("/:message_id/attachments", dmHandler.CreateAttachment)
+		}
+		dmAttachments := api.Group("/dm-attachments", requireAuth)
+		{
+			dmAttachments.DELETE("/:attachment_id", dmHandler.DeleteAttachment)
+		}
+
+		// メモ添付ファイル（:task_idを含まないパス、M8.5）
+		memoAttachments := api.Group("/memo-attachments", requireAuth)
+		{
+			memoAttachments.DELETE("/:attachment_id", taskMemoHandler.DeleteAttachment)
 		}
 
 		// プロジェクト系エンドポイント（:workspace_idを含まないパス）
@@ -189,6 +251,9 @@ func main() {
 				withTask.PUT("/tags", taskHandler.PutTags)
 				withTask.GET("/assignable-tags", taskHandler.ListAssignableTags)
 
+				withTask.POST("/pin", taskHandler.Pin)
+				withTask.DELETE("/pin", taskHandler.Unpin)
+
 				withTask.GET("/dependencies", taskHandler.ListDependencies)
 				withTask.POST("/dependencies", taskHandler.CreateDependency)
 				withTask.DELETE("/dependencies/:dependency_id", taskHandler.DeleteDependency)
@@ -199,6 +264,12 @@ func main() {
 				withTask.GET("/mentionable-members", commentHandler.MentionableMembers)
 				withTask.POST("/comments", commentHandler.CreateComment)
 				withTask.GET("/comments", commentHandler.ListComments)
+
+				// メモ（M8.5、本人にのみ表示される個人データ）
+				withTask.GET("/memo", taskMemoHandler.Get)
+				withTask.PUT("/memo", taskMemoHandler.Put)
+				withTask.DELETE("/memo", taskMemoHandler.Delete)
+				withTask.POST("/memo/attachments", taskMemoHandler.CreateAttachment)
 			}
 		}
 
@@ -211,6 +282,7 @@ func main() {
 		// 自分自身に関するエンドポイント
 		me := api.Group("/me", requireAuth)
 		{
+			me.PATCH("/profile", authHandler.UpdateProfile)
 			me.GET("/supabase-token", authHandler.SupabaseToken)
 			me.GET("/hover-settings", authHandler.GetHoverSettings)
 			me.PATCH("/hover-settings", authHandler.UpdateHoverSettings)
@@ -229,6 +301,12 @@ func main() {
 			notifications.GET("/push-public-key", notificationHandler.PushPublicKey)
 			notifications.POST("/subscribe", notificationHandler.Subscribe)
 			notifications.DELETE("/subscribe", notificationHandler.Unsubscribe)
+		}
+
+		// フィードバック（M8。ワークスペースメンバーシップは問わないためrequireAuthのみ）
+		feedback := api.Group("/feedback", requireAuth)
+		{
+			feedback.POST("", feedbackHandler.Create)
 		}
 
 		// 内部cronエンドポイント（Cloud Schedulerからのみ、requireAuthを経由しない。M7）

@@ -34,15 +34,20 @@ func (Task) Fields() []ent.Field {
 			Values("low", "medium", "high").
 			Optional().
 			Nillable(),
+		// 2026-08-27追加：以前はPostgresの`date`型に固定し時刻を保持しなかったが、
+		// タスクの期限を日時範囲（開始日時〜期限日時）で管理する要望に伴い、
+		// created_at/updated_at等と同じent既定のtimestamptzへ変更した。
 		field.Time("start_date").
-			SchemaType(map[string]string{"postgres": "date"}).
 			Optional().
 			Nillable(),
 		field.Time("due_date").
-			SchemaType(map[string]string{"postgres": "date"}).
 			Optional().
 			Nillable(),
 		field.UUID("created_by", uuid.UUID{}),
+		// M8追加。プロジェクトカンバンの同一列内でのD&D並び替え用（列＝status_column_id内で
+		// 昇順に表示する）。nilは「未設定」を表し、既存挙動どおりcreated_at順で末尾に扱う
+		// （マイグレーション時の一括バックフィルは行わない）。
+		field.Int("position").Optional().Nillable(),
 	}
 }
 
@@ -78,6 +83,8 @@ func (Task) Edges() []ent.Edge {
 		edge.From("comments", Comment.Type).Ref("task"),
 		edge.From("attachments", Attachment.Type).Ref("task"),
 		edge.From("mentions", TaskMention.Type).Ref("task"),
+		edge.From("pins", TaskPin.Type).Ref("task"),
+		edge.From("memos", TaskMemo.Type).Ref("task"),
 	}
 }
 

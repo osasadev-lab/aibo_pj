@@ -33,6 +33,8 @@ const (
 	EdgeActivityLogs = "activity_logs"
 	// EdgeInvitations holds the string denoting the invitations edge name in mutations.
 	EdgeInvitations = "invitations"
+	// EdgeDmChannels holds the string denoting the dm_channels edge name in mutations.
+	EdgeDmChannels = "dm_channels"
 	// Table holds the table name of the workspace in the database.
 	Table = "workspaces"
 	// MembersTable is the table that holds the members relation/edge.
@@ -77,6 +79,13 @@ const (
 	InvitationsInverseTable = "workspace_invitations"
 	// InvitationsColumn is the table column denoting the invitations relation/edge.
 	InvitationsColumn = "workspace_id"
+	// DmChannelsTable is the table that holds the dm_channels relation/edge.
+	DmChannelsTable = "dm_channels"
+	// DmChannelsInverseTable is the table name for the DMChannel entity.
+	// It exists in this package in order to avoid circular dependency with the "dmchannel" package.
+	DmChannelsInverseTable = "dm_channels"
+	// DmChannelsColumn is the table column denoting the dm_channels relation/edge.
+	DmChannelsColumn = "workspace_id"
 )
 
 // Columns holds all SQL columns for workspace fields.
@@ -216,6 +225,20 @@ func ByInvitations(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newInvitationsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByDmChannelsCount orders the results by dm_channels count.
+func ByDmChannelsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newDmChannelsStep(), opts...)
+	}
+}
+
+// ByDmChannels orders the results by dm_channels terms.
+func ByDmChannels(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDmChannelsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newMembersStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -256,5 +279,12 @@ func newInvitationsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(InvitationsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, InvitationsTable, InvitationsColumn),
+	)
+}
+func newDmChannelsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DmChannelsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, DmChannelsTable, DmChannelsColumn),
 	)
 }

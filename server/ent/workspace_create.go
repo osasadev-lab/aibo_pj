@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/google/uuid"
 	"github.com/osasadev-lab/aibo_pj/server/ent/activitylog"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
@@ -163,6 +164,21 @@ func (_c *WorkspaceCreate) AddInvitations(v ...*WorkspaceInvitation) *WorkspaceC
 		ids[i] = v[i].ID
 	}
 	return _c.AddInvitationIDs(ids...)
+}
+
+// AddDmChannelIDs adds the "dm_channels" edge to the DMChannel entity by IDs.
+func (_c *WorkspaceCreate) AddDmChannelIDs(ids ...uuid.UUID) *WorkspaceCreate {
+	_c.mutation.AddDmChannelIDs(ids...)
+	return _c
+}
+
+// AddDmChannels adds the "dm_channels" edges to the DMChannel entity.
+func (_c *WorkspaceCreate) AddDmChannels(v ...*DMChannel) *WorkspaceCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddDmChannelIDs(ids...)
 }
 
 // Mutation returns the WorkspaceMutation object of the builder.
@@ -366,6 +382,22 @@ func (_c *WorkspaceCreate) createSpec() (*Workspace, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(workspaceinvitation.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.DmChannelsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   workspace.DmChannelsTable,
+			Columns: []string{workspace.DmChannelsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(dmchannel.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

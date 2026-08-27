@@ -44,6 +44,8 @@ const (
 	FieldDueDate = "due_date"
 	// FieldCreatedBy holds the string denoting the created_by field in the database.
 	FieldCreatedBy = "created_by"
+	// FieldPosition holds the string denoting the position field in the database.
+	FieldPosition = "position"
 	// EdgeWorkspace holds the string denoting the workspace edge name in mutations.
 	EdgeWorkspace = "workspace"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -74,6 +76,10 @@ const (
 	EdgeAttachments = "attachments"
 	// EdgeMentions holds the string denoting the mentions edge name in mutations.
 	EdgeMentions = "mentions"
+	// EdgePins holds the string denoting the pins edge name in mutations.
+	EdgePins = "pins"
+	// EdgeMemos holds the string denoting the memos edge name in mutations.
+	EdgeMemos = "memos"
 	// Table holds the table name of the task in the database.
 	Table = "tasks"
 	// WorkspaceTable is the table that holds the workspace relation/edge.
@@ -175,6 +181,20 @@ const (
 	MentionsInverseTable = "task_mentions"
 	// MentionsColumn is the table column denoting the mentions relation/edge.
 	MentionsColumn = "task_id"
+	// PinsTable is the table that holds the pins relation/edge.
+	PinsTable = "task_pins"
+	// PinsInverseTable is the table name for the TaskPin entity.
+	// It exists in this package in order to avoid circular dependency with the "taskpin" package.
+	PinsInverseTable = "task_pins"
+	// PinsColumn is the table column denoting the pins relation/edge.
+	PinsColumn = "task_id"
+	// MemosTable is the table that holds the memos relation/edge.
+	MemosTable = "task_memos"
+	// MemosInverseTable is the table name for the TaskMemo entity.
+	// It exists in this package in order to avoid circular dependency with the "taskmemo" package.
+	MemosInverseTable = "task_memos"
+	// MemosColumn is the table column denoting the memos relation/edge.
+	MemosColumn = "task_id"
 )
 
 // Columns holds all SQL columns for task fields.
@@ -194,6 +214,7 @@ var Columns = []string{
 	FieldStartDate,
 	FieldDueDate,
 	FieldCreatedBy,
+	FieldPosition,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -347,6 +368,11 @@ func ByDueDate(opts ...sql.OrderTermOption) OrderOption {
 // ByCreatedBy orders the results by the created_by field.
 func ByCreatedBy(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCreatedBy, opts...).ToFunc()
+}
+
+// ByPosition orders the results by the position field.
+func ByPosition(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPosition, opts...).ToFunc()
 }
 
 // ByWorkspaceField orders the results by workspace field.
@@ -516,6 +542,34 @@ func ByMentions(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newMentionsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByPinsCount orders the results by pins count.
+func ByPinsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newPinsStep(), opts...)
+	}
+}
+
+// ByPins orders the results by pins terms.
+func ByPins(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newPinsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByMemosCount orders the results by memos count.
+func ByMemosCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newMemosStep(), opts...)
+	}
+}
+
+// ByMemos orders the results by memos terms.
+func ByMemos(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newMemosStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newWorkspaceStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -619,5 +673,19 @@ func newMentionsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(MentionsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, MentionsTable, MentionsColumn),
+	)
+}
+func newPinsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(PinsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, PinsTable, PinsColumn),
+	)
+}
+func newMemosStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(MemosInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, true, MemosTable, MemosColumn),
 	)
 }

@@ -20,7 +20,9 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -202,6 +204,20 @@ func (_c *TaskCreate) SetNillableDueDate(v *time.Time) *TaskCreate {
 // SetCreatedBy sets the "created_by" field.
 func (_c *TaskCreate) SetCreatedBy(v uuid.UUID) *TaskCreate {
 	_c.mutation.SetCreatedBy(v)
+	return _c
+}
+
+// SetPosition sets the "position" field.
+func (_c *TaskCreate) SetPosition(v int) *TaskCreate {
+	_c.mutation.SetPosition(v)
+	return _c
+}
+
+// SetNillablePosition sets the "position" field if the given value is not nil.
+func (_c *TaskCreate) SetNillablePosition(v *int) *TaskCreate {
+	if v != nil {
+		_c.SetPosition(*v)
+	}
 	return _c
 }
 
@@ -404,6 +420,36 @@ func (_c *TaskCreate) AddMentions(v ...*TaskMention) *TaskCreate {
 	return _c.AddMentionIDs(ids...)
 }
 
+// AddPinIDs adds the "pins" edge to the TaskPin entity by IDs.
+func (_c *TaskCreate) AddPinIDs(ids ...uuid.UUID) *TaskCreate {
+	_c.mutation.AddPinIDs(ids...)
+	return _c
+}
+
+// AddPins adds the "pins" edges to the TaskPin entity.
+func (_c *TaskCreate) AddPins(v ...*TaskPin) *TaskCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddPinIDs(ids...)
+}
+
+// AddMemoIDs adds the "memos" edge to the TaskMemo entity by IDs.
+func (_c *TaskCreate) AddMemoIDs(ids ...uuid.UUID) *TaskCreate {
+	_c.mutation.AddMemoIDs(ids...)
+	return _c
+}
+
+// AddMemos adds the "memos" edges to the TaskMemo entity.
+func (_c *TaskCreate) AddMemos(v ...*TaskMemo) *TaskCreate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddMemoIDs(ids...)
+}
+
 // Mutation returns the TaskMutation object of the builder.
 func (_c *TaskCreate) Mutation() *TaskMutation {
 	return _c.mutation
@@ -564,6 +610,10 @@ func (_c *TaskCreate) createSpec() (*Task, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.DueDate(); ok {
 		_spec.SetField(task.FieldDueDate, field.TypeTime, value)
 		_node.DueDate = &value
+	}
+	if value, ok := _c.mutation.Position(); ok {
+		_spec.SetField(task.FieldPosition, field.TypeInt, value)
+		_node.Position = &value
 	}
 	if nodes := _c.mutation.WorkspaceIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -804,6 +854,38 @@ func (_c *TaskCreate) createSpec() (*Task, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.PinsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.PinsTable,
+			Columns: []string{task.PinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.MemosIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MemosTable,
+			Columns: []string{task.MemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

@@ -2,13 +2,20 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { FolderPlus, FolderPen, FolderX, ListPlus, Repeat, Trash2 } from "lucide-react";
+import { FolderPlus, FolderPen, FolderX, ListPlus, Loader2, Repeat, Trash2 } from "lucide-react";
 
 import { apiFetch } from "@/lib/apiClient";
 import Avatar from "@/components/ui/Avatar";
 import SidePanel from "@/components/ui/SidePanel";
 import { Select } from "@/components/ui/fields";
 import type { ActivityLogEntry, MemberSummary } from "@/lib/types";
+
+type ListResponse = {
+  items: ActivityLogEntry[];
+  has_more: boolean;
+};
+
+const PAGE_SIZE = 30;
 
 const STATUS_LABELS: Record<string, string> = {
   not_started: "未対応",
@@ -25,6 +32,8 @@ export default function ActivityPanel({ onClose }: { onClose: () => void }) {
   const workspaceId = params.workspaceId;
 
   const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [members, setMembers] = useState<MemberSummary[]>([]);
   const [actorId, setActorId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,17 +41,40 @@ export default function ActivityPanel({ onClose }: { onClose: () => void }) {
   // サーバー側は直近30日分を保持しているため、必要ならトグルで遡って見られる。
   const [showAll, setShowAll] = useState(false);
 
+  // actorId（絞り込み）が変わったら1ページ目から取り直す（2026-08-27、
+  // ページネーション対応）。
   const load = useCallback(() => {
     if (!workspaceId) return;
-    const query = actorId ? `?actor_id=${actorId}` : "";
-    apiFetch<ActivityLogEntry[]>(`/workspaces/${workspaceId}/activity${query}`)
-      .then(setEntries)
+    const query = actorId ? `&actor_id=${actorId}` : "";
+    apiFetch<ListResponse>(`/workspaces/${workspaceId}/activity?limit=${PAGE_SIZE}${query}`)
+      .then((res) => {
+        setEntries(res.items);
+        setHasMore(res.has_more);
+      })
       .catch(() => setError("ハイライトの取得に失敗しました"));
   }, [workspaceId, actorId]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  async function handleLoadMore() {
+    if (entries.length === 0 || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const lastId = entries[entries.length - 1].id;
+      const query = actorId ? `&actor_id=${actorId}` : "";
+      const res = await apiFetch<ListResponse>(
+        `/workspaces/${workspaceId}/activity?limit=${PAGE_SIZE}&before=${lastId}${query}`,
+      );
+      setEntries((prev) => [...prev, ...res.items]);
+      setHasMore(res.has_more);
+    } catch {
+      setError("ハイライトの追加取得に失敗しました");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -136,6 +168,18 @@ export default function ActivityPanel({ onClose }: { onClose: () => void }) {
               );
             })}
           </ul>
+        )}
+
+        {hasMore && (
+          <button
+            type="button"
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="flex items-center justify-center gap-1.5 self-center text-xs text-indigo-600 hover:underline disabled:opacity-50 dark:text-indigo-400"
+          >
+            {loadingMore && <Loader2 className="h-3 w-3 animate-spin" />}
+            もっと見る
+          </button>
         )}
       </div>
     </SidePanel>

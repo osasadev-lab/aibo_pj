@@ -354,6 +354,29 @@ func HasInvitationsWith(preds ...predicate.WorkspaceInvitation) predicate.Worksp
 	})
 }
 
+// HasDmChannels applies the HasEdge predicate on the "dm_channels" edge.
+func HasDmChannels() predicate.Workspace {
+	return predicate.Workspace(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, true, DmChannelsTable, DmChannelsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasDmChannelsWith applies the HasEdge predicate on the "dm_channels" edge with a given conditions (other predicates).
+func HasDmChannelsWith(preds ...predicate.DMChannel) predicate.Workspace {
+	return predicate.Workspace(func(s *sql.Selector) {
+		step := newDmChannelsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Workspace) predicate.Workspace {
 	return predicate.Workspace(sql.AndPredicates(predicates...))

@@ -4,6 +4,8 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "@/lib/apiClient";
+import ProfileSection from "@/components/settings/ProfileSection";
+import ThemeSection from "@/components/settings/ThemeSection";
 import HoverSettingsSection from "@/components/settings/HoverSettingsSection";
 import CalendarSyncSection from "@/components/settings/CalendarSyncSection";
 import ReminderSettingsSection from "@/components/settings/ReminderSettingsSection";
@@ -57,6 +59,8 @@ export default function SettingsPage() {
 
       <div className="flex flex-col gap-4">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">個人設定</h2>
+        <ProfileSection />
+        <ThemeSection />
         <HoverSettingsSection />
         <CalendarSyncSection />
         <ReminderSettingsSection />

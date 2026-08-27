@@ -44,9 +44,11 @@ type WorkspaceEdges struct {
 	ActivityLogs []*ActivityLog `json:"activity_logs,omitempty"`
 	// Invitations holds the value of the invitations edge.
 	Invitations []*WorkspaceInvitation `json:"invitations,omitempty"`
+	// DmChannels holds the value of the dm_channels edge.
+	DmChannels []*DMChannel `json:"dm_channels,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [6]bool
+	loadedTypes [7]bool
 }
 
 // MembersOrErr returns the Members value or an error if the edge
@@ -101,6 +103,15 @@ func (e WorkspaceEdges) InvitationsOrErr() ([]*WorkspaceInvitation, error) {
 		return e.Invitations, nil
 	}
 	return nil, &NotLoadedError{edge: "invitations"}
+}
+
+// DmChannelsOrErr returns the DmChannels value or an error if the edge
+// was not loaded in eager-loading.
+func (e WorkspaceEdges) DmChannelsOrErr() ([]*DMChannel, error) {
+	if e.loadedTypes[6] {
+		return e.DmChannels, nil
+	}
+	return nil, &NotLoadedError{edge: "dm_channels"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -194,6 +205,11 @@ func (_m *Workspace) QueryActivityLogs() *ActivityLogQuery {
 // QueryInvitations queries the "invitations" edge of the Workspace entity.
 func (_m *Workspace) QueryInvitations() *WorkspaceInvitationQuery {
 	return NewWorkspaceClient(_m.config).QueryInvitations(_m)
+}
+
+// QueryDmChannels queries the "dm_channels" edge of the Workspace entity.
+func (_m *Workspace) QueryDmChannels() *DMChannelQuery {
+	return NewWorkspaceClient(_m.config).QueryDmChannels(_m)
 }
 
 // Update returns a builder for updating this Workspace.

@@ -21,6 +21,21 @@ type Comment func(*sql.Selector)
 // CommentMention is the predicate function for commentmention builders.
 type CommentMention func(*sql.Selector)
 
+// DMAttachment is the predicate function for dmattachment builders.
+type DMAttachment func(*sql.Selector)
+
+// DMChannel is the predicate function for dmchannel builders.
+type DMChannel func(*sql.Selector)
+
+// DMChannelMember is the predicate function for dmchannelmember builders.
+type DMChannelMember func(*sql.Selector)
+
+// DMMessage is the predicate function for dmmessage builders.
+type DMMessage func(*sql.Selector)
+
+// Feedback is the predicate function for feedback builders.
+type Feedback func(*sql.Selector)
+
 // Notification is the predicate function for notification builders.
 type Notification func(*sql.Selector)
 
@@ -57,8 +72,17 @@ type TaskCalendarEvent func(*sql.Selector)
 // TaskDependency is the predicate function for taskdependency builders.
 type TaskDependency func(*sql.Selector)
 
+// TaskMemo is the predicate function for taskmemo builders.
+type TaskMemo func(*sql.Selector)
+
+// TaskMemoAttachment is the predicate function for taskmemoattachment builders.
+type TaskMemoAttachment func(*sql.Selector)
+
 // TaskMention is the predicate function for taskmention builders.
 type TaskMention func(*sql.Selector)
+
+// TaskPin is the predicate function for taskpin builders.
+type TaskPin func(*sql.Selector)
 
 // TaskTag is the predicate function for tasktag builders.
 type TaskTag func(*sql.Selector)

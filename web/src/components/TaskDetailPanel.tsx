@@ -2,19 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  AlertTriangle,
   Calendar,
   Check,
   ChevronDown,
   Flag,
   Folder,
+  ExternalLink,
   Link as LinkIcon,
+  Pin,
+  PinOff,
   Loader2,
-  Paperclip,
-  Plus,
   Tag as TagIcon,
   Trash2,
-  Upload,
   Users,
 } from "lucide-react";
 import clsx from "clsx";
@@ -24,12 +23,19 @@ import { useAuth } from "@/lib/auth/useAuth";
 import MemberPicker from "@/components/MemberPicker";
 import TagPicker from "@/components/TagPicker";
 import CommentThread from "@/components/CommentThread";
+import TaskMemoSection from "@/components/TaskMemoSection";
+import AttachmentSection, { type Attachment } from "@/components/task-detail/AttachmentSection";
+import SubtaskSection from "@/components/task-detail/SubtaskSection";
+import DependencySection, {
+  type DependencyTask,
+  type Dependencies,
+} from "@/components/task-detail/DependencySection";
 import Badge from "@/components/ui/Badge";
 import type { Tag } from "@/lib/types";
 import Button from "@/components/ui/Button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import IconButton from "@/components/ui/IconButton";
-import DatePicker from "@/components/ui/DatePicker";
+import DateTimeField from "@/components/ui/DateTimeField";
 import MarkdownToolbar from "@/components/ui/MarkdownToolbar";
 import SidePanel from "@/components/ui/SidePanel";
 import { Input, Select, Textarea } from "@/components/ui/fields";
@@ -44,36 +50,16 @@ type Task = {
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high" | null;
+  start_date: string | null;
   due_date: string | null;
   assignee_ids?: string[];
   mentioned_user_ids?: string[];
   tags?: Tag[];
-};
-
-type DependencyTask = {
-  id: string;
-  title: string;
-  status: "not_started" | "in_progress" | "done" | "on_hold";
-  project_id: string | null;
-};
-
-type DependencyEntry = { id: string; task: DependencyTask };
-
-type Dependencies = { predecessors: DependencyEntry[]; successors: DependencyEntry[] };
-
-type Attachment = {
-  id: string;
-  file_name: string;
-  size_bytes: number;
-  content_type: string;
+  // M8追加：呼び出しユーザー視点のピン留め状態。
+  is_pinned?: boolean;
 };
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024 * 1024) return `${Math.ceil(bytes / 1024)}KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
-}
 
 type Props = {
   taskId: string;
@@ -82,22 +68,39 @@ type Props = {
   // 呼び出し元一覧の再取得が完了するまで保存ボタンにスピナーを出したいため、
   // Promiseを返せるようにする（同期のvoidでも動くよう両方許容、ユーザーフィードバック）。
   onChanged?: () => void | Promise<void>;
+  // M8追加：右サイドパネル（既定）か、ポップアウト用の素のページ表示かを切り替える
+  // （docs/aibo/m8-implementation-plan.md スコープ追加C）。
+  variant?: "panel" | "page";
+  // 通知等、他画面から特定のコメントを指してこのタスクへ遷移してきた場合に渡す
+  // （2026-08-27追加）。CommentThreadへそのまま転送し、該当コメントを表示・
+  // ハイライトする。
+  initialCommentId?: string;
 };
 
 // プロジェクト詳細・マイタスクで共用する右サイドバー形式のタスク詳細パネル。
 // taskIdだけを受け取り、詳細（担当者・子タスクを含む）は自前で取得する
 // （呼び出し元の一覧が持つタスクの形が画面ごとに異なるため）。
-export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChanged }: Props) {
+export default function TaskDetailPanel({
+  taskId,
+  workspaceId,
+  onClose,
+  onChanged,
+  variant = "panel",
+  initialCommentId,
+}: Props) {
   const { user } = useAuth();
   const { projects } = useProjects();
   const storageEnabled = user?.storage_enabled ?? false;
   const [task, setTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<Task[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pinned, setPinned] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("");
+  const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [showAssignees, setShowAssignees] = useState(false);
@@ -137,10 +140,12 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
         setTitle(t.title);
         setDescription(t.description ?? "");
         setPriority(t.priority ?? "");
+        setStartDate(t.start_date ?? "");
         setDueDate(t.due_date ?? "");
         setAssigneeIds(t.assignee_ids ?? []);
         setMentionedIds(t.mentioned_user_ids ?? []);
         setTagIds((t.tags ?? []).map((tag) => tag.id));
+        setPinned(t.is_pinned ?? false);
         if (!t.parent_task_id) {
           return apiFetch<Task[]>(`/tasks/${taskId}/subtasks`).then(setSubtasks).catch(() => {});
         }
@@ -193,6 +198,12 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
   // Promiseを返さない呼び出し元でも await はそのまま解決するだけなので害はない。
   async function handleSave() {
     setError(null);
+    // 開始日時・期限を範囲として設定している場合、逆転していたら送信前に弾く
+    // （サーバー側にも同じ検証があるが、往復せず即座にフィードバックするため）。
+    if (startDate && dueDate && startDate > dueDate) {
+      setError("開始日時は期限より前に設定してください");
+      return;
+    }
     setSaving(true);
     try {
       const [taskResult, assigneesResult, tagsResult] = await Promise.allSettled([
@@ -202,7 +213,8 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             title,
             description: description || null,
             priority: priority || null,
-            due_date: dueDate || null,
+            start_date: startDate,
+            due_date: dueDate,
             mentioned_user_ids: mentionedIds,
           }),
         }),
@@ -307,6 +319,28 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
     }
   }
 
+  // タスクのピン留め切替（M8）。楽観的更新し、失敗時は元に戻す。
+  async function handleTogglePin() {
+    const next = !pinned;
+    setPinned(next);
+    setPinBusy(true);
+    try {
+      await apiFetch(`/tasks/${taskId}/pin`, { method: next ? "POST" : "DELETE" });
+    } catch {
+      setPinned(!next);
+      setError("ピン留めの更新に失敗しました");
+    } finally {
+      setPinBusy(false);
+    }
+  }
+
+  // ポップアウト（M8）：このタスクを別ウィンドウで開き、自パネルは閉じる
+  // （「切り離す」という意図的な挙動、docs/aibo/m8-implementation-plan.md スコープ追加C）。
+  function handlePopout() {
+    window.open(`/w/${workspaceId}/tasks/${taskId}`, "_blank", "noopener,width=640,height=840");
+    onClose();
+  }
+
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -390,8 +424,8 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
     }
   }
 
-  return (
-    <SidePanel title="タスク詳細" onClose={onClose}>
+  const content = (
+    <>
       {error && (
         <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/40 dark:text-red-400">
           {error}
@@ -426,6 +460,22 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             <IconButton onClick={handleCopyLink} title="リンクをコピー">
               {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <LinkIcon className="h-4 w-4" />}
             </IconButton>
+            <IconButton
+              onClick={handleTogglePin}
+              disabled={pinBusy}
+              title={pinned ? "ピン留めを解除" : "ピン留め"}
+            >
+              {pinned ? (
+                <PinOff className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <Pin className="h-4 w-4" />
+              )}
+            </IconButton>
+            {variant === "panel" && (
+              <IconButton onClick={handlePopout} title="ポップアウト">
+                <ExternalLink className="h-4 w-4" />
+              </IconButton>
+            )}
           </div>
           <div className="relative">
             <MarkdownToolbar textareaRef={descriptionRef} value={description} onChange={handleDescriptionChange} />
@@ -454,42 +504,14 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             )}
           </div>
 
-          <div className="flex flex-col gap-2 border-t border-border pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">添付ファイル</p>
-            {attachmentError && <p className="text-sm text-red-600 dark:text-red-400">{attachmentError}</p>}
-            {attachments.length > 0 && (
-              <ul className="flex flex-col gap-1">
-                {attachments.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-muted"
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="truncate text-foreground">{a.file_name}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(a.size_bytes)}</span>
-                    </span>
-                    <IconButton size="sm" onClick={() => handleDeleteAttachment(a.id)} title="削除">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </IconButton>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {storageEnabled ? (
-              <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground">
-                <Upload className="h-3.5 w-3.5" />
-                {uploading ? "アップロード中..." : "ファイルを添付（25MBまで）"}
-                <input type="file" className="hidden" onChange={handleFileSelected} disabled={uploading} />
-              </label>
-            ) : (
-              attachments.length === 0 && (
-                <p className="text-sm text-muted-foreground/70">
-                  添付ファイル機能は現在無効化されています
-                </p>
-              )
-            )}
-          </div>
+          <AttachmentSection
+            attachments={attachments}
+            error={attachmentError}
+            uploading={uploading}
+            storageEnabled={storageEnabled}
+            onUpload={handleFileSelected}
+            onDelete={handleDeleteAttachment}
+          />
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
@@ -501,9 +523,22 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
                 <option value="high">高</option>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-4 w-4 shrink-0 text-muted-foreground" />
-              <DatePicker value={dueDate} onChange={setDueDate} placeholder="期限を設定" />
+            {/* 開始日時・期限（2026-08-27追加、日時範囲対応）。ラベルを横に並べると
+                パネル幅（SidePanelのmax-w-xl）では時刻入力とぶつかって日付ボタンが
+                潰れるため、ラベルは上に置く縦積みレイアウトにする。 */}
+            <div className="flex flex-col gap-1">
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                開始日時
+              </span>
+              <DateTimeField value={startDate} onChange={setStartDate} placeholder="開始日時を設定" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                期限
+              </span>
+              <DateTimeField value={dueDate} onChange={setDueDate} placeholder="期限を設定" />
             </div>
           </div>
 
@@ -551,80 +586,24 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
           </div>
 
           {!task.parent_task_id && (
-            <div className="flex flex-col gap-2 border-t border-border pt-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">子タスク</p>
-              {subtasks.length > 0 && (
-                <ul className="flex flex-col gap-1">
-                  {subtasks.map((st) => (
-                    <li
-                      key={st.id}
-                      className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm hover:bg-surface-muted"
-                    >
-                      <span className="text-foreground">{st.title}</span>
-                      <IconButton size="sm" onClick={() => handleDeleteSubtask(st.id)} title="削除">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </IconButton>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <form onSubmit={handleAddSubtask} className="flex gap-1.5">
-                <Input
-                  value={subtaskTitle}
-                  onChange={(e) => setSubtaskTitle(e.target.value)}
-                  placeholder="子タスク名"
-                  className="text-sm"
-                />
-                <Button type="submit" variant="secondary" size="sm">
-                  <Plus className="h-3.5 w-3.5" />
-                </Button>
-              </form>
-            </div>
+            <SubtaskSection
+              subtasks={subtasks}
+              subtaskTitle={subtaskTitle}
+              onSubtaskTitleChange={setSubtaskTitle}
+              onAdd={handleAddSubtask}
+              onDelete={handleDeleteSubtask}
+            />
           )}
 
-          <div className="flex flex-col gap-2 border-t border-border pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">先行タスク</p>
-            {dependencyError && <p className="text-sm text-red-600 dark:text-red-400">{dependencyError}</p>}
-            {dependencies.predecessors.length > 0 && (
-              <ul className="flex flex-col gap-1">
-                {dependencies.predecessors.map((d) => (
-                  <li
-                    key={d.id}
-                    className="flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-surface-muted"
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      {d.task.status !== "done" && (
-                        <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
-                      )}
-                      <span className="truncate text-foreground">{d.task.title}</span>
-                    </span>
-                    <IconButton size="sm" onClick={() => handleRemoveDependency(d.id)} title="解除">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </IconButton>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <form onSubmit={handleAddDependency} className="flex gap-1.5">
-              <Select
-                value={newDependencyId}
-                onChange={(e) => setNewDependencyId(e.target.value)}
-                className="text-sm"
-              >
-                <option value="">先行タスクを選択...</option>
-                {candidateTasks
-                  .filter((t) => !dependencies.predecessors.some((d) => d.task.id === t.id))
-                  .map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.title}
-                    </option>
-                  ))}
-              </Select>
-              <Button type="submit" variant="secondary" size="sm">
-                <Plus className="h-3.5 w-3.5" />
-              </Button>
-            </form>
-          </div>
+          <DependencySection
+            dependencies={dependencies}
+            candidateTasks={candidateTasks}
+            newDependencyId={newDependencyId}
+            onNewDependencyIdChange={setNewDependencyId}
+            error={dependencyError}
+            onAdd={handleAddDependency}
+            onRemove={handleRemoveDependency}
+          />
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
             <Button variant="primary" size="sm" disabled={saving} onClick={handleSave}>
@@ -643,7 +622,13 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
             </Button>
           </div>
 
-          <CommentThread taskId={taskId} onLoaded={() => setCommentsReady(true)} />
+          <CommentThread
+            taskId={taskId}
+            initialCommentId={initialCommentId}
+            onLoaded={() => setCommentsReady(true)}
+          />
+
+          <TaskMemoSection taskId={taskId} storageEnabled={storageEnabled} />
         </fieldset>
       )}
 
@@ -658,6 +643,15 @@ export default function TaskDetailPanel({ taskId, workspaceId, onClose, onChange
         }}
         onCancel={() => setShowDoneConfirm(false)}
       />
+    </>
+  );
+
+  if (variant === "page") {
+    return <div className="mx-auto max-w-3xl px-6 py-8">{content}</div>;
+  }
+  return (
+    <SidePanel title="タスク詳細" onClose={onClose}>
+      {content}
     </SidePanel>
   );
 }

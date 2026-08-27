@@ -19,6 +19,9 @@ type AuthContextValue = {
   loading: boolean;
   setToken: (token: string) => Promise<void>;
   logout: () => void;
+  // プロフィール更新（表示名変更等）後、再フェッチ無しでローカルのuser表示
+  // （サイドバーのアバター名等）に即座に反映するための部分更新（M8追加）。
+  updateUser: (patch: Partial<User>) => void;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
@@ -67,8 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback((patch: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, setToken, logout }}>
+    <AuthContext.Provider value={{ user, loading, setToken, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

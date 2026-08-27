@@ -1,6 +1,17 @@
 @import "tailwindcss";
 
+/* M8：dark:ユーティリティのトリガーをOSのprefers-color-schemeから.darkクラスへ
+   変更する（デフォルトをダークにし、ライトへの手動切替トグルを持つ仕様のため）。
+   既存の`dark:bg-...`等のユーティリティはこの1行の変更だけで動作が切り替わり、
+   個々のコンポーネント側の修正は不要（docs/aibo/m8-implementation-plan.md 設計判断1）。 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
+  /* ブラウザ/OS側の「ページ全体を強制ダーク化」ヒューリスティック（Chromeの
+     Auto Dark Mode等）が、.darkクラスの有無に関わらず独自にページを暗転させて
+     二重に配色が競合する事故を防ぐ。ページが自前でライト/ダークを管理している
+     ことを明示する（M8で.dark方式に変更した際に発覚、CSS崩れの原因だった）。 */
+  color-scheme: light;
   --background: #fafafa;
   --surface: #ffffff;
   --surface-muted: #f4f4f5;
@@ -23,15 +34,14 @@
 /* ダークモードは純黒(#0a0a0a)だと画面が暗すぎるとの指摘があったため、
    zinc-900系のやや明るいトーンをベースにし、パネル/カードは一段階明るい
    面で立体感を出す（フラットな全面黒を避ける）。 */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #18181b;
-    --surface: #202023;
-    --surface-muted: #29292d;
-    --border: #333338;
-    --foreground: #f4f4f5;
-    --muted-foreground: #a1a1aa;
-  }
+:root.dark {
+  color-scheme: dark;
+  --background: #18181b;
+  --surface: #202023;
+  --surface-muted: #29292d;
+  --border: #333338;
+  --foreground: #f4f4f5;
+  --muted-foreground: #a1a1aa;
 }
 
 body {

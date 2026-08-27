@@ -80,5 +80,13 @@ func (User) Edges() []ent.Edge {
 		edge.From("calendar_watches", CalendarWatchedMember.Type).Ref("user"),
 		edge.From("push_subscriptions", PushSubscription.Type).Ref("user"),
 		edge.From("reminder_sends", ReminderSend.Type).Ref("user"),
+		edge.From("task_pins", TaskPin.Type).Ref("user"),
+		edge.From("feedbacks", Feedback.Type).Ref("user"),
+		edge.From("created_dm_channels", DMChannel.Type).Ref("creator"),
+		edge.From("dm_channel_members", DMChannelMember.Type).Ref("user"),
+		edge.From("dm_messages", DMMessage.Type).Ref("user"),
+		edge.From("dm_attachments", DMAttachment.Type).Ref("uploader"),
+		edge.From("task_memos", TaskMemo.Type).Ref("user"),
+		edge.From("task_memo_attachments", TaskMemoAttachment.Type).Ref("uploader"),
 	}
 }

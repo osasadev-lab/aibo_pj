@@ -22,7 +22,9 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskcalendarevent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskdependency"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskmemo"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/taskpin"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspace"
@@ -263,6 +265,33 @@ func (_u *TaskUpdate) SetNillableCreatedBy(v *uuid.UUID) *TaskUpdate {
 	return _u
 }
 
+// SetPosition sets the "position" field.
+func (_u *TaskUpdate) SetPosition(v int) *TaskUpdate {
+	_u.mutation.ResetPosition()
+	_u.mutation.SetPosition(v)
+	return _u
+}
+
+// SetNillablePosition sets the "position" field if the given value is not nil.
+func (_u *TaskUpdate) SetNillablePosition(v *int) *TaskUpdate {
+	if v != nil {
+		_u.SetPosition(*v)
+	}
+	return _u
+}
+
+// AddPosition adds value to the "position" field.
+func (_u *TaskUpdate) AddPosition(v int) *TaskUpdate {
+	_u.mutation.AddPosition(v)
+	return _u
+}
+
+// ClearPosition clears the value of the "position" field.
+func (_u *TaskUpdate) ClearPosition() *TaskUpdate {
+	_u.mutation.ClearPosition()
+	return _u
+}
+
 // SetWorkspace sets the "workspace" edge to the Workspace entity.
 func (_u *TaskUpdate) SetWorkspace(v *Workspace) *TaskUpdate {
 	return _u.SetWorkspaceID(v.ID)
@@ -446,6 +475,36 @@ func (_u *TaskUpdate) AddMentions(v ...*TaskMention) *TaskUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddMentionIDs(ids...)
+}
+
+// AddPinIDs adds the "pins" edge to the TaskPin entity by IDs.
+func (_u *TaskUpdate) AddPinIDs(ids ...uuid.UUID) *TaskUpdate {
+	_u.mutation.AddPinIDs(ids...)
+	return _u
+}
+
+// AddPins adds the "pins" edges to the TaskPin entity.
+func (_u *TaskUpdate) AddPins(v ...*TaskPin) *TaskUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPinIDs(ids...)
+}
+
+// AddMemoIDs adds the "memos" edge to the TaskMemo entity by IDs.
+func (_u *TaskUpdate) AddMemoIDs(ids ...uuid.UUID) *TaskUpdate {
+	_u.mutation.AddMemoIDs(ids...)
+	return _u
+}
+
+// AddMemos adds the "memos" edges to the TaskMemo entity.
+func (_u *TaskUpdate) AddMemos(v ...*TaskMemo) *TaskUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMemoIDs(ids...)
 }
 
 // Mutation returns the TaskMutation object of the builder.
@@ -678,6 +737,48 @@ func (_u *TaskUpdate) RemoveMentions(v ...*TaskMention) *TaskUpdate {
 	return _u.RemoveMentionIDs(ids...)
 }
 
+// ClearPins clears all "pins" edges to the TaskPin entity.
+func (_u *TaskUpdate) ClearPins() *TaskUpdate {
+	_u.mutation.ClearPins()
+	return _u
+}
+
+// RemovePinIDs removes the "pins" edge to TaskPin entities by IDs.
+func (_u *TaskUpdate) RemovePinIDs(ids ...uuid.UUID) *TaskUpdate {
+	_u.mutation.RemovePinIDs(ids...)
+	return _u
+}
+
+// RemovePins removes "pins" edges to TaskPin entities.
+func (_u *TaskUpdate) RemovePins(v ...*TaskPin) *TaskUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePinIDs(ids...)
+}
+
+// ClearMemos clears all "memos" edges to the TaskMemo entity.
+func (_u *TaskUpdate) ClearMemos() *TaskUpdate {
+	_u.mutation.ClearMemos()
+	return _u
+}
+
+// RemoveMemoIDs removes the "memos" edge to TaskMemo entities by IDs.
+func (_u *TaskUpdate) RemoveMemoIDs(ids ...uuid.UUID) *TaskUpdate {
+	_u.mutation.RemoveMemoIDs(ids...)
+	return _u
+}
+
+// RemoveMemos removes "memos" edges to TaskMemo entities.
+func (_u *TaskUpdate) RemoveMemos(v ...*TaskMemo) *TaskUpdate {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMemoIDs(ids...)
+}
+
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *TaskUpdate) Save(ctx context.Context) (int, error) {
 	_u.defaults()
@@ -784,6 +885,15 @@ func (_u *TaskUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.DueDateCleared() {
 		_spec.ClearField(task.FieldDueDate, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Position(); ok {
+		_spec.SetField(task.FieldPosition, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedPosition(); ok {
+		_spec.AddField(task.FieldPosition, field.TypeInt, value)
+	}
+	if _u.mutation.PositionCleared() {
+		_spec.ClearField(task.FieldPosition, field.TypeInt)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1357,6 +1467,96 @@ func (_u *TaskUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PinsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.PinsTable,
+			Columns: []string{task.PinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPinsIDs(); len(nodes) > 0 && !_u.mutation.PinsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.PinsTable,
+			Columns: []string{task.PinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PinsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.PinsTable,
+			Columns: []string{task.PinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MemosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MemosTable,
+			Columns: []string{task.MemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMemosIDs(); len(nodes) > 0 && !_u.mutation.MemosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MemosTable,
+			Columns: []string{task.MemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MemosIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MemosTable,
+			Columns: []string{task.MemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {
@@ -1606,6 +1806,33 @@ func (_u *TaskUpdateOne) SetNillableCreatedBy(v *uuid.UUID) *TaskUpdateOne {
 	return _u
 }
 
+// SetPosition sets the "position" field.
+func (_u *TaskUpdateOne) SetPosition(v int) *TaskUpdateOne {
+	_u.mutation.ResetPosition()
+	_u.mutation.SetPosition(v)
+	return _u
+}
+
+// SetNillablePosition sets the "position" field if the given value is not nil.
+func (_u *TaskUpdateOne) SetNillablePosition(v *int) *TaskUpdateOne {
+	if v != nil {
+		_u.SetPosition(*v)
+	}
+	return _u
+}
+
+// AddPosition adds value to the "position" field.
+func (_u *TaskUpdateOne) AddPosition(v int) *TaskUpdateOne {
+	_u.mutation.AddPosition(v)
+	return _u
+}
+
+// ClearPosition clears the value of the "position" field.
+func (_u *TaskUpdateOne) ClearPosition() *TaskUpdateOne {
+	_u.mutation.ClearPosition()
+	return _u
+}
+
 // SetWorkspace sets the "workspace" edge to the Workspace entity.
 func (_u *TaskUpdateOne) SetWorkspace(v *Workspace) *TaskUpdateOne {
 	return _u.SetWorkspaceID(v.ID)
@@ -1789,6 +2016,36 @@ func (_u *TaskUpdateOne) AddMentions(v ...*TaskMention) *TaskUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddMentionIDs(ids...)
+}
+
+// AddPinIDs adds the "pins" edge to the TaskPin entity by IDs.
+func (_u *TaskUpdateOne) AddPinIDs(ids ...uuid.UUID) *TaskUpdateOne {
+	_u.mutation.AddPinIDs(ids...)
+	return _u
+}
+
+// AddPins adds the "pins" edges to the TaskPin entity.
+func (_u *TaskUpdateOne) AddPins(v ...*TaskPin) *TaskUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddPinIDs(ids...)
+}
+
+// AddMemoIDs adds the "memos" edge to the TaskMemo entity by IDs.
+func (_u *TaskUpdateOne) AddMemoIDs(ids ...uuid.UUID) *TaskUpdateOne {
+	_u.mutation.AddMemoIDs(ids...)
+	return _u
+}
+
+// AddMemos adds the "memos" edges to the TaskMemo entity.
+func (_u *TaskUpdateOne) AddMemos(v ...*TaskMemo) *TaskUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddMemoIDs(ids...)
 }
 
 // Mutation returns the TaskMutation object of the builder.
@@ -2021,6 +2278,48 @@ func (_u *TaskUpdateOne) RemoveMentions(v ...*TaskMention) *TaskUpdateOne {
 	return _u.RemoveMentionIDs(ids...)
 }
 
+// ClearPins clears all "pins" edges to the TaskPin entity.
+func (_u *TaskUpdateOne) ClearPins() *TaskUpdateOne {
+	_u.mutation.ClearPins()
+	return _u
+}
+
+// RemovePinIDs removes the "pins" edge to TaskPin entities by IDs.
+func (_u *TaskUpdateOne) RemovePinIDs(ids ...uuid.UUID) *TaskUpdateOne {
+	_u.mutation.RemovePinIDs(ids...)
+	return _u
+}
+
+// RemovePins removes "pins" edges to TaskPin entities.
+func (_u *TaskUpdateOne) RemovePins(v ...*TaskPin) *TaskUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemovePinIDs(ids...)
+}
+
+// ClearMemos clears all "memos" edges to the TaskMemo entity.
+func (_u *TaskUpdateOne) ClearMemos() *TaskUpdateOne {
+	_u.mutation.ClearMemos()
+	return _u
+}
+
+// RemoveMemoIDs removes the "memos" edge to TaskMemo entities by IDs.
+func (_u *TaskUpdateOne) RemoveMemoIDs(ids ...uuid.UUID) *TaskUpdateOne {
+	_u.mutation.RemoveMemoIDs(ids...)
+	return _u
+}
+
+// RemoveMemos removes "memos" edges to TaskMemo entities.
+func (_u *TaskUpdateOne) RemoveMemos(v ...*TaskMemo) *TaskUpdateOne {
+	ids := make([]uuid.UUID, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveMemoIDs(ids...)
+}
+
 // Where appends a list predicates to the TaskUpdate builder.
 func (_u *TaskUpdateOne) Where(ps ...predicate.Task) *TaskUpdateOne {
 	_u.mutation.Where(ps...)
@@ -2157,6 +2456,15 @@ func (_u *TaskUpdateOne) sqlSave(ctx context.Context) (_node *Task, err error) {
 	}
 	if _u.mutation.DueDateCleared() {
 		_spec.ClearField(task.FieldDueDate, field.TypeTime)
+	}
+	if value, ok := _u.mutation.Position(); ok {
+		_spec.SetField(task.FieldPosition, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedPosition(); ok {
+		_spec.AddField(task.FieldPosition, field.TypeInt, value)
+	}
+	if _u.mutation.PositionCleared() {
+		_spec.ClearField(task.FieldPosition, field.TypeInt)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2730,6 +3038,96 @@ func (_u *TaskUpdateOne) sqlSave(ctx context.Context) (_node *Task, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(taskmention.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.PinsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.PinsTable,
+			Columns: []string{task.PinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedPinsIDs(); len(nodes) > 0 && !_u.mutation.PinsCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.PinsTable,
+			Columns: []string{task.PinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.PinsIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.PinsTable,
+			Columns: []string{task.PinsColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskpin.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.MemosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MemosTable,
+			Columns: []string{task.MemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedMemosIDs(); len(nodes) > 0 && !_u.mutation.MemosCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MemosTable,
+			Columns: []string{task.MemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.MemosIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: true,
+			Table:   task.MemosTable,
+			Columns: []string{task.MemosColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(taskmemo.FieldID, field.TypeUUID),
 			},
 		}
 		for _, k := range nodes {

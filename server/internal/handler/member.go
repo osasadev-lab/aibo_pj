@@ -15,6 +15,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
+	"github.com/osasadev-lab/aibo_pj/server/internal/logging"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 )
 
@@ -93,6 +94,7 @@ func (h *MemberHandler) Invite(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to invite member"})
 			return
 		}
+		logging.Action(c, "workspace.member_invited", map[string]any{"workspace_id": m.WorkspaceID, "email": req.Email})
 		c.JSON(http.StatusAccepted, gin.H{"status": "invited"})
 		return
 	case err != nil:
@@ -121,6 +123,7 @@ func (h *MemberHandler) Invite(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add member"})
 		return
 	}
+	logging.Action(c, "workspace.member_added", map[string]any{"workspace_id": m.WorkspaceID, "target_user_id": existing.ID})
 	c.JSON(http.StatusCreated, gin.H{"id": created.ID, "user_id": existing.ID, "role": created.Role})
 }
 
@@ -172,6 +175,9 @@ func (h *MemberHandler) ChangeRole(c *gin.Context) {
 	case err != nil:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to change role"})
 	default:
+		logging.Action(c, "workspace.member_role_changed", map[string]any{
+			"workspace_id": m.WorkspaceID, "member_id": memberID, "new_role": req.Role,
+		})
 		c.Status(http.StatusNoContent)
 	}
 }
@@ -221,6 +227,7 @@ func (h *MemberHandler) Remove(c *gin.Context) {
 	case err != nil:
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove member"})
 	default:
+		logging.Action(c, "workspace.member_removed", map[string]any{"workspace_id": m.WorkspaceID, "member_id": memberID})
 		c.Status(http.StatusNoContent)
 	}
 }

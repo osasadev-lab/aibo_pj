@@ -85,6 +85,40 @@ Pagesダッシュボードではなく Workersダッシュボードになる）�
 - [x] 通知バッジのリアルタイム更新（`notifications`テーブルもSupabase Realtime購読対象に追加）、タスク詳細保存の並列化・スピナー表示・保存中の全項目非活性化
 - 実装詳細・設計判断・ユーザーフィードバックによる追加改修は`docs/aibo/m7-implementation-plan.md`参照。**VAPID鍵・Cloud Schedulerジョブは本番Cloud Runにまだ反映していない**（`deploy/secrets-checklist.md`参照）
 
+### M8：PWA・UI仕上げ
+
+- [x] ダークモード（デフォルト）⇄ライトモードの手動切り替え（`localStorage`で永続化、`<html>`へのクラス付与＋起動時インラインスクリプトでFOUC回避）
+- [x] `manifest.json` / Service Worker拡張（アプリシェルのオフラインキャッシュ、`web/public/sw.js`をM7のPush専用SWから拡張）
+- [x] レスポンシブ対応（`lg`未満でハンバーガーメニュー＋オフキャンバスの左サイドバー、カンバンのタッチD&D・縦積みレイアウト）
+- [x] 左サイドバーのプロジェクト一覧の並び替え（個人ごと）、プロジェクトカンバン内タスクの並び替え（共有）
+- [x] タスクのピン留め機能、タスク詳細のポップアウト（別ウィンドウ表示）
+- [x] ユーザーからのフィードバック機能（左サイドバー→DB保存＋Gmail SMTPリレー経由のメール通知）
+- [x] サービス表示名を「aibo」→「aisu」に変更（表示名・PWA新規ファイルのみ。既存ドキュメント本文やインフラ識別子は不変）
+- 実装詳細・設計判断は`docs/aibo/m8-implementation-plan.md`参照
+
+### M9後の追加実装（運用フィードバックによる追加）
+
+- [x] project-audit.mdの指摘対応（自動テスト導入、通知・コメント・ハイライトのページネーション、右サイドパネルの表示競合修正、構造化ログ整備等）
+- [x] ガントチャート／タイムライン画面（`/w/:workspaceId/gantt`、既存タスク一覧APIを再利用）
+- [x] タスク期限の日時範囲化（`start_date`/`due_date`をDATE→TIMESTAMPTZ化、`YYYY-MM-DD HH:MM`で管理）。Googleカレンダー連携・カレンダー・ガントチャート・マイタスク・カンバンカード表示すべてに反映
+- [x] スマホのD&D・右サイドバー重なり・カンバン横並び崩れの修正
+- 詳細は各実装ドキュメント（`m6`〜`m8-implementation-plan.md`）・`docs/aibo/project-audit.md`「対応状況」参照
+
+### M8.5：DM・メモ・ガイド機能（execution-plan.mdの本来計画には無い追加実装）
+
+- [x] DM機能（左サイドバー「DM」、`/w/:workspaceId/dm`の専用ページ）：ワークスペース内メンバーとの1:1・グループチャット。1:1は`dm_key`で正規化し既存チャンネルを再引き回す（自分だけを選んだ「セルフDM」も対応）、3人以上は常に新規グループ。LINE風UI（自分のメッセージは右寄せ・indigo系）、Slack風Markdown、添付ファイル（25MBまで）、`comments`と同じSupabase Realtime＋RLS方式でのリアルタイム反映、通知（`dm_message`）・Web Push連携
+- [x] メモ機能（左サイドバー「メモ」＋タスク詳細内）：自分にだけ表示される、タスクごとの個人メモ（Markdown＋添付ファイル対応）。`TaskPin`と同じユーザー×タスクの中間テーブル方式
+- [x] ガイド機能（左サイドバー「ガイド」）：取扱説明書（PDF）のダウンロード導線。PDF本体は静的ファイル（`web/public/guide/aisu-guide.pdf`）として配置し、アプリの依存関係にPDF生成ライブラリは追加していない
+- 実装詳細・設計判断は`docs/aibo/m8.5-implementation-plan.md`参照。DB migration（新規6テーブル：`dm_channels`/`dm_channel_members`/`dm_messages`/`dm_attachments`/`task_memos`/`task_memo_attachments`）・`dm_messages`のRLSポリシーは本番Supabaseに適用済み
+
+### 保守性向上のためのリファクタリング（2026-08-27）
+
+機能追加は行わず、挙動を変えずにコード構成のみ整理した。
+
+- バックエンド：肥大化していた`server/internal/handler/task.go`（1643行）・`project.go`（1141行）を、関心事ごとに`task_pins.go`/`task_subtasks.go`/`task_assignees.go`/`task_dependencies.go`/`task_tags.go`・`project_members.go`/`project_statuscolumns.go`へ分割（それぞれ988行・558行まで縮小）。複数ファイルで使う`dedupUUIDs`は`dedup.go`に集約
+- フロントエンド：`web/src/components/TaskDetailPanel.tsx`（762行）から、添付ファイル・子タスク・先行タスクの各区画を`web/src/components/task-detail/{AttachmentSection,SubtaskSection,DependencySection}.tsx`へ表示専用コンポーネントとして切り出し（657行まで縮小）
+- 各分割後、`go build`/`go vet`/`go test ./...`・`npx tsc --noEmit`/`npm run lint`/`npm run build`がすべて通ることを確認済み
+
 ## セットアップ
 
 ### 前提
@@ -149,4 +183,4 @@ Googleカレンダー連携（M6）を試すには、GCPコンソールでCalend
 
 ## 次のマイルストーン
 
-M8（PWA・UI仕上げ）以降は `docs/aibo/execution-plan.md` を参照。
+M9（QA・デプロイ・リリース準備）以降は `docs/aibo/execution-plan.md` を参照。
