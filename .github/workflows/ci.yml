@@ -17,6 +17,14 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: server/go.mod
+      - name: go mod download (with retry)
+        run: |
+          for i in 1 2 3 4 5; do
+            go mod download && exit 0
+            echo "go mod download failed (attempt $i), retrying..."
+            sleep $((i * 5))
+          done
+          exit 1
       - run: go vet ./...
       - run: go build ./...
       - run: go test ./...
