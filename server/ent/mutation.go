@@ -14092,6 +14092,7 @@ type TaskMutation struct {
 	due_date               *time.Time
 	position               *int
 	addposition            *int
+	github_issue_url       *string
 	clearedFields          map[string]struct{}
 	workspace              *uuid.UUID
 	clearedworkspace       bool
@@ -14925,6 +14926,55 @@ func (m *TaskMutation) ResetPosition() {
 	delete(m.clearedFields, task.FieldPosition)
 }
 
+// SetGithubIssueURL sets the "github_issue_url" field.
+func (m *TaskMutation) SetGithubIssueURL(s string) {
+	m.github_issue_url = &s
+}
+
+// GithubIssueURL returns the value of the "github_issue_url" field in the mutation.
+func (m *TaskMutation) GithubIssueURL() (r string, exists bool) {
+	v := m.github_issue_url
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGithubIssueURL returns the old "github_issue_url" field's value of the Task entity.
+// If the Task object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TaskMutation) OldGithubIssueURL(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGithubIssueURL is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGithubIssueURL requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGithubIssueURL: %w", err)
+	}
+	return oldValue.GithubIssueURL, nil
+}
+
+// ClearGithubIssueURL clears the value of the "github_issue_url" field.
+func (m *TaskMutation) ClearGithubIssueURL() {
+	m.github_issue_url = nil
+	m.clearedFields[task.FieldGithubIssueURL] = struct{}{}
+}
+
+// GithubIssueURLCleared returns if the "github_issue_url" field was cleared in this mutation.
+func (m *TaskMutation) GithubIssueURLCleared() bool {
+	_, ok := m.clearedFields[task.FieldGithubIssueURL]
+	return ok
+}
+
+// ResetGithubIssueURL resets all changes to the "github_issue_url" field.
+func (m *TaskMutation) ResetGithubIssueURL() {
+	m.github_issue_url = nil
+	delete(m.clearedFields, task.FieldGithubIssueURL)
+}
+
 // ClearWorkspace clears the "workspace" edge to the Workspace entity.
 func (m *TaskMutation) ClearWorkspace() {
 	m.clearedworkspace = true
@@ -15741,7 +15791,7 @@ func (m *TaskMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TaskMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 16)
 	if m.created_at != nil {
 		fields = append(fields, task.FieldCreatedAt)
 	}
@@ -15787,6 +15837,9 @@ func (m *TaskMutation) Fields() []string {
 	if m.position != nil {
 		fields = append(fields, task.FieldPosition)
 	}
+	if m.github_issue_url != nil {
+		fields = append(fields, task.FieldGithubIssueURL)
+	}
 	return fields
 }
 
@@ -15825,6 +15878,8 @@ func (m *TaskMutation) Field(name string) (ent.Value, bool) {
 		return m.CreatedBy()
 	case task.FieldPosition:
 		return m.Position()
+	case task.FieldGithubIssueURL:
+		return m.GithubIssueURL()
 	}
 	return nil, false
 }
@@ -15864,6 +15919,8 @@ func (m *TaskMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldCreatedBy(ctx)
 	case task.FieldPosition:
 		return m.OldPosition(ctx)
+	case task.FieldGithubIssueURL:
+		return m.OldGithubIssueURL(ctx)
 	}
 	return nil, fmt.Errorf("unknown Task field %s", name)
 }
@@ -15978,6 +16035,13 @@ func (m *TaskMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetPosition(v)
 		return nil
+	case task.FieldGithubIssueURL:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGithubIssueURL(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Task field %s", name)
 }
@@ -16050,6 +16114,9 @@ func (m *TaskMutation) ClearedFields() []string {
 	if m.FieldCleared(task.FieldPosition) {
 		fields = append(fields, task.FieldPosition)
 	}
+	if m.FieldCleared(task.FieldGithubIssueURL) {
+		fields = append(fields, task.FieldGithubIssueURL)
+	}
 	return fields
 }
 
@@ -16090,6 +16157,9 @@ func (m *TaskMutation) ClearField(name string) error {
 		return nil
 	case task.FieldPosition:
 		m.ClearPosition()
+		return nil
+	case task.FieldGithubIssueURL:
+		m.ClearGithubIssueURL()
 		return nil
 	}
 	return fmt.Errorf("unknown Task nullable field %s", name)
@@ -16143,6 +16213,9 @@ func (m *TaskMutation) ResetField(name string) error {
 		return nil
 	case task.FieldPosition:
 		m.ResetPosition()
+		return nil
+	case task.FieldGithubIssueURL:
+		m.ResetGithubIssueURL()
 		return nil
 	}
 	return fmt.Errorf("unknown Task field %s", name)

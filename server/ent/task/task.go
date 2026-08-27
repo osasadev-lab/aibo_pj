@@ -46,6 +46,8 @@ const (
 	FieldCreatedBy = "created_by"
 	// FieldPosition holds the string denoting the position field in the database.
 	FieldPosition = "position"
+	// FieldGithubIssueURL holds the string denoting the github_issue_url field in the database.
+	FieldGithubIssueURL = "github_issue_url"
 	// EdgeWorkspace holds the string denoting the workspace edge name in mutations.
 	EdgeWorkspace = "workspace"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -215,6 +217,7 @@ var Columns = []string{
 	FieldDueDate,
 	FieldCreatedBy,
 	FieldPosition,
+	FieldGithubIssueURL,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -373,6 +376,11 @@ func ByCreatedBy(opts ...sql.OrderTermOption) OrderOption {
 // ByPosition orders the results by the position field.
 func ByPosition(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPosition, opts...).ToFunc()
+}
+
+// ByGithubIssueURL orders the results by the github_issue_url field.
+func ByGithubIssueURL(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGithubIssueURL, opts...).ToFunc()
 }
 
 // ByWorkspaceField orders the results by workspace field.

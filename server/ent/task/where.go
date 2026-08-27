@@ -121,6 +121,11 @@ func Position(v int) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldPosition, v))
 }
 
+// GithubIssueURL applies equality check predicate on the "github_issue_url" field. It's identical to GithubIssueURLEQ.
+func GithubIssueURL(v string) predicate.Task {
+	return predicate.Task(sql.FieldEQ(FieldGithubIssueURL, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldCreatedAt, v))
@@ -699,6 +704,81 @@ func PositionIsNil() predicate.Task {
 // PositionNotNil applies the NotNil predicate on the "position" field.
 func PositionNotNil() predicate.Task {
 	return predicate.Task(sql.FieldNotNull(FieldPosition))
+}
+
+// GithubIssueURLEQ applies the EQ predicate on the "github_issue_url" field.
+func GithubIssueURLEQ(v string) predicate.Task {
+	return predicate.Task(sql.FieldEQ(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLNEQ applies the NEQ predicate on the "github_issue_url" field.
+func GithubIssueURLNEQ(v string) predicate.Task {
+	return predicate.Task(sql.FieldNEQ(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLIn applies the In predicate on the "github_issue_url" field.
+func GithubIssueURLIn(vs ...string) predicate.Task {
+	return predicate.Task(sql.FieldIn(FieldGithubIssueURL, vs...))
+}
+
+// GithubIssueURLNotIn applies the NotIn predicate on the "github_issue_url" field.
+func GithubIssueURLNotIn(vs ...string) predicate.Task {
+	return predicate.Task(sql.FieldNotIn(FieldGithubIssueURL, vs...))
+}
+
+// GithubIssueURLGT applies the GT predicate on the "github_issue_url" field.
+func GithubIssueURLGT(v string) predicate.Task {
+	return predicate.Task(sql.FieldGT(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLGTE applies the GTE predicate on the "github_issue_url" field.
+func GithubIssueURLGTE(v string) predicate.Task {
+	return predicate.Task(sql.FieldGTE(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLLT applies the LT predicate on the "github_issue_url" field.
+func GithubIssueURLLT(v string) predicate.Task {
+	return predicate.Task(sql.FieldLT(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLLTE applies the LTE predicate on the "github_issue_url" field.
+func GithubIssueURLLTE(v string) predicate.Task {
+	return predicate.Task(sql.FieldLTE(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLContains applies the Contains predicate on the "github_issue_url" field.
+func GithubIssueURLContains(v string) predicate.Task {
+	return predicate.Task(sql.FieldContains(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLHasPrefix applies the HasPrefix predicate on the "github_issue_url" field.
+func GithubIssueURLHasPrefix(v string) predicate.Task {
+	return predicate.Task(sql.FieldHasPrefix(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLHasSuffix applies the HasSuffix predicate on the "github_issue_url" field.
+func GithubIssueURLHasSuffix(v string) predicate.Task {
+	return predicate.Task(sql.FieldHasSuffix(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLIsNil applies the IsNil predicate on the "github_issue_url" field.
+func GithubIssueURLIsNil() predicate.Task {
+	return predicate.Task(sql.FieldIsNull(FieldGithubIssueURL))
+}
+
+// GithubIssueURLNotNil applies the NotNil predicate on the "github_issue_url" field.
+func GithubIssueURLNotNil() predicate.Task {
+	return predicate.Task(sql.FieldNotNull(FieldGithubIssueURL))
+}
+
+// GithubIssueURLEqualFold applies the EqualFold predicate on the "github_issue_url" field.
+func GithubIssueURLEqualFold(v string) predicate.Task {
+	return predicate.Task(sql.FieldEqualFold(FieldGithubIssueURL, v))
+}
+
+// GithubIssueURLContainsFold applies the ContainsFold predicate on the "github_issue_url" field.
+func GithubIssueURLContainsFold(v string) predicate.Task {
+	return predicate.Task(sql.FieldContainsFold(FieldGithubIssueURL, v))
 }
 
 // HasWorkspace applies the HasEdge predicate on the "workspace" edge.

@@ -221,6 +221,20 @@ func (_c *TaskCreate) SetNillablePosition(v *int) *TaskCreate {
 	return _c
 }
 
+// SetGithubIssueURL sets the "github_issue_url" field.
+func (_c *TaskCreate) SetGithubIssueURL(v string) *TaskCreate {
+	_c.mutation.SetGithubIssueURL(v)
+	return _c
+}
+
+// SetNillableGithubIssueURL sets the "github_issue_url" field if the given value is not nil.
+func (_c *TaskCreate) SetNillableGithubIssueURL(v *string) *TaskCreate {
+	if v != nil {
+		_c.SetGithubIssueURL(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *TaskCreate) SetID(v uuid.UUID) *TaskCreate {
 	_c.mutation.SetID(v)
@@ -614,6 +628,10 @@ func (_c *TaskCreate) createSpec() (*Task, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Position(); ok {
 		_spec.SetField(task.FieldPosition, field.TypeInt, value)
 		_node.Position = &value
+	}
+	if value, ok := _c.mutation.GithubIssueURL(); ok {
+		_spec.SetField(task.FieldGithubIssueURL, field.TypeString, value)
+		_node.GithubIssueURL = &value
 	}
 	if nodes := _c.mutation.WorkspaceIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

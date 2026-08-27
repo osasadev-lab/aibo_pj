@@ -292,6 +292,26 @@ func (_u *TaskUpdate) ClearPosition() *TaskUpdate {
 	return _u
 }
 
+// SetGithubIssueURL sets the "github_issue_url" field.
+func (_u *TaskUpdate) SetGithubIssueURL(v string) *TaskUpdate {
+	_u.mutation.SetGithubIssueURL(v)
+	return _u
+}
+
+// SetNillableGithubIssueURL sets the "github_issue_url" field if the given value is not nil.
+func (_u *TaskUpdate) SetNillableGithubIssueURL(v *string) *TaskUpdate {
+	if v != nil {
+		_u.SetGithubIssueURL(*v)
+	}
+	return _u
+}
+
+// ClearGithubIssueURL clears the value of the "github_issue_url" field.
+func (_u *TaskUpdate) ClearGithubIssueURL() *TaskUpdate {
+	_u.mutation.ClearGithubIssueURL()
+	return _u
+}
+
 // SetWorkspace sets the "workspace" edge to the Workspace entity.
 func (_u *TaskUpdate) SetWorkspace(v *Workspace) *TaskUpdate {
 	return _u.SetWorkspaceID(v.ID)
@@ -894,6 +914,12 @@ func (_u *TaskUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.PositionCleared() {
 		_spec.ClearField(task.FieldPosition, field.TypeInt)
+	}
+	if value, ok := _u.mutation.GithubIssueURL(); ok {
+		_spec.SetField(task.FieldGithubIssueURL, field.TypeString, value)
+	}
+	if _u.mutation.GithubIssueURLCleared() {
+		_spec.ClearField(task.FieldGithubIssueURL, field.TypeString)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1833,6 +1859,26 @@ func (_u *TaskUpdateOne) ClearPosition() *TaskUpdateOne {
 	return _u
 }
 
+// SetGithubIssueURL sets the "github_issue_url" field.
+func (_u *TaskUpdateOne) SetGithubIssueURL(v string) *TaskUpdateOne {
+	_u.mutation.SetGithubIssueURL(v)
+	return _u
+}
+
+// SetNillableGithubIssueURL sets the "github_issue_url" field if the given value is not nil.
+func (_u *TaskUpdateOne) SetNillableGithubIssueURL(v *string) *TaskUpdateOne {
+	if v != nil {
+		_u.SetGithubIssueURL(*v)
+	}
+	return _u
+}
+
+// ClearGithubIssueURL clears the value of the "github_issue_url" field.
+func (_u *TaskUpdateOne) ClearGithubIssueURL() *TaskUpdateOne {
+	_u.mutation.ClearGithubIssueURL()
+	return _u
+}
+
 // SetWorkspace sets the "workspace" edge to the Workspace entity.
 func (_u *TaskUpdateOne) SetWorkspace(v *Workspace) *TaskUpdateOne {
 	return _u.SetWorkspaceID(v.ID)
@@ -2465,6 +2511,12 @@ func (_u *TaskUpdateOne) sqlSave(ctx context.Context) (_node *Task, err error) {
 	}
 	if _u.mutation.PositionCleared() {
 		_spec.ClearField(task.FieldPosition, field.TypeInt)
+	}
+	if value, ok := _u.mutation.GithubIssueURL(); ok {
+		_spec.SetField(task.FieldGithubIssueURL, field.TypeString, value)
+	}
+	if _u.mutation.GithubIssueURLCleared() {
+		_spec.ClearField(task.FieldGithubIssueURL, field.TypeString)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{

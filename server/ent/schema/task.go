@@ -48,6 +48,9 @@ func (Task) Fields() []ent.Field {
 		// 昇順に表示する）。nilは「未設定」を表し、既存挙動どおりcreated_at順で末尾に扱う
 		// （マイグレーション時の一括バックフィルは行わない）。
 		field.Int("position").Optional().Nillable(),
+		// GitHub Issueへの手動リンク（M8.5後追加）。URLを保存するだけで、GitHub API連携
+		// （自動作成・ステータス双方向同期）は行わない（コスト最小化・スコープ限定の方針）。
+		field.String("github_issue_url").Optional().Nillable(),
 	}
 }
 

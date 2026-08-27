@@ -601,6 +601,7 @@ var (
 		{Name: "start_date", Type: field.TypeTime, Nullable: true},
 		{Name: "due_date", Type: field.TypeTime, Nullable: true},
 		{Name: "position", Type: field.TypeInt, Nullable: true},
+		{Name: "github_issue_url", Type: field.TypeString, Nullable: true},
 		{Name: "workspace_id", Type: field.TypeUUID},
 		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "section_id", Type: field.TypeUUID, Nullable: true},
@@ -616,37 +617,37 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tasks_workspaces_workspace",
-				Columns:    []*schema.Column{TasksColumns[10]},
+				Columns:    []*schema.Column{TasksColumns[11]},
 				RefColumns: []*schema.Column{WorkspacesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "tasks_projects_project",
-				Columns:    []*schema.Column{TasksColumns[11]},
+				Columns:    []*schema.Column{TasksColumns[12]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_sections_section",
-				Columns:    []*schema.Column{TasksColumns[12]},
+				Columns:    []*schema.Column{TasksColumns[13]},
 				RefColumns: []*schema.Column{SectionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_project_status_columns_status_column",
-				Columns:    []*schema.Column{TasksColumns[13]},
+				Columns:    []*schema.Column{TasksColumns[14]},
 				RefColumns: []*schema.Column{ProjectStatusColumnsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_users_creator",
-				Columns:    []*schema.Column{TasksColumns[14]},
+				Columns:    []*schema.Column{TasksColumns[15]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "tasks_tasks_children",
-				Columns:    []*schema.Column{TasksColumns[15]},
+				Columns:    []*schema.Column{TasksColumns[16]},
 				RefColumns: []*schema.Column{TasksColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -655,17 +656,17 @@ var (
 			{
 				Name:    "task_project_id_status_column_id",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[11], TasksColumns[13]},
+				Columns: []*schema.Column{TasksColumns[12], TasksColumns[14]},
 			},
 			{
 				Name:    "task_project_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[11], TasksColumns[3]},
+				Columns: []*schema.Column{TasksColumns[12], TasksColumns[3]},
 			},
 			{
 				Name:    "task_parent_task_id",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[15]},
+				Columns: []*schema.Column{TasksColumns[16]},
 			},
 		},
 	}

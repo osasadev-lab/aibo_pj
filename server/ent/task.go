@@ -53,6 +53,8 @@ type Task struct {
 	CreatedBy uuid.UUID `json:"created_by,omitempty"`
 	// Position holds the value of the "position" field.
 	Position *int `json:"position,omitempty"`
+	// GithubIssueURL holds the value of the "github_issue_url" field.
+	GithubIssueURL *string `json:"github_issue_url,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TaskQuery when eager-loading is set.
 	Edges        TaskEdges `json:"edges"`
@@ -274,7 +276,7 @@ func (*Task) scanValues(columns []string) ([]any, error) {
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
 		case task.FieldPosition:
 			values[i] = new(sql.NullInt64)
-		case task.FieldStatus, task.FieldTitle, task.FieldDescription, task.FieldPriority:
+		case task.FieldStatus, task.FieldTitle, task.FieldDescription, task.FieldPriority, task.FieldGithubIssueURL:
 			values[i] = new(sql.NullString)
 		case task.FieldCreatedAt, task.FieldUpdatedAt, task.FieldStartDate, task.FieldDueDate:
 			values[i] = new(sql.NullTime)
@@ -399,6 +401,13 @@ func (_m *Task) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.Position = new(int)
 				*_m.Position = int(value.Int64)
+			}
+		case task.FieldGithubIssueURL:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field github_issue_url", values[i])
+			} else if value.Valid {
+				_m.GithubIssueURL = new(string)
+				*_m.GithubIssueURL = value.String
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -582,6 +591,11 @@ func (_m *Task) String() string {
 	if v := _m.Position; v != nil {
 		builder.WriteString("position=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.GithubIssueURL; v != nil {
+		builder.WriteString("github_issue_url=")
+		builder.WriteString(*v)
 	}
 	builder.WriteByte(')')
 	return builder.String()

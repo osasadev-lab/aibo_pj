@@ -8,6 +8,7 @@ import {
   Flag,
   Folder,
   ExternalLink,
+  GitBranch,
   Link as LinkIcon,
   Pin,
   PinOff,
@@ -57,6 +58,8 @@ type Task = {
   tags?: Tag[];
   // M8追加：呼び出しユーザー視点のピン留め状態。
   is_pinned?: boolean;
+  // GitHub Issueへの手動リンク（M8.5後追加）。
+  github_issue_url: string | null;
 };
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -114,6 +117,7 @@ export default function TaskDetailPanel({
   const [candidateTasks, setCandidateTasks] = useState<DependencyTask[]>([]);
   const [newDependencyId, setNewDependencyId] = useState("");
   const [dependencyError, setDependencyError] = useState<string | null>(null);
+  const [githubIssueUrl, setGithubIssueUrl] = useState("");
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -146,6 +150,7 @@ export default function TaskDetailPanel({
         setMentionedIds(t.mentioned_user_ids ?? []);
         setTagIds((t.tags ?? []).map((tag) => tag.id));
         setPinned(t.is_pinned ?? false);
+        setGithubIssueUrl(t.github_issue_url ?? "");
         if (!t.parent_task_id) {
           return apiFetch<Task[]>(`/tasks/${taskId}/subtasks`).then(setSubtasks).catch(() => {});
         }
@@ -216,6 +221,7 @@ export default function TaskDetailPanel({
             start_date: startDate,
             due_date: dueDate,
             mentioned_user_ids: mentionedIds,
+            github_issue_url: githubIssueUrl.trim(),
           }),
         }),
         apiFetch(`/tasks/${taskId}/assignees`, {
@@ -604,6 +610,29 @@ export default function TaskDetailPanel({
             onAdd={handleAddDependency}
             onRemove={handleRemoveDependency}
           />
+
+          <div className="flex flex-col gap-2 border-t border-border pt-4">
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <GitBranch className="h-3.5 w-3.5" />
+              GitHub Issue
+            </p>
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={githubIssueUrl}
+                onChange={(e) => setGithubIssueUrl(e.target.value)}
+                placeholder="https://github.com/org/repo/issues/123"
+                className="text-sm"
+              />
+              {githubIssueUrl.trim() && (
+                <IconButton
+                  onClick={() => window.open(githubIssueUrl.trim(), "_blank", "noopener")}
+                  title="GitHub Issueを開く"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </IconButton>
+              )}
+            </div>
+          </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
             <Button variant="primary" size="sm" disabled={saving} onClick={handleSave}>

@@ -77,6 +77,7 @@ func taskJSON(t *ent.Task) gin.H {
 		"start_date":       formatDateTime(t.StartDate),
 		"due_date":         formatDateTime(t.DueDate),
 		"created_by":       t.CreatedBy,
+		"github_issue_url": t.GithubIssueURL,
 	}
 	// assigneesがeager-load済み（WithAssignees()）の場合のみassignee_idsを含める。
 	if t.Edges.Assignees != nil {
@@ -399,6 +400,7 @@ type createTaskRequest struct {
 	DueDate        *string     `json:"due_date"`
 	AssigneeIDs    []uuid.UUID `json:"assignee_ids"`
 	TagIDs         []uuid.UUID `json:"tag_ids"`
+	GithubIssueURL *string     `json:"github_issue_url"`
 }
 
 // Create は POST /workspaces/:workspace_id/tasks。project_id未指定なら単体タスク。
@@ -482,6 +484,9 @@ func (h *TaskHandler) Create(c *gin.Context) {
 		}
 		if req.Priority != nil {
 			builder = builder.SetPriority(task.Priority(*req.Priority))
+		}
+		if req.GithubIssueURL != nil {
+			builder = builder.SetGithubIssueURL(*req.GithubIssueURL)
 		}
 		if startDate.provided && !startDate.clear {
 			builder = builder.SetStartDate(startDate.value)
@@ -600,6 +605,8 @@ type updateTaskRequest struct {
 	// status_column_idと同時送信、同一列内の並び替え時はpositionのみ送信する
 	// （docs/aibo/m8-implementation-plan.md スコープ追加A）。
 	Position *int `json:"position"`
+	// GitHub Issueへの手動リンク（M8.5後追加）。省略時は変更なし、空文字で解除。
+	GithubIssueURL *string `json:"github_issue_url"`
 }
 
 // Update は PATCH /tasks/:task_id。
@@ -674,6 +681,10 @@ func (h *TaskHandler) Update(c *gin.Context) {
 		if req.Priority != nil {
 			builder = builder.SetPriority(task.Priority(*req.Priority))
 			changes["priority"] = *req.Priority
+		}
+		if req.GithubIssueURL != nil {
+			builder = builder.SetGithubIssueURL(*req.GithubIssueURL)
+			changes["github_issue_url"] = *req.GithubIssueURL
 		}
 		if startDate.provided {
 			if startDate.clear {
