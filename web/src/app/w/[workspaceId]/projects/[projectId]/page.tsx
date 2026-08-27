@@ -349,7 +349,7 @@ export default function ProjectDetailPage() {
     try {
       await apiFetch(`/projects/${projectId}`, {
         method: "PATCH",
-        body: JSON.stringify({ description: descriptionDraft.trim() || null }),
+        body: JSON.stringify({ description: descriptionDraft.trim() }),
       });
       setEditingDescription(false);
       reloadCurrentProject();

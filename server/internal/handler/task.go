@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -17,9 +18,13 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/attachment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
 	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
+	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
 	"github.com/osasadev-lab/aibo_pj/server/ent/project"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
+	"github.com/osasadev-lab/aibo_pj/server/ent/reaction"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
 	"github.com/osasadev-lab/aibo_pj/server/ent/task"
 	"github.com/osasadev-lab/aibo_pj/server/ent/taskassignee"
@@ -30,6 +35,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/tasktag"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/calendarsync"
+	"github.com/osasadev-lab/aibo_pj/server/internal/githubissue"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/pushdelivery"
 	"github.com/osasadev-lab/aibo_pj/server/internal/storage"
@@ -58,6 +64,9 @@ type TaskHandler struct {
 	pushCfg pushdelivery.Config
 }
 
+// GitHub Issue連携（M8.5後追加）用のトークンはワークスペースごとにOwnerが設定し
+// workspaces.github_tokenへ暗号化して保存する（グローバルなAPIキーではない）ため、
+// TaskHandlerはConfigを固定で持たず、都度h.encKeyで復号する（task_github_issue.go）。
 func NewTaskHandler(client *ent.Client, r2 *storage.R2Client, calCfg *oauth2.Config, encKey []byte, frontendURL string, pushCfg pushdelivery.Config) *TaskHandler {
 	return &TaskHandler{client: client, r2: r2, calCfg: calCfg, encKey: encKey, frontendURL: frontendURL, pushCfg: pushCfg}
 }
@@ -222,13 +231,16 @@ const maxSearchResults = 50
 // タスクのtitle/description/コメント本文/添付ファイル名を対象にした部分一致検索
 // （docs/aibo/m7-implementation-plan.md 設計判断5・6）。Searchと同じ可視性フィルタを
 // 適用した上で、qが空なら空配列を返す。
+// DMメッセージも検索対象に含める（2026-08-28追加、ユーザー要望）。ただし自分が
+// 参加しているこのワークスペースのDMチャンネルのメッセージのみを対象にし、
+// やりとりしていない他人同士のDMは一切検索結果に出さない。
 func (h *TaskHandler) FullTextSearch(c *gin.Context) {
 	m := middleware.CurrentMembership(c)
 	ctx := c.Request.Context()
 
 	q := c.Query("q")
 	if q == "" {
-		c.JSON(http.StatusOK, []gin.H{})
+		c.JSON(http.StatusOK, gin.H{"tasks": []gin.H{}, "dm_messages": []gin.H{}})
 		return
 	}
 
@@ -310,7 +322,51 @@ func (h *TaskHandler) FullTextSearch(c *gin.Context) {
 		row["matches"] = matches
 		out = append(out, row)
 	}
-	c.JSON(http.StatusOK, out)
+
+	// DMメッセージ検索（2026-08-28追加）。自分がメンバーとして参加しているこの
+	// ワークスペースのDMチャンネルに限定し、他人同士のやりとりは対象にしない。
+	dmMessages, err := h.client.DMMessage.Query().
+		Where(
+			dmmessage.HasChannelWith(
+				dmchannel.WorkspaceIDEQ(m.WorkspaceID),
+				dmchannel.HasMembersWith(dmchannelmember.UserIDEQ(m.UserID)),
+			),
+			dmmessage.BodyContainsFold(q),
+		).
+		WithUser().
+		WithChannel(func(cq *ent.DMChannelQuery) {
+			cq.WithMembers(func(mq *ent.DMChannelMemberQuery) { mq.WithUser() })
+		}).
+		Order(dmmessage.ByCreatedAt(sql.OrderDesc())).
+		Limit(maxSearchResults).
+		All(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to search dm messages"})
+		return
+	}
+	dmOut := make([]gin.H, 0, len(dmMessages))
+	for _, msg := range dmMessages {
+		if msg.Body == nil || msg.Edges.Channel == nil {
+			continue
+		}
+		ch := msg.Edges.Channel
+		users := make([]*ent.User, 0, len(ch.Edges.Members))
+		for _, mem := range ch.Edges.Members {
+			if mem.Edges.User != nil {
+				users = append(users, mem.Edges.User)
+			}
+		}
+		dmOut = append(dmOut, gin.H{
+			"channel_id":   ch.ID,
+			"channel_name": displayName(ch, users, m.UserID),
+			"message_id":   msg.ID,
+			"sender_name":  msg.Edges.User.Name,
+			"excerpt":      excerpt(*msg.Body, 100),
+			"created_at":   msg.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"tasks": out, "dm_messages": dmOut})
 }
 
 // orEmptyStrings はnilスライスをJSON上で`null`ではなく`[]`にするためのヘルパー
@@ -367,6 +423,7 @@ func (h *TaskHandler) MyTasks(c *gin.Context) {
 	tasks, err := query.
 		WithAssignees().
 		WithDependencies(func(q *ent.TaskDependencyQuery) { q.WithDependsOn() }).
+		WithTags(func(q *ent.TaskTagQuery) { q.WithTag() }).
 		All(ctx)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list my-tasks"})
@@ -587,6 +644,12 @@ func (h *TaskHandler) Get(c *gin.Context) {
 		return
 	}
 	row["is_pinned"] = pinned
+	reactions, err := loadTaskReactions(ctx, h.client, t.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load task"})
+		return
+	}
+	row["reactions"] = reactions
 	c.JSON(http.StatusOK, row)
 }
 
@@ -838,12 +901,28 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 
 	var attachmentKeys []string
 	var calendarEventRefs []calendarsync.EventRef
+	var githubCommentRefs []githubCommentRef
 	err := withTx(ctx, h.client, func(tx *ent.Tx) error {
 		childIDs, err := tx.Task.Query().Where(task.ParentTaskIDEQ(t.ID)).IDs(ctx)
 		if err != nil {
 			return err
 		}
 		ids := append(childIDs, t.ID)
+
+		// GitHub Issueへ投稿済みのコメント（M8.5後追加）も、DBコミット確定後に
+		// ベストエフォートで削除する（R2/Googleカレンダーと同じ「外部API呼び出しを
+		// トランザクション内で行わない」方針）。参照だけここで収集しておく。
+		withComments, err := tx.Task.Query().
+			Where(task.IDIn(ids...), task.GithubIssueURLNotNil(), task.GithubIssueCommentIDNotNil()).
+			All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, wc := range withComments {
+			if ref, err := githubissue.ParseIssueURL(*wc.GithubIssueURL); err == nil {
+				githubCommentRefs = append(githubCommentRefs, githubCommentRef{ref: ref, commentID: *wc.GithubIssueCommentID})
+			}
+		}
 
 		// Googleカレンダー連携イベント（M6）もtask_idを参照しているため、他のedge
 		// テーブルと同様に先に削除する必要がある。Google側の実イベント削除は
@@ -893,6 +972,16 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 		if _, err := tx.Comment.Delete().Where(comment.TaskIDIn(ids...)).Exec(ctx); err != nil {
 			return err
 		}
+		// タスク説明欄自体へのリアクション（target_id=タスクID）と、配下コメントへの
+		// リアクション（denormalizeしたtask_id列で一括指定）の両方を削除する。
+		if _, err := tx.Reaction.Delete().
+			Where(reaction.Or(
+				reaction.And(reaction.TargetTypeEQ(reaction.TargetTypeTask), reaction.TargetIDIn(ids...)),
+				reaction.And(reaction.TargetTypeEQ(reaction.TargetTypeComment), reaction.TaskIDIn(ids...)),
+			)).
+			Exec(ctx); err != nil {
+			return err
+		}
 		// R2オブジェクトはDBコミットが確定してから削除する（トランザクション内で
 		// 外部API呼び出しをしない）。ここではキーだけ収集しておく。
 		attachments, err := tx.Attachment.Query().Where(attachment.TaskIDIn(ids...)).All(ctx)
@@ -927,7 +1016,35 @@ func (h *TaskHandler) Delete(c *gin.Context) {
 	calendarsync.Async(func(ctx context.Context) {
 		calendarsync.DeleteGoogleEventsOnly(ctx, h.calCfg, h.encKey, calendarEventRefs)
 	})
+	h.deleteGitHubComments(t.WorkspaceID, githubCommentRefs)
 	c.Status(http.StatusNoContent)
+}
+
+// githubCommentRef はタスク削除に伴い後始末が必要なGitHub Issueコメントの参照
+// （M8.5後追加）。project.go/workspace.goの一括削除では、対象タスク数によっては
+// GitHub APIコールが多数発生しうるためこのクリーンアップは行わない（既知のスコープ外、
+// 単体タスク削除に限定。孤立したコメントが残る程度の影響で、aisu側のデータ整合性には
+// 影響しない）。
+type githubCommentRef struct {
+	ref       githubissue.IssueRef
+	commentID int64
+}
+
+func (h *TaskHandler) deleteGitHubComments(workspaceID uuid.UUID, refs []githubCommentRef) {
+	if len(refs) == 0 {
+		return
+	}
+	calendarsync.Async(func(ctx context.Context) {
+		cfg, err := h.resolveGitHubConfig(ctx, workspaceID)
+		if err != nil || !cfg.Configured() {
+			return
+		}
+		for _, r := range refs {
+			if err := githubissue.DeleteComment(ctx, cfg, r.ref, r.commentID); err != nil {
+				log.Printf("task: failed to delete github issue comment %d: %v", r.commentID, err)
+			}
+		}
+	})
 }
 
 // --- helpers ---

@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Send } from "lucide-react";
+import { Loader2, Pencil, Send, Trash2, X } from "lucide-react";
 import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { renderMarkdown } from "@/lib/markdown";
+import { useAuth } from "@/lib/auth/useAuth";
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
 import MarkdownToolbar from "@/components/ui/MarkdownToolbar";
+import ReactionBar, { type Reaction } from "@/components/ui/ReactionBar";
 import { Textarea } from "@/components/ui/fields";
 import type { MemberSummary } from "@/lib/types";
 
@@ -20,6 +22,8 @@ type Comment = {
   body: string;
   user_name?: string;
   created_at: string;
+  updated_at: string;
+  reactions: Reaction[];
 };
 
 type ListResponse = {
@@ -50,7 +54,10 @@ type Props = {
 // スクロールする形の「もっと見る」で古いコメントを遡って読み込む。initialCommentId
 // 指定時はその前後の窓を取得し、両端に「もっと見る」を出す。
 export default function CommentThread({ taskId, onLoaded, initialCommentId }: Props) {
+  const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
   const [hasMoreNewer, setHasMoreNewer] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -122,8 +129,25 @@ export default function CommentThread({ taskId, onLoaded, initialCommentId }: Pr
         (payload) => {
           const row = payload.new as Comment;
           const author = mentionableRef.current.find((m) => m.user_id === row.user_id);
-          const enriched = author ? { ...row, user_name: author.name } : row;
+          const enriched = { ...row, user_name: author?.name ?? row.user_name, reactions: row.reactions ?? [] };
           setComments((prev) => (prev.some((c) => c.id === row.id) ? prev : [...prev, enriched]));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "comments", filter: `task_id=eq.${taskId}` },
+        (payload) => {
+          const row = payload.new as Comment;
+          setComments((prev) => prev.map((c) => (c.id === row.id ? { ...c, ...row, user_name: c.user_name } : c)));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "comments", filter: `task_id=eq.${taskId}` },
+        (payload) => {
+          const row = payload.old as Partial<Comment>;
+          if (!row.id) return;
+          setComments((prev) => prev.filter((c) => c.id !== row.id));
         },
       )
       .subscribe();
@@ -131,6 +155,67 @@ export default function CommentThread({ taskId, onLoaded, initialCommentId }: Pr
       void supabase.removeChannel(channel);
     };
   }, [taskId]);
+
+  // リアクション用の別チャンネル（2026-08-28追加）。reactionsテーブルはtask_idを
+  // 非正規化して持たせてあるので、コメント個別ではなくタスク単位で一括購読し、
+  // target_type==="comment"のものだけを対象コメントのreactions配列に反映する。
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`reactions:task:${taskId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "reactions", filter: `task_id=eq.${taskId}` },
+        (payload) => {
+          const row = payload.new as { id: string; target_type: string; target_id: string; user_id: string; emoji: string };
+          if (row.target_type !== "comment") return;
+          const author = mentionableRef.current.find((m) => m.user_id === row.user_id);
+          const newReaction: Reaction = { id: row.id, emoji: row.emoji, user_id: row.user_id, user_name: author?.name };
+          setComments((prev) =>
+            prev.map((c) =>
+              c.id === row.target_id && !c.reactions.some((r) => r.id === newReaction.id)
+                ? { ...c, reactions: [...c.reactions, newReaction] }
+                : c,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "reactions", filter: `task_id=eq.${taskId}` },
+        (payload) => {
+          // DELETEイベントのpayload.oldはREPLICA IDENTITY FULLでも主キー（id）しか
+          // 含まれない（target_type/target_idは送られてこない）。このtask_id購読は
+          // タスク自身へのリアクションも拾ってしまうため、target_idで狙い撃ちせず
+          // 全コメントのreactions配列を探して該当idがあれば取り除く（タスク自身の
+          // リアクションはどのコメントにも含まれないため自然に無視される）。
+          const row = payload.old as { id?: string };
+          if (!row.id) return;
+          setComments((prev) =>
+            prev.map((c) =>
+              c.reactions.some((r) => r.id === row.id)
+                ? { ...c, reactions: c.reactions.filter((r) => r.id !== row.id) }
+                : c,
+            ),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [taskId]);
+
+  async function handleToggleReaction(commentId: string, emoji: string) {
+    try {
+      await apiFetch(`/tasks/${taskId}/comments/${commentId}/reactions`, {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+      });
+    } catch {
+      // 失敗時は何もしない（Realtimeで反映されなければ再クリックで再試行できる）
+    }
+  }
 
   async function handleLoadOlder() {
     if (comments.length === 0 || loadingOlder) return;
@@ -192,6 +277,40 @@ export default function CommentThread({ taskId, onLoaded, initialCommentId }: Pr
     setShowMentions(false);
   }
 
+  function startEdit(c: Comment) {
+    setEditingId(c.id);
+    setEditBody(c.body);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditBody("");
+  }
+
+  async function handleUpdate(commentId: string) {
+    if (!editBody.trim()) return;
+    try {
+      const updated = await apiFetch<Comment>(`/tasks/${taskId}/comments/${commentId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body: editBody.trim() }),
+      });
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, ...updated } : c)));
+      cancelEdit();
+    } catch {
+      // 失敗時は編集状態を維持し、再試行できるようにする
+    }
+  }
+
+  async function handleDelete(commentId: string) {
+    if (!window.confirm("このコメントを削除しますか？")) return;
+    try {
+      await apiFetch(`/tasks/${taskId}/comments/${commentId}`, { method: "DELETE" });
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch {
+      // 失敗時は一覧に残したままにする
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-4">
       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">コメント</p>
@@ -223,8 +342,63 @@ export default function CommentThread({ taskId, onLoaded, initialCommentId }: Pr
               <div className="flex items-baseline gap-2">
                 <span className="text-xs font-medium text-foreground">{c.user_name ?? "?"}</span>
                 <span className="text-[11px] text-muted-foreground">{new Date(c.created_at).toLocaleString()}</span>
+                {c.updated_at !== c.created_at && (
+                  <span className="text-[11px] text-muted-foreground">（編集済み）</span>
+                )}
+                {user?.id === c.user_id && editingId !== c.id && (
+                  <span className="ml-auto flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(c)}
+                      className="text-muted-foreground hover:text-foreground"
+                      aria-label="編集"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(c.id)}
+                      className="text-muted-foreground hover:text-red-500"
+                      aria-label="削除"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </span>
+                )}
               </div>
-              <div className="text-sm text-foreground">{renderMarkdown(c.body)}</div>
+              {editingId === c.id ? (
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <Textarea
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                    rows={2}
+                    className="text-sm"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="primary" size="sm" onClick={() => handleUpdate(c.id)}>
+                      保存
+                    </Button>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-sm text-foreground">{renderMarkdown(c.body)}</div>
+              )}
+              {editingId !== c.id && (
+                <ReactionBar
+                  reactions={c.reactions}
+                  currentUserId={user?.id}
+                  onToggle={(emoji) => handleToggleReaction(c.id, emoji)}
+                  className="pt-1.5"
+                />
+              )}
             </div>
           </li>
         ))}

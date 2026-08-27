@@ -28,6 +28,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
 	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/reaction"
 	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
@@ -70,6 +71,7 @@ const (
 	TypeProjectMember         = "ProjectMember"
 	TypeProjectStatusColumn   = "ProjectStatusColumn"
 	TypePushSubscription      = "PushSubscription"
+	TypeReaction              = "Reaction"
 	TypeReminderSend          = "ReminderSend"
 	TypeSection               = "Section"
 	TypeTag                   = "Tag"
@@ -11942,6 +11944,811 @@ func (m *PushSubscriptionMutation) ResetEdge(name string) error {
 	return fmt.Errorf("unknown PushSubscription edge %s", name)
 }
 
+// ReactionMutation represents an operation that mutates the Reaction nodes in the graph.
+type ReactionMutation struct {
+	config
+	op            Op
+	typ           string
+	id            *uuid.UUID
+	created_at    *time.Time
+	updated_at    *time.Time
+	target_type   *reaction.TargetType
+	target_id     *uuid.UUID
+	task_id       *uuid.UUID
+	dm_channel_id *uuid.UUID
+	emoji         *string
+	clearedFields map[string]struct{}
+	user          *uuid.UUID
+	cleareduser   bool
+	done          bool
+	oldValue      func(context.Context) (*Reaction, error)
+	predicates    []predicate.Reaction
+}
+
+var _ ent.Mutation = (*ReactionMutation)(nil)
+
+// reactionOption allows management of the mutation configuration using functional options.
+type reactionOption func(*ReactionMutation)
+
+// newReactionMutation creates new mutation for the Reaction entity.
+func newReactionMutation(c config, op Op, opts ...reactionOption) *ReactionMutation {
+	m := &ReactionMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeReaction,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withReactionID sets the ID field of the mutation.
+func withReactionID(id uuid.UUID) reactionOption {
+	return func(m *ReactionMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *Reaction
+		)
+		m.oldValue = func(ctx context.Context) (*Reaction, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().Reaction.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withReaction sets the old Reaction of the mutation.
+func withReaction(node *Reaction) reactionOption {
+	return func(m *ReactionMutation) {
+		m.oldValue = func(context.Context) (*Reaction, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m ReactionMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m ReactionMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// SetID sets the value of the id field. Note that this
+// operation is only accepted on creation of Reaction entities.
+func (m *ReactionMutation) SetID(id uuid.UUID) {
+	m.id = &id
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *ReactionMutation) ID() (id uuid.UUID, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *ReactionMutation) IDs(ctx context.Context) ([]uuid.UUID, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []uuid.UUID{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().Reaction.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetCreatedAt sets the "created_at" field.
+func (m *ReactionMutation) SetCreatedAt(t time.Time) {
+	m.created_at = &t
+}
+
+// CreatedAt returns the value of the "created_at" field in the mutation.
+func (m *ReactionMutation) CreatedAt() (r time.Time, exists bool) {
+	v := m.created_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCreatedAt returns the old "created_at" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldCreatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCreatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCreatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCreatedAt: %w", err)
+	}
+	return oldValue.CreatedAt, nil
+}
+
+// ResetCreatedAt resets all changes to the "created_at" field.
+func (m *ReactionMutation) ResetCreatedAt() {
+	m.created_at = nil
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (m *ReactionMutation) SetUpdatedAt(t time.Time) {
+	m.updated_at = &t
+}
+
+// UpdatedAt returns the value of the "updated_at" field in the mutation.
+func (m *ReactionMutation) UpdatedAt() (r time.Time, exists bool) {
+	v := m.updated_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpdatedAt returns the old "updated_at" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldUpdatedAt(ctx context.Context) (v time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpdatedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpdatedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpdatedAt: %w", err)
+	}
+	return oldValue.UpdatedAt, nil
+}
+
+// ResetUpdatedAt resets all changes to the "updated_at" field.
+func (m *ReactionMutation) ResetUpdatedAt() {
+	m.updated_at = nil
+}
+
+// SetTargetType sets the "target_type" field.
+func (m *ReactionMutation) SetTargetType(rt reaction.TargetType) {
+	m.target_type = &rt
+}
+
+// TargetType returns the value of the "target_type" field in the mutation.
+func (m *ReactionMutation) TargetType() (r reaction.TargetType, exists bool) {
+	v := m.target_type
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTargetType returns the old "target_type" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldTargetType(ctx context.Context) (v reaction.TargetType, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTargetType is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTargetType requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTargetType: %w", err)
+	}
+	return oldValue.TargetType, nil
+}
+
+// ResetTargetType resets all changes to the "target_type" field.
+func (m *ReactionMutation) ResetTargetType() {
+	m.target_type = nil
+}
+
+// SetTargetID sets the "target_id" field.
+func (m *ReactionMutation) SetTargetID(u uuid.UUID) {
+	m.target_id = &u
+}
+
+// TargetID returns the value of the "target_id" field in the mutation.
+func (m *ReactionMutation) TargetID() (r uuid.UUID, exists bool) {
+	v := m.target_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTargetID returns the old "target_id" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldTargetID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTargetID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTargetID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTargetID: %w", err)
+	}
+	return oldValue.TargetID, nil
+}
+
+// ResetTargetID resets all changes to the "target_id" field.
+func (m *ReactionMutation) ResetTargetID() {
+	m.target_id = nil
+}
+
+// SetTaskID sets the "task_id" field.
+func (m *ReactionMutation) SetTaskID(u uuid.UUID) {
+	m.task_id = &u
+}
+
+// TaskID returns the value of the "task_id" field in the mutation.
+func (m *ReactionMutation) TaskID() (r uuid.UUID, exists bool) {
+	v := m.task_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTaskID returns the old "task_id" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldTaskID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTaskID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTaskID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTaskID: %w", err)
+	}
+	return oldValue.TaskID, nil
+}
+
+// ClearTaskID clears the value of the "task_id" field.
+func (m *ReactionMutation) ClearTaskID() {
+	m.task_id = nil
+	m.clearedFields[reaction.FieldTaskID] = struct{}{}
+}
+
+// TaskIDCleared returns if the "task_id" field was cleared in this mutation.
+func (m *ReactionMutation) TaskIDCleared() bool {
+	_, ok := m.clearedFields[reaction.FieldTaskID]
+	return ok
+}
+
+// ResetTaskID resets all changes to the "task_id" field.
+func (m *ReactionMutation) ResetTaskID() {
+	m.task_id = nil
+	delete(m.clearedFields, reaction.FieldTaskID)
+}
+
+// SetDmChannelID sets the "dm_channel_id" field.
+func (m *ReactionMutation) SetDmChannelID(u uuid.UUID) {
+	m.dm_channel_id = &u
+}
+
+// DmChannelID returns the value of the "dm_channel_id" field in the mutation.
+func (m *ReactionMutation) DmChannelID() (r uuid.UUID, exists bool) {
+	v := m.dm_channel_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDmChannelID returns the old "dm_channel_id" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldDmChannelID(ctx context.Context) (v *uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDmChannelID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDmChannelID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDmChannelID: %w", err)
+	}
+	return oldValue.DmChannelID, nil
+}
+
+// ClearDmChannelID clears the value of the "dm_channel_id" field.
+func (m *ReactionMutation) ClearDmChannelID() {
+	m.dm_channel_id = nil
+	m.clearedFields[reaction.FieldDmChannelID] = struct{}{}
+}
+
+// DmChannelIDCleared returns if the "dm_channel_id" field was cleared in this mutation.
+func (m *ReactionMutation) DmChannelIDCleared() bool {
+	_, ok := m.clearedFields[reaction.FieldDmChannelID]
+	return ok
+}
+
+// ResetDmChannelID resets all changes to the "dm_channel_id" field.
+func (m *ReactionMutation) ResetDmChannelID() {
+	m.dm_channel_id = nil
+	delete(m.clearedFields, reaction.FieldDmChannelID)
+}
+
+// SetUserID sets the "user_id" field.
+func (m *ReactionMutation) SetUserID(u uuid.UUID) {
+	m.user = &u
+}
+
+// UserID returns the value of the "user_id" field in the mutation.
+func (m *ReactionMutation) UserID() (r uuid.UUID, exists bool) {
+	v := m.user
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUserID returns the old "user_id" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldUserID(ctx context.Context) (v uuid.UUID, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUserID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUserID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUserID: %w", err)
+	}
+	return oldValue.UserID, nil
+}
+
+// ResetUserID resets all changes to the "user_id" field.
+func (m *ReactionMutation) ResetUserID() {
+	m.user = nil
+}
+
+// SetEmoji sets the "emoji" field.
+func (m *ReactionMutation) SetEmoji(s string) {
+	m.emoji = &s
+}
+
+// Emoji returns the value of the "emoji" field in the mutation.
+func (m *ReactionMutation) Emoji() (r string, exists bool) {
+	v := m.emoji
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEmoji returns the old "emoji" field's value of the Reaction entity.
+// If the Reaction object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *ReactionMutation) OldEmoji(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEmoji is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEmoji requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEmoji: %w", err)
+	}
+	return oldValue.Emoji, nil
+}
+
+// ResetEmoji resets all changes to the "emoji" field.
+func (m *ReactionMutation) ResetEmoji() {
+	m.emoji = nil
+}
+
+// ClearUser clears the "user" edge to the User entity.
+func (m *ReactionMutation) ClearUser() {
+	m.cleareduser = true
+	m.clearedFields[reaction.FieldUserID] = struct{}{}
+}
+
+// UserCleared reports if the "user" edge to the User entity was cleared.
+func (m *ReactionMutation) UserCleared() bool {
+	return m.cleareduser
+}
+
+// UserIDs returns the "user" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// UserID instead. It exists only for internal usage by the builders.
+func (m *ReactionMutation) UserIDs() (ids []uuid.UUID) {
+	if id := m.user; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetUser resets all changes to the "user" edge.
+func (m *ReactionMutation) ResetUser() {
+	m.user = nil
+	m.cleareduser = false
+}
+
+// Where appends a list predicates to the ReactionMutation builder.
+func (m *ReactionMutation) Where(ps ...predicate.Reaction) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the ReactionMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *ReactionMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.Reaction, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *ReactionMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *ReactionMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (Reaction).
+func (m *ReactionMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *ReactionMutation) Fields() []string {
+	fields := make([]string, 0, 8)
+	if m.created_at != nil {
+		fields = append(fields, reaction.FieldCreatedAt)
+	}
+	if m.updated_at != nil {
+		fields = append(fields, reaction.FieldUpdatedAt)
+	}
+	if m.target_type != nil {
+		fields = append(fields, reaction.FieldTargetType)
+	}
+	if m.target_id != nil {
+		fields = append(fields, reaction.FieldTargetID)
+	}
+	if m.task_id != nil {
+		fields = append(fields, reaction.FieldTaskID)
+	}
+	if m.dm_channel_id != nil {
+		fields = append(fields, reaction.FieldDmChannelID)
+	}
+	if m.user != nil {
+		fields = append(fields, reaction.FieldUserID)
+	}
+	if m.emoji != nil {
+		fields = append(fields, reaction.FieldEmoji)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *ReactionMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case reaction.FieldCreatedAt:
+		return m.CreatedAt()
+	case reaction.FieldUpdatedAt:
+		return m.UpdatedAt()
+	case reaction.FieldTargetType:
+		return m.TargetType()
+	case reaction.FieldTargetID:
+		return m.TargetID()
+	case reaction.FieldTaskID:
+		return m.TaskID()
+	case reaction.FieldDmChannelID:
+		return m.DmChannelID()
+	case reaction.FieldUserID:
+		return m.UserID()
+	case reaction.FieldEmoji:
+		return m.Emoji()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *ReactionMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case reaction.FieldCreatedAt:
+		return m.OldCreatedAt(ctx)
+	case reaction.FieldUpdatedAt:
+		return m.OldUpdatedAt(ctx)
+	case reaction.FieldTargetType:
+		return m.OldTargetType(ctx)
+	case reaction.FieldTargetID:
+		return m.OldTargetID(ctx)
+	case reaction.FieldTaskID:
+		return m.OldTaskID(ctx)
+	case reaction.FieldDmChannelID:
+		return m.OldDmChannelID(ctx)
+	case reaction.FieldUserID:
+		return m.OldUserID(ctx)
+	case reaction.FieldEmoji:
+		return m.OldEmoji(ctx)
+	}
+	return nil, fmt.Errorf("unknown Reaction field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReactionMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case reaction.FieldCreatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCreatedAt(v)
+		return nil
+	case reaction.FieldUpdatedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpdatedAt(v)
+		return nil
+	case reaction.FieldTargetType:
+		v, ok := value.(reaction.TargetType)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTargetType(v)
+		return nil
+	case reaction.FieldTargetID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTargetID(v)
+		return nil
+	case reaction.FieldTaskID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTaskID(v)
+		return nil
+	case reaction.FieldDmChannelID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDmChannelID(v)
+		return nil
+	case reaction.FieldUserID:
+		v, ok := value.(uuid.UUID)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUserID(v)
+		return nil
+	case reaction.FieldEmoji:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEmoji(v)
+		return nil
+	}
+	return fmt.Errorf("unknown Reaction field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *ReactionMutation) AddedFields() []string {
+	return nil
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *ReactionMutation) AddedField(name string) (ent.Value, bool) {
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *ReactionMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	}
+	return fmt.Errorf("unknown Reaction numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *ReactionMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(reaction.FieldTaskID) {
+		fields = append(fields, reaction.FieldTaskID)
+	}
+	if m.FieldCleared(reaction.FieldDmChannelID) {
+		fields = append(fields, reaction.FieldDmChannelID)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *ReactionMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *ReactionMutation) ClearField(name string) error {
+	switch name {
+	case reaction.FieldTaskID:
+		m.ClearTaskID()
+		return nil
+	case reaction.FieldDmChannelID:
+		m.ClearDmChannelID()
+		return nil
+	}
+	return fmt.Errorf("unknown Reaction nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *ReactionMutation) ResetField(name string) error {
+	switch name {
+	case reaction.FieldCreatedAt:
+		m.ResetCreatedAt()
+		return nil
+	case reaction.FieldUpdatedAt:
+		m.ResetUpdatedAt()
+		return nil
+	case reaction.FieldTargetType:
+		m.ResetTargetType()
+		return nil
+	case reaction.FieldTargetID:
+		m.ResetTargetID()
+		return nil
+	case reaction.FieldTaskID:
+		m.ResetTaskID()
+		return nil
+	case reaction.FieldDmChannelID:
+		m.ResetDmChannelID()
+		return nil
+	case reaction.FieldUserID:
+		m.ResetUserID()
+		return nil
+	case reaction.FieldEmoji:
+		m.ResetEmoji()
+		return nil
+	}
+	return fmt.Errorf("unknown Reaction field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *ReactionMutation) AddedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.user != nil {
+		edges = append(edges, reaction.EdgeUser)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *ReactionMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case reaction.EdgeUser:
+		if id := m.user; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *ReactionMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 1)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *ReactionMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *ReactionMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 1)
+	if m.cleareduser {
+		edges = append(edges, reaction.EdgeUser)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *ReactionMutation) EdgeCleared(name string) bool {
+	switch name {
+	case reaction.EdgeUser:
+		return m.cleareduser
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *ReactionMutation) ClearEdge(name string) error {
+	switch name {
+	case reaction.EdgeUser:
+		m.ClearUser()
+		return nil
+	}
+	return fmt.Errorf("unknown Reaction unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *ReactionMutation) ResetEdge(name string) error {
+	switch name {
+	case reaction.EdgeUser:
+		m.ResetUser()
+		return nil
+	}
+	return fmt.Errorf("unknown Reaction edge %s", name)
+}
+
 // ReminderSendMutation represents an operation that mutates the ReminderSend nodes in the graph.
 type ReminderSendMutation struct {
 	config
@@ -14079,69 +14886,71 @@ func (m *TagMutation) ResetEdge(name string) error {
 // TaskMutation represents an operation that mutates the Task nodes in the graph.
 type TaskMutation struct {
 	config
-	op                     Op
-	typ                    string
-	id                     *uuid.UUID
-	created_at             *time.Time
-	updated_at             *time.Time
-	status                 *task.Status
-	title                  *string
-	description            *string
-	priority               *task.Priority
-	start_date             *time.Time
-	due_date               *time.Time
-	position               *int
-	addposition            *int
-	github_issue_url       *string
-	clearedFields          map[string]struct{}
-	workspace              *uuid.UUID
-	clearedworkspace       bool
-	project                *uuid.UUID
-	clearedproject         bool
-	section                *uuid.UUID
-	clearedsection         bool
-	status_column          *uuid.UUID
-	clearedstatus_column   bool
-	creator                *uuid.UUID
-	clearedcreator         bool
-	parent                 *uuid.UUID
-	clearedparent          bool
-	children               map[uuid.UUID]struct{}
-	removedchildren        map[uuid.UUID]struct{}
-	clearedchildren        bool
-	assignees              map[uuid.UUID]struct{}
-	removedassignees       map[uuid.UUID]struct{}
-	clearedassignees       bool
-	calendar_events        map[uuid.UUID]struct{}
-	removedcalendar_events map[uuid.UUID]struct{}
-	clearedcalendar_events bool
-	dependencies           map[uuid.UUID]struct{}
-	removeddependencies    map[uuid.UUID]struct{}
-	cleareddependencies    bool
-	dependents             map[uuid.UUID]struct{}
-	removeddependents      map[uuid.UUID]struct{}
-	cleareddependents      bool
-	tags                   map[uuid.UUID]struct{}
-	removedtags            map[uuid.UUID]struct{}
-	clearedtags            bool
-	comments               map[uuid.UUID]struct{}
-	removedcomments        map[uuid.UUID]struct{}
-	clearedcomments        bool
-	attachments            map[uuid.UUID]struct{}
-	removedattachments     map[uuid.UUID]struct{}
-	clearedattachments     bool
-	mentions               map[uuid.UUID]struct{}
-	removedmentions        map[uuid.UUID]struct{}
-	clearedmentions        bool
-	pins                   map[uuid.UUID]struct{}
-	removedpins            map[uuid.UUID]struct{}
-	clearedpins            bool
-	memos                  map[uuid.UUID]struct{}
-	removedmemos           map[uuid.UUID]struct{}
-	clearedmemos           bool
-	done                   bool
-	oldValue               func(context.Context) (*Task, error)
-	predicates             []predicate.Task
+	op                         Op
+	typ                        string
+	id                         *uuid.UUID
+	created_at                 *time.Time
+	updated_at                 *time.Time
+	status                     *task.Status
+	title                      *string
+	description                *string
+	priority                   *task.Priority
+	start_date                 *time.Time
+	due_date                   *time.Time
+	position                   *int
+	addposition                *int
+	github_issue_url           *string
+	github_issue_comment_id    *int64
+	addgithub_issue_comment_id *int64
+	clearedFields              map[string]struct{}
+	workspace                  *uuid.UUID
+	clearedworkspace           bool
+	project                    *uuid.UUID
+	clearedproject             bool
+	section                    *uuid.UUID
+	clearedsection             bool
+	status_column              *uuid.UUID
+	clearedstatus_column       bool
+	creator                    *uuid.UUID
+	clearedcreator             bool
+	parent                     *uuid.UUID
+	clearedparent              bool
+	children                   map[uuid.UUID]struct{}
+	removedchildren            map[uuid.UUID]struct{}
+	clearedchildren            bool
+	assignees                  map[uuid.UUID]struct{}
+	removedassignees           map[uuid.UUID]struct{}
+	clearedassignees           bool
+	calendar_events            map[uuid.UUID]struct{}
+	removedcalendar_events     map[uuid.UUID]struct{}
+	clearedcalendar_events     bool
+	dependencies               map[uuid.UUID]struct{}
+	removeddependencies        map[uuid.UUID]struct{}
+	cleareddependencies        bool
+	dependents                 map[uuid.UUID]struct{}
+	removeddependents          map[uuid.UUID]struct{}
+	cleareddependents          bool
+	tags                       map[uuid.UUID]struct{}
+	removedtags                map[uuid.UUID]struct{}
+	clearedtags                bool
+	comments                   map[uuid.UUID]struct{}
+	removedcomments            map[uuid.UUID]struct{}
+	clearedcomments            bool
+	attachments                map[uuid.UUID]struct{}
+	removedattachments         map[uuid.UUID]struct{}
+	clearedattachments         bool
+	mentions                   map[uuid.UUID]struct{}
+	removedmentions            map[uuid.UUID]struct{}
+	clearedmentions            bool
+	pins                       map[uuid.UUID]struct{}
+	removedpins                map[uuid.UUID]struct{}
+	clearedpins                bool
+	memos                      map[uuid.UUID]struct{}
+	removedmemos               map[uuid.UUID]struct{}
+	clearedmemos               bool
+	done                       bool
+	oldValue                   func(context.Context) (*Task, error)
+	predicates                 []predicate.Task
 }
 
 var _ ent.Mutation = (*TaskMutation)(nil)
@@ -14975,6 +15784,76 @@ func (m *TaskMutation) ResetGithubIssueURL() {
 	delete(m.clearedFields, task.FieldGithubIssueURL)
 }
 
+// SetGithubIssueCommentID sets the "github_issue_comment_id" field.
+func (m *TaskMutation) SetGithubIssueCommentID(i int64) {
+	m.github_issue_comment_id = &i
+	m.addgithub_issue_comment_id = nil
+}
+
+// GithubIssueCommentID returns the value of the "github_issue_comment_id" field in the mutation.
+func (m *TaskMutation) GithubIssueCommentID() (r int64, exists bool) {
+	v := m.github_issue_comment_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGithubIssueCommentID returns the old "github_issue_comment_id" field's value of the Task entity.
+// If the Task object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TaskMutation) OldGithubIssueCommentID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGithubIssueCommentID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGithubIssueCommentID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGithubIssueCommentID: %w", err)
+	}
+	return oldValue.GithubIssueCommentID, nil
+}
+
+// AddGithubIssueCommentID adds i to the "github_issue_comment_id" field.
+func (m *TaskMutation) AddGithubIssueCommentID(i int64) {
+	if m.addgithub_issue_comment_id != nil {
+		*m.addgithub_issue_comment_id += i
+	} else {
+		m.addgithub_issue_comment_id = &i
+	}
+}
+
+// AddedGithubIssueCommentID returns the value that was added to the "github_issue_comment_id" field in this mutation.
+func (m *TaskMutation) AddedGithubIssueCommentID() (r int64, exists bool) {
+	v := m.addgithub_issue_comment_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearGithubIssueCommentID clears the value of the "github_issue_comment_id" field.
+func (m *TaskMutation) ClearGithubIssueCommentID() {
+	m.github_issue_comment_id = nil
+	m.addgithub_issue_comment_id = nil
+	m.clearedFields[task.FieldGithubIssueCommentID] = struct{}{}
+}
+
+// GithubIssueCommentIDCleared returns if the "github_issue_comment_id" field was cleared in this mutation.
+func (m *TaskMutation) GithubIssueCommentIDCleared() bool {
+	_, ok := m.clearedFields[task.FieldGithubIssueCommentID]
+	return ok
+}
+
+// ResetGithubIssueCommentID resets all changes to the "github_issue_comment_id" field.
+func (m *TaskMutation) ResetGithubIssueCommentID() {
+	m.github_issue_comment_id = nil
+	m.addgithub_issue_comment_id = nil
+	delete(m.clearedFields, task.FieldGithubIssueCommentID)
+}
+
 // ClearWorkspace clears the "workspace" edge to the Workspace entity.
 func (m *TaskMutation) ClearWorkspace() {
 	m.clearedworkspace = true
@@ -15791,7 +16670,7 @@ func (m *TaskMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TaskMutation) Fields() []string {
-	fields := make([]string, 0, 16)
+	fields := make([]string, 0, 17)
 	if m.created_at != nil {
 		fields = append(fields, task.FieldCreatedAt)
 	}
@@ -15840,6 +16719,9 @@ func (m *TaskMutation) Fields() []string {
 	if m.github_issue_url != nil {
 		fields = append(fields, task.FieldGithubIssueURL)
 	}
+	if m.github_issue_comment_id != nil {
+		fields = append(fields, task.FieldGithubIssueCommentID)
+	}
 	return fields
 }
 
@@ -15880,6 +16762,8 @@ func (m *TaskMutation) Field(name string) (ent.Value, bool) {
 		return m.Position()
 	case task.FieldGithubIssueURL:
 		return m.GithubIssueURL()
+	case task.FieldGithubIssueCommentID:
+		return m.GithubIssueCommentID()
 	}
 	return nil, false
 }
@@ -15921,6 +16805,8 @@ func (m *TaskMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldPosition(ctx)
 	case task.FieldGithubIssueURL:
 		return m.OldGithubIssueURL(ctx)
+	case task.FieldGithubIssueCommentID:
+		return m.OldGithubIssueCommentID(ctx)
 	}
 	return nil, fmt.Errorf("unknown Task field %s", name)
 }
@@ -16042,6 +16928,13 @@ func (m *TaskMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetGithubIssueURL(v)
 		return nil
+	case task.FieldGithubIssueCommentID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGithubIssueCommentID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Task field %s", name)
 }
@@ -16053,6 +16946,9 @@ func (m *TaskMutation) AddedFields() []string {
 	if m.addposition != nil {
 		fields = append(fields, task.FieldPosition)
 	}
+	if m.addgithub_issue_comment_id != nil {
+		fields = append(fields, task.FieldGithubIssueCommentID)
+	}
 	return fields
 }
 
@@ -16063,6 +16959,8 @@ func (m *TaskMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case task.FieldPosition:
 		return m.AddedPosition()
+	case task.FieldGithubIssueCommentID:
+		return m.AddedGithubIssueCommentID()
 	}
 	return nil, false
 }
@@ -16078,6 +16976,13 @@ func (m *TaskMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddPosition(v)
+		return nil
+	case task.FieldGithubIssueCommentID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGithubIssueCommentID(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Task numeric field %s", name)
@@ -16116,6 +17021,9 @@ func (m *TaskMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(task.FieldGithubIssueURL) {
 		fields = append(fields, task.FieldGithubIssueURL)
+	}
+	if m.FieldCleared(task.FieldGithubIssueCommentID) {
+		fields = append(fields, task.FieldGithubIssueCommentID)
 	}
 	return fields
 }
@@ -16160,6 +17068,9 @@ func (m *TaskMutation) ClearField(name string) error {
 		return nil
 	case task.FieldGithubIssueURL:
 		m.ClearGithubIssueURL()
+		return nil
+	case task.FieldGithubIssueCommentID:
+		m.ClearGithubIssueCommentID()
 		return nil
 	}
 	return fmt.Errorf("unknown Task nullable field %s", name)
@@ -16216,6 +17127,9 @@ func (m *TaskMutation) ResetField(name string) error {
 		return nil
 	case task.FieldGithubIssueURL:
 		m.ResetGithubIssueURL()
+		return nil
+	case task.FieldGithubIssueCommentID:
+		m.ResetGithubIssueCommentID()
 		return nil
 	}
 	return fmt.Errorf("unknown Task field %s", name)
@@ -25045,6 +25959,7 @@ type WorkspaceMutation struct {
 	created_at           *time.Time
 	updated_at           *time.Time
 	name                 *string
+	github_token         *string
 	clearedFields        map[string]struct{}
 	members              map[uuid.UUID]struct{}
 	removedmembers       map[uuid.UUID]struct{}
@@ -25282,6 +26197,55 @@ func (m *WorkspaceMutation) OldName(ctx context.Context) (v string, err error) {
 // ResetName resets all changes to the "name" field.
 func (m *WorkspaceMutation) ResetName() {
 	m.name = nil
+}
+
+// SetGithubToken sets the "github_token" field.
+func (m *WorkspaceMutation) SetGithubToken(s string) {
+	m.github_token = &s
+}
+
+// GithubToken returns the value of the "github_token" field in the mutation.
+func (m *WorkspaceMutation) GithubToken() (r string, exists bool) {
+	v := m.github_token
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGithubToken returns the old "github_token" field's value of the Workspace entity.
+// If the Workspace object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *WorkspaceMutation) OldGithubToken(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGithubToken is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGithubToken requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGithubToken: %w", err)
+	}
+	return oldValue.GithubToken, nil
+}
+
+// ClearGithubToken clears the value of the "github_token" field.
+func (m *WorkspaceMutation) ClearGithubToken() {
+	m.github_token = nil
+	m.clearedFields[workspace.FieldGithubToken] = struct{}{}
+}
+
+// GithubTokenCleared returns if the "github_token" field was cleared in this mutation.
+func (m *WorkspaceMutation) GithubTokenCleared() bool {
+	_, ok := m.clearedFields[workspace.FieldGithubToken]
+	return ok
+}
+
+// ResetGithubToken resets all changes to the "github_token" field.
+func (m *WorkspaceMutation) ResetGithubToken() {
+	m.github_token = nil
+	delete(m.clearedFields, workspace.FieldGithubToken)
 }
 
 // AddMemberIDs adds the "members" edge to the WorkspaceMember entity by ids.
@@ -25696,7 +26660,7 @@ func (m *WorkspaceMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *WorkspaceMutation) Fields() []string {
-	fields := make([]string, 0, 3)
+	fields := make([]string, 0, 4)
 	if m.created_at != nil {
 		fields = append(fields, workspace.FieldCreatedAt)
 	}
@@ -25705,6 +26669,9 @@ func (m *WorkspaceMutation) Fields() []string {
 	}
 	if m.name != nil {
 		fields = append(fields, workspace.FieldName)
+	}
+	if m.github_token != nil {
+		fields = append(fields, workspace.FieldGithubToken)
 	}
 	return fields
 }
@@ -25720,6 +26687,8 @@ func (m *WorkspaceMutation) Field(name string) (ent.Value, bool) {
 		return m.UpdatedAt()
 	case workspace.FieldName:
 		return m.Name()
+	case workspace.FieldGithubToken:
+		return m.GithubToken()
 	}
 	return nil, false
 }
@@ -25735,6 +26704,8 @@ func (m *WorkspaceMutation) OldField(ctx context.Context, name string) (ent.Valu
 		return m.OldUpdatedAt(ctx)
 	case workspace.FieldName:
 		return m.OldName(ctx)
+	case workspace.FieldGithubToken:
+		return m.OldGithubToken(ctx)
 	}
 	return nil, fmt.Errorf("unknown Workspace field %s", name)
 }
@@ -25765,6 +26736,13 @@ func (m *WorkspaceMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetName(v)
 		return nil
+	case workspace.FieldGithubToken:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGithubToken(v)
+		return nil
 	}
 	return fmt.Errorf("unknown Workspace field %s", name)
 }
@@ -25794,7 +26772,11 @@ func (m *WorkspaceMutation) AddField(name string, value ent.Value) error {
 // ClearedFields returns all nullable fields that were cleared during this
 // mutation.
 func (m *WorkspaceMutation) ClearedFields() []string {
-	return nil
+	var fields []string
+	if m.FieldCleared(workspace.FieldGithubToken) {
+		fields = append(fields, workspace.FieldGithubToken)
+	}
+	return fields
 }
 
 // FieldCleared returns a boolean indicating if a field with the given name was
@@ -25807,6 +26789,11 @@ func (m *WorkspaceMutation) FieldCleared(name string) bool {
 // ClearField clears the value of the field with the given name. It returns an
 // error if the field is not defined in the schema.
 func (m *WorkspaceMutation) ClearField(name string) error {
+	switch name {
+	case workspace.FieldGithubToken:
+		m.ClearGithubToken()
+		return nil
+	}
 	return fmt.Errorf("unknown Workspace nullable field %s", name)
 }
 
@@ -25822,6 +26809,9 @@ func (m *WorkspaceMutation) ResetField(name string) error {
 		return nil
 	case workspace.FieldName:
 		m.ResetName()
+		return nil
+	case workspace.FieldGithubToken:
+		m.ResetGithubToken()
 		return nil
 	}
 	return fmt.Errorf("unknown Workspace field %s", name)

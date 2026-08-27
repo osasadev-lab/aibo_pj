@@ -10,6 +10,7 @@ import HoverSettingsSection from "@/components/settings/HoverSettingsSection";
 import CalendarSyncSection from "@/components/settings/CalendarSyncSection";
 import ReminderSettingsSection from "@/components/settings/ReminderSettingsSection";
 import PushNotificationSection from "@/components/settings/PushNotificationSection";
+import GitHubSettingsSection from "@/components/settings/GitHubSettingsSection";
 import TagSection from "@/components/settings/TagSection";
 import { Select } from "@/components/ui/fields";
 import { useProjects } from "@/lib/workspace/ProjectsContext";
@@ -65,6 +66,11 @@ export default function SettingsPage() {
         <CalendarSyncSection />
         <ReminderSettingsSection />
         <PushNotificationSection />
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">ワークスペース設定</h2>
+        <GitHubSettingsSection />
       </div>
 
       {targets.length > 0 && (

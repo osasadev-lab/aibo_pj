@@ -17,6 +17,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannel"
 	"github.com/osasadev-lab/aibo_pj/server/ent/dmchannelmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/dmmessage"
+	"github.com/osasadev-lab/aibo_pj/server/ent/reaction"
 	"github.com/osasadev-lab/aibo_pj/server/ent/workspacemember"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
 	"github.com/osasadev-lab/aibo_pj/server/internal/pushdelivery"
@@ -491,6 +492,9 @@ func dmMessageJSON(msg *ent.DMMessage) gin.H {
 		"user_id":    msg.UserID,
 		"body":       msg.Body,
 		"created_at": msg.CreatedAt,
+		// 編集済みかどうかはフロントでcreated_at!==updated_atで判定する
+		// （commentsと同じ考え方、2026-08-27追加）。
+		"updated_at": msg.UpdatedAt,
 	}
 	if msg.Edges.User != nil {
 		row["user_name"] = msg.Edges.User.Name
@@ -550,9 +554,16 @@ func (h *DMHandler) ListMessages(c *gin.Context) {
 	}
 	sort.SliceStable(messages, func(i, j int) bool { return messages[i].CreatedAt.Before(messages[j].CreatedAt) })
 
+	reactionsByMessage, err := loadDMReactionsByChannel(ctx, h.client, ch.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list messages"})
+		return
+	}
 	out := make([]gin.H, 0, len(messages))
 	for _, msg := range messages {
-		out = append(out, dmMessageJSON(msg))
+		row := dmMessageJSON(msg)
+		row["reactions"] = orEmptyReactions(reactionsByMessage[msg.ID])
+		out = append(out, row)
 	}
 	c.JSON(http.StatusOK, gin.H{"items": out, "has_more_older": hasMoreOlder})
 }
@@ -633,6 +644,113 @@ func (h *DMHandler) CreateMessage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, dmMessageJSON(created))
+}
+
+type updateDMMessageRequest struct {
+	Body string `json:"body" binding:"required"`
+}
+
+// UpdateMessage は PATCH /dm/channels/:channel_id/messages/:message_id。
+// 送信者本人のみ編集可（ユーザー要望、2026-08-27追加）。commentsと同じく
+// updated_atの自動更新で「編集済み」をフロント側から判定できるようにする。
+func (h *DMHandler) UpdateMessage(c *gin.Context) {
+	ch := middleware.CurrentDMChannel(c)
+	u := middleware.CurrentUser(c)
+
+	messageID, err := uuid.Parse(c.Param("message_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	var req updateDMMessageRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	existing, err := h.client.DMMessage.Query().
+		Where(dmmessage.IDEQ(messageID), dmmessage.ChannelIDEQ(ch.ID)).
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+	if existing.UserID != u.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	updated, err := h.client.DMMessage.UpdateOneID(messageID).
+		SetBody(strings.TrimSpace(req.Body)).
+		Save(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update message"})
+		return
+	}
+	updated, err = h.client.DMMessage.Query().
+		Where(dmmessage.IDEQ(messageID)).
+		WithAttachments().
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load message"})
+		return
+	}
+	updated.Edges.User = u
+	c.JSON(http.StatusOK, dmMessageJSON(updated))
+}
+
+// DeleteMessage は DELETE /dm/channels/:channel_id/messages/:message_id。
+// 送信者本人のみ削除可。添付ファイル（DB行・R2オブジェクト）も連動削除する。
+func (h *DMHandler) DeleteMessage(c *gin.Context) {
+	ch := middleware.CurrentDMChannel(c)
+	u := middleware.CurrentUser(c)
+
+	messageID, err := uuid.Parse(c.Param("message_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	existing, err := h.client.DMMessage.Query().
+		Where(dmmessage.IDEQ(messageID), dmmessage.ChannelIDEQ(ch.ID)).
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "message not found"})
+		return
+	}
+	if existing.UserID != u.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	var attachmentKeys []string
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		atts, err := tx.DMAttachment.Query().Where(dmattachment.DmMessageIDEQ(messageID)).All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, a := range atts {
+			attachmentKeys = append(attachmentKeys, a.StorageKey)
+		}
+		if _, err := tx.DMAttachment.Delete().Where(dmattachment.DmMessageIDEQ(messageID)).Exec(ctx); err != nil {
+			return err
+		}
+		if _, err := tx.Reaction.Delete().
+			Where(reaction.TargetTypeEQ(reaction.TargetTypeDmMessage), reaction.TargetIDEQ(messageID)).
+			Exec(ctx); err != nil {
+			return err
+		}
+		return tx.DMMessage.DeleteOneID(messageID).Exec(ctx)
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete message"})
+		return
+	}
+	deleteR2Objects(ctx, h.r2, attachmentKeys)
+	c.Status(http.StatusNoContent)
 }
 
 // MarkRead は PATCH /dm/channels/:channel_id/read。

@@ -21,6 +21,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
 	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/reaction"
 	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/schema"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
@@ -397,6 +398,25 @@ func init() {
 	pushsubscriptionDescID := pushsubscriptionMixinFields0[0].Descriptor()
 	// pushsubscription.DefaultID holds the default value on creation for the id field.
 	pushsubscription.DefaultID = pushsubscriptionDescID.Default.(func() uuid.UUID)
+	reactionMixin := schema.Reaction{}.Mixin()
+	reactionMixinFields0 := reactionMixin[0].Fields()
+	_ = reactionMixinFields0
+	reactionFields := schema.Reaction{}.Fields()
+	_ = reactionFields
+	// reactionDescCreatedAt is the schema descriptor for created_at field.
+	reactionDescCreatedAt := reactionMixinFields0[1].Descriptor()
+	// reaction.DefaultCreatedAt holds the default value on creation for the created_at field.
+	reaction.DefaultCreatedAt = reactionDescCreatedAt.Default.(func() time.Time)
+	// reactionDescUpdatedAt is the schema descriptor for updated_at field.
+	reactionDescUpdatedAt := reactionMixinFields0[2].Descriptor()
+	// reaction.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	reaction.DefaultUpdatedAt = reactionDescUpdatedAt.Default.(func() time.Time)
+	// reaction.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	reaction.UpdateDefaultUpdatedAt = reactionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// reactionDescID is the schema descriptor for id field.
+	reactionDescID := reactionMixinFields0[0].Descriptor()
+	// reaction.DefaultID holds the default value on creation for the id field.
+	reaction.DefaultID = reactionDescID.Default.(func() uuid.UUID)
 	remindersendMixin := schema.ReminderSend{}.Mixin()
 	remindersendMixinFields0 := remindersendMixin[0].Fields()
 	_ = remindersendMixinFields0

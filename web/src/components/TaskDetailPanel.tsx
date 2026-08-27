@@ -20,6 +20,7 @@ import {
 import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 import { useAuth } from "@/lib/auth/useAuth";
 import MemberPicker from "@/components/MemberPicker";
 import TagPicker from "@/components/TagPicker";
@@ -38,6 +39,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import IconButton from "@/components/ui/IconButton";
 import DateTimeField from "@/components/ui/DateTimeField";
 import MarkdownToolbar from "@/components/ui/MarkdownToolbar";
+import ReactionBar, { type Reaction } from "@/components/ui/ReactionBar";
 import SidePanel from "@/components/ui/SidePanel";
 import { Input, Select, Textarea } from "@/components/ui/fields";
 import { useProjects } from "@/lib/workspace/ProjectsContext";
@@ -60,6 +62,8 @@ type Task = {
   is_pinned?: boolean;
   // GitHub Issueへの手動リンク（M8.5後追加）。
   github_issue_url: string | null;
+  // 説明欄へのリアクション（2026-08-28追加）。
+  reactions?: Reaction[];
 };
 
 const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
@@ -102,6 +106,7 @@ export default function TaskDetailPanel({
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [reactions, setReactions] = useState<Reaction[]>([]);
   const [priority, setPriority] = useState("");
   const [startDate, setStartDate] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -118,6 +123,9 @@ export default function TaskDetailPanel({
   const [newDependencyId, setNewDependencyId] = useState("");
   const [dependencyError, setDependencyError] = useState<string | null>(null);
   const [githubIssueUrl, setGithubIssueUrl] = useState("");
+  const [githubCommentStatus, setGithubCommentStatus] = useState<"idle" | "posting" | "success" | "error">("idle");
+  const [githubCommentUrl, setGithubCommentUrl] = useState<string | null>(null);
+  const [githubConnected, setGithubConnected] = useState(false);
   const [showDoneConfirm, setShowDoneConfirm] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -151,6 +159,7 @@ export default function TaskDetailPanel({
         setTagIds((t.tags ?? []).map((tag) => tag.id));
         setPinned(t.is_pinned ?? false);
         setGithubIssueUrl(t.github_issue_url ?? "");
+        setReactions(t.reactions ?? []);
         if (!t.parent_task_id) {
           return apiFetch<Task[]>(`/tasks/${taskId}/subtasks`).then(setSubtasks).catch(() => {});
         }
@@ -184,9 +193,60 @@ export default function TaskDetailPanel({
       apiFetch<DependencyTask[]>(`/workspaces/${workspaceId}/tasks`)
         .then((list) => setCandidateTasks(list.filter((t) => t.id !== taskId)))
         .catch(() => {}),
+      // GitHub Issue連携（ワークスペース共通設定）が有効かどうか。未連携なら
+      // 「Issueにコメントする」ボタンの代わりに設定画面への案内を表示する。
+      apiFetch<{ connected: boolean }>(`/workspaces/${workspaceId}/github-settings`)
+        .then((res) => setGithubConnected(res.connected))
+        .catch(() => {}),
     ]).then(() => setDetailReady(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 説明欄へのリアクション用購読（2026-08-28追加）。reactionsテーブルはtarget_id列に
+  // 対象のID（タスク自身へのリアクションならtaskId）を持つため、target_id=eq.taskId
+  // で絞り込めばこのタスク自身のリアクションのみが届く（コメント個別のリアクションは
+  // target_idがコメントIDなので混ざらない）。
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const channel = supabase
+      .channel(`reactions:task-self:${taskId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "reactions", filter: `target_id=eq.${taskId}` },
+        (payload) => {
+          const row = payload.new as { id: string; target_type: string; user_id: string; emoji: string };
+          if (row.target_type !== "task") return;
+          const author = mentionable.find((m) => m.user_id === row.user_id);
+          const newReaction: Reaction = { id: row.id, emoji: row.emoji, user_id: row.user_id, user_name: author?.name };
+          setReactions((prev) => (prev.some((r) => r.id === row.id) ? prev : [...prev, newReaction]));
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "reactions", filter: `target_id=eq.${taskId}` },
+        (payload) => {
+          // DELETEイベントのpayload.oldはREPLICA IDENTITY FULLでも主キー（id）しか
+          // 含まれない（サーバー側のfilter評価には使われるが、クライアントへは
+          // 送られない）。target_id=eq.taskIdでの絞り込み自体が「タスク自身への
+          // リアクションのみ」を保証しているため、target_typeのチェックは不要。
+          const row = payload.old as { id?: string };
+          if (!row.id) return;
+          setReactions((prev) => prev.filter((r) => r.id !== row.id));
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [taskId, mentionable]);
+
+  async function handleToggleReaction(emoji: string) {
+    try {
+      await apiFetch(`/tasks/${taskId}/reactions`, { method: "POST", body: JSON.stringify({ emoji }) });
+    } catch {
+      // 失敗時は何もしない（Realtimeで反映されなければ再クリックで再試行できる）
+    }
+  }
 
   const incompletePredecessors = dependencies.predecessors.filter((d) => d.task.status !== "done");
 
@@ -201,55 +261,90 @@ export default function TaskDetailPanel({
   // 「反映されるまでクルクルを表示してほしい」との要望で、保存ボタン押下から
   // onChanged（呼び出し元一覧の再取得）が完了するまでをsavingで覆う。onChangedが
   // Promiseを返さない呼び出し元でも await はそのまま解決するだけなので害はない。
-  async function handleSave() {
+  // タスク本体・担当者・タグの保存処理本体。handleSave（保存ボタン、保存後にパネルを
+  // 閉じる）と、GitHub Issueへのコメント投稿（フォームの未保存内容を確実に反映してから
+  // 投稿したいが、パネルは閉じたくない）の両方から呼べるよう切り出す。
+  // 戻り値は成功したかどうか（失敗時はsetErrorも呼ぶ）。
+  async function saveTaskFields(): Promise<boolean> {
     setError(null);
     // 開始日時・期限を範囲として設定している場合、逆転していたら送信前に弾く
     // （サーバー側にも同じ検証があるが、往復せず即座にフィードバックするため）。
     if (startDate && dueDate && startDate > dueDate) {
       setError("開始日時は期限より前に設定してください");
-      return;
+      return false;
     }
+    const [taskResult, assigneesResult, tagsResult] = await Promise.allSettled([
+      apiFetch(`/tasks/${taskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          title,
+          description,
+          priority: priority || null,
+          start_date: startDate,
+          due_date: dueDate,
+          mentioned_user_ids: mentionedIds,
+          github_issue_url: githubIssueUrl.trim(),
+        }),
+      }),
+      apiFetch(`/tasks/${taskId}/assignees`, {
+        method: "PUT",
+        body: JSON.stringify({ user_ids: assigneeIds }),
+      }),
+      apiFetch(`/tasks/${taskId}/tags`, {
+        method: "PUT",
+        body: JSON.stringify({ tag_ids: tagIds }),
+      }),
+    ]);
+
+    if (taskResult.status === "rejected") {
+      setError("タスクの更新に失敗しました");
+      return false;
+    }
+    if (assigneesResult.status === "rejected") {
+      setError("担当者の更新に失敗しました");
+      return false;
+    }
+    if (tagsResult.status === "rejected") {
+      setError("タグの更新に失敗しました");
+      return false;
+    }
+    return true;
+  }
+
+  // 「担当者やコメントなど全項目が揃うまで表示せずクルクルを出したい」との要望対応（続き）。
+  async function handleSave() {
     setSaving(true);
     try {
-      const [taskResult, assigneesResult, tagsResult] = await Promise.allSettled([
-        apiFetch(`/tasks/${taskId}`, {
-          method: "PATCH",
-          body: JSON.stringify({
-            title,
-            description: description || null,
-            priority: priority || null,
-            start_date: startDate,
-            due_date: dueDate,
-            mentioned_user_ids: mentionedIds,
-            github_issue_url: githubIssueUrl.trim(),
-          }),
-        }),
-        apiFetch(`/tasks/${taskId}/assignees`, {
-          method: "PUT",
-          body: JSON.stringify({ user_ids: assigneeIds }),
-        }),
-        apiFetch(`/tasks/${taskId}/tags`, {
-          method: "PUT",
-          body: JSON.stringify({ tag_ids: tagIds }),
-        }),
-      ]);
-
-      if (taskResult.status === "rejected") {
-        setError("タスクの更新に失敗しました");
-        return;
-      }
-      if (assigneesResult.status === "rejected") {
-        setError("担当者の更新に失敗しました");
-        return;
-      }
-      if (tagsResult.status === "rejected") {
-        setError("タグの更新に失敗しました");
-        return;
-      }
+      const ok = await saveTaskFields();
+      if (!ok) return;
       await onChanged?.();
       onClose();
     } finally {
       setSaving(false);
+    }
+  }
+
+  // GitHub Issueへのコメント投稿・更新（2026-08-27追加）。未保存のフォーム内容も
+  // 確実に反映したいため、先にsaveTaskFieldsで保存してから投稿する。パネルは閉じない。
+  async function handlePostGithubComment() {
+    setGithubCommentStatus("posting");
+    setGithubCommentUrl(null);
+    try {
+      const ok = await saveTaskFields();
+      if (!ok) {
+        setGithubCommentStatus("error");
+        return;
+      }
+      const res = await apiFetch<{ comment_id: number; html_url: string }>(
+        `/tasks/${taskId}/github-issue/comment`,
+        { method: "POST" },
+      );
+      setGithubCommentUrl(res.html_url);
+      setGithubCommentStatus("success");
+      onChanged?.();
+    } catch {
+      setError("GitHub Issueへのコメント投稿に失敗しました");
+      setGithubCommentStatus("error");
     }
   }
 
@@ -342,9 +437,32 @@ export default function TaskDetailPanel({
 
   // ポップアウト（M8）：このタスクを別ウィンドウで開き、自パネルは閉じる
   // （「切り離す」という意図的な挙動、docs/aibo/m8-implementation-plan.md スコープ追加C）。
-  function handlePopout() {
-    window.open(`/w/${workspaceId}/tasks/${taskId}`, "_blank", "noopener,width=640,height=840");
-    onClose();
+  // ポップアウト先は新規ウィンドウでタスクをサーバーから再取得するため、先に
+  // saveTaskFieldsで未保存の編集内容を保存してから開く（保存前に閉じると、
+  // サイドバーで編集した内容が反映されないまま消えてしまうバグがあった）。
+  // window.openはクリックハンドラ内で同期的に呼ばないとポップアップブロック
+  // されうるため、保存の完了を待つ前に空ウィンドウを開いておき、保存後にそこへ
+  // 遷移させる（noopenerを付けると参照を保持できず後から遷移できないため外す。
+  // 遷移先は同一オリジンの固定パスのみでtabnabbingのリスクは無い）。
+  async function handlePopout() {
+    const win = window.open("about:blank", "_blank", "width=640,height=840");
+    setSaving(true);
+    try {
+      const ok = await saveTaskFields();
+      if (!ok) {
+        win?.close();
+        return;
+      }
+      await onChanged?.();
+      if (win) {
+        win.location.href = `/w/${workspaceId}/tasks/${taskId}`;
+      } else {
+        window.open(`/w/${workspaceId}/tasks/${taskId}`, "_blank", "width=640,height=840");
+      }
+      onClose();
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
@@ -509,6 +627,7 @@ export default function TaskDetailPanel({
               </ul>
             )}
           </div>
+          <ReactionBar reactions={reactions} currentUserId={user?.id} onToggle={handleToggleReaction} />
 
           <AttachmentSection
             attachments={attachments}
@@ -632,6 +751,37 @@ export default function TaskDetailPanel({
                 </IconButton>
               )}
             </div>
+            {githubIssueUrl.trim() && !githubConnected && (
+              <p className="text-xs text-muted-foreground">
+                コメント投稿にはワークスペースのGitHub連携が必要です（設定画面）。
+              </p>
+            )}
+            {githubIssueUrl.trim() && githubConnected && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={githubCommentStatus === "posting"}
+                  onClick={handlePostGithubComment}
+                >
+                  {githubCommentStatus === "posting" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Issueにコメントする
+                </Button>
+                {githubCommentStatus === "success" && githubCommentUrl && (
+                  <a
+                    href={githubCommentUrl}
+                    target="_blank"
+                    rel="noopener"
+                    className="text-xs text-indigo-600 hover:underline dark:text-indigo-400"
+                  >
+                    投稿しました（コメントを見る）
+                  </a>
+                )}
+                {githubCommentStatus === "error" && (
+                  <span className="text-xs text-red-600 dark:text-red-400">投稿に失敗しました</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">

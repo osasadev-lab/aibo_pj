@@ -3,12 +3,15 @@
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { CalendarClock } from "lucide-react";
+import { Calendar, CalendarClock } from "lucide-react";
+import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
 import KanbanBoard from "@/components/kanban/KanbanBoard";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
+import Badge from "@/components/ui/Badge";
 import DatePicker from "@/components/ui/DatePicker";
+import type { Tag } from "@/lib/types";
 
 type Task = {
   id: string;
@@ -16,6 +19,11 @@ type Task = {
   status: "not_started" | "in_progress" | "done" | "on_hold";
   project_id: string | null;
   due_today: boolean;
+  // タグ・開始日時・期限もプロジェクトのカンバンカードと同様に表示する
+  // （2026-08-28追加、ユーザー要望）。
+  tags?: Tag[];
+  start_date: string | null;
+  due_date: string | null;
 };
 
 const STATUS_COLUMNS = [
@@ -107,13 +115,41 @@ export default function MyTasksPage() {
           <button
             type="button"
             onClick={() => openTask(t.id)}
-            className={`w-full text-left ${t.due_today ? "border-l-2 border-red-500 pl-2" : ""}`}
+            className={clsx(
+              "flex w-full flex-col gap-1.5 text-left",
+              t.due_today && "border-l-2 border-red-500 pl-2",
+            )}
           >
             <p className="text-sm font-medium text-foreground">{t.title}</p>
             {t.due_today && (
-              <p className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">
+              <p className="text-xs font-medium text-red-600 dark:text-red-400">
                 {date ? `${date}期限` : "本日期限"}
               </p>
+            )}
+            {t.tags && t.tags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {t.tags.map((tag) => (
+                  <Badge key={tag.id} tone={tag.color as "zinc" | "red" | "amber" | "green" | "indigo"}>
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {(t.start_date || t.due_date) && (
+              <div className="flex w-full flex-col gap-0.5">
+                {t.start_date && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    開始: {t.start_date}
+                  </span>
+                )}
+                {t.due_date && (
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Calendar className="h-3 w-3 shrink-0" />
+                    期限: {t.due_date}
+                  </span>
+                )}
+              </div>
             )}
           </button>
         )}

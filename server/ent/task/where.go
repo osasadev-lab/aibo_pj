@@ -126,6 +126,11 @@ func GithubIssueURL(v string) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldGithubIssueURL, v))
 }
 
+// GithubIssueCommentID applies equality check predicate on the "github_issue_comment_id" field. It's identical to GithubIssueCommentIDEQ.
+func GithubIssueCommentID(v int64) predicate.Task {
+	return predicate.Task(sql.FieldEQ(FieldGithubIssueCommentID, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Task {
 	return predicate.Task(sql.FieldEQ(FieldCreatedAt, v))
@@ -779,6 +784,56 @@ func GithubIssueURLEqualFold(v string) predicate.Task {
 // GithubIssueURLContainsFold applies the ContainsFold predicate on the "github_issue_url" field.
 func GithubIssueURLContainsFold(v string) predicate.Task {
 	return predicate.Task(sql.FieldContainsFold(FieldGithubIssueURL, v))
+}
+
+// GithubIssueCommentIDEQ applies the EQ predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDEQ(v int64) predicate.Task {
+	return predicate.Task(sql.FieldEQ(FieldGithubIssueCommentID, v))
+}
+
+// GithubIssueCommentIDNEQ applies the NEQ predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDNEQ(v int64) predicate.Task {
+	return predicate.Task(sql.FieldNEQ(FieldGithubIssueCommentID, v))
+}
+
+// GithubIssueCommentIDIn applies the In predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDIn(vs ...int64) predicate.Task {
+	return predicate.Task(sql.FieldIn(FieldGithubIssueCommentID, vs...))
+}
+
+// GithubIssueCommentIDNotIn applies the NotIn predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDNotIn(vs ...int64) predicate.Task {
+	return predicate.Task(sql.FieldNotIn(FieldGithubIssueCommentID, vs...))
+}
+
+// GithubIssueCommentIDGT applies the GT predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDGT(v int64) predicate.Task {
+	return predicate.Task(sql.FieldGT(FieldGithubIssueCommentID, v))
+}
+
+// GithubIssueCommentIDGTE applies the GTE predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDGTE(v int64) predicate.Task {
+	return predicate.Task(sql.FieldGTE(FieldGithubIssueCommentID, v))
+}
+
+// GithubIssueCommentIDLT applies the LT predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDLT(v int64) predicate.Task {
+	return predicate.Task(sql.FieldLT(FieldGithubIssueCommentID, v))
+}
+
+// GithubIssueCommentIDLTE applies the LTE predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDLTE(v int64) predicate.Task {
+	return predicate.Task(sql.FieldLTE(FieldGithubIssueCommentID, v))
+}
+
+// GithubIssueCommentIDIsNil applies the IsNil predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDIsNil() predicate.Task {
+	return predicate.Task(sql.FieldIsNull(FieldGithubIssueCommentID))
+}
+
+// GithubIssueCommentIDNotNil applies the NotNil predicate on the "github_issue_comment_id" field.
+func GithubIssueCommentIDNotNil() predicate.Task {
+	return predicate.Task(sql.FieldNotNull(FieldGithubIssueCommentID))
 }
 
 // HasWorkspace applies the HasEdge predicate on the "workspace" edge.

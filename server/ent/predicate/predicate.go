@@ -51,6 +51,9 @@ type ProjectStatusColumn func(*sql.Selector)
 // PushSubscription is the predicate function for pushsubscription builders.
 type PushSubscription func(*sql.Selector)
 
+// Reaction is the predicate function for reaction builders.
+type Reaction func(*sql.Selector)
+
 // ReminderSend is the predicate function for remindersend builders.
 type ReminderSend func(*sql.Selector)
 

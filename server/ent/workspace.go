@@ -24,6 +24,8 @@ type Workspace struct {
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// GithubToken holds the value of the "github_token" field.
+	GithubToken *string `json:"-"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the WorkspaceQuery when eager-loading is set.
 	Edges        WorkspaceEdges `json:"edges"`
@@ -119,7 +121,7 @@ func (*Workspace) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case workspace.FieldName:
+		case workspace.FieldName, workspace.FieldGithubToken:
 			values[i] = new(sql.NullString)
 		case workspace.FieldCreatedAt, workspace.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -163,6 +165,13 @@ func (_m *Workspace) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
 				_m.Name = value.String
+			}
+		case workspace.FieldGithubToken:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field github_token", values[i])
+			} else if value.Valid {
+				_m.GithubToken = new(string)
+				*_m.GithubToken = value.String
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -243,6 +252,8 @@ func (_m *Workspace) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
+	builder.WriteString("github_token=<sensitive>")
 	builder.WriteByte(')')
 	return builder.String()
 }

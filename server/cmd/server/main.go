@@ -89,6 +89,7 @@ func main() {
 	projectHandler := handler.NewProjectHandler(client, r2Client, calendarOAuthConfig, encKey, pushCfg, cfg.FrontendURL)
 	taskHandler := handler.NewTaskHandler(client, r2Client, calendarOAuthConfig, encKey, cfg.FrontendURL, pushCfg)
 	commentHandler := handler.NewCommentHandler(client, pushCfg, cfg.FrontendURL)
+	reactionHandler := handler.NewReactionHandler(client)
 	notificationHandler := handler.NewNotificationHandler(client, pushCfg)
 	tagHandler := handler.NewTagHandler(client)
 	attachmentHandler := handler.NewAttachmentHandler(client, r2Client)
@@ -176,6 +177,12 @@ func main() {
 
 				// メモ（M8.5）
 				withMember.GET("/task-memos", taskMemoHandler.ListMine)
+
+				// GitHub Issue連携設定（M8.5後追加）。閲覧・設定ともワークスペースメンバー
+				// なら誰でも可（ユーザー確認済み、2026-08-27。Owner限定にすると設定できる人が
+				// 限られすぎるとのフィードバックにより変更）。
+				withMember.GET("/github-settings", workspaceHandler.GetGitHubSettings)
+				withMember.PATCH("/github-settings", workspaceHandler.UpdateGitHubSettings)
 			}
 		}
 
@@ -190,6 +197,9 @@ func main() {
 				withDMChannel.DELETE("/members/me", dmHandler.LeaveChannel)
 				withDMChannel.GET("/messages", dmHandler.ListMessages)
 				withDMChannel.POST("/messages", dmHandler.CreateMessage)
+				withDMChannel.PATCH("/messages/:message_id", dmHandler.UpdateMessage)
+				withDMChannel.DELETE("/messages/:message_id", dmHandler.DeleteMessage)
+				withDMChannel.POST("/messages/:message_id/reactions", reactionHandler.ToggleDMReaction)
 				withDMChannel.PATCH("/read", dmHandler.MarkRead)
 			}
 		}
@@ -263,7 +273,14 @@ func main() {
 
 				withTask.GET("/mentionable-members", commentHandler.MentionableMembers)
 				withTask.POST("/comments", commentHandler.CreateComment)
+				withTask.POST("/github-issue/comment", taskHandler.PostGitHubIssueComment)
 				withTask.GET("/comments", commentHandler.ListComments)
+				withTask.PATCH("/comments/:comment_id", commentHandler.UpdateComment)
+				withTask.DELETE("/comments/:comment_id", commentHandler.DeleteComment)
+				withTask.POST("/comments/:comment_id/reactions", reactionHandler.ToggleCommentReaction)
+
+				// リアクション（説明欄、タスク単位、2026-08-28追加）
+				withTask.POST("/reactions", reactionHandler.ToggleTaskReaction)
 
 				// メモ（M8.5、本人にのみ表示される個人データ）
 				withTask.GET("/memo", taskMemoHandler.Get)

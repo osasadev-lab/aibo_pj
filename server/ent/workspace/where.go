@@ -71,6 +71,11 @@ func Name(v string) predicate.Workspace {
 	return predicate.Workspace(sql.FieldEQ(FieldName, v))
 }
 
+// GithubToken applies equality check predicate on the "github_token" field. It's identical to GithubTokenEQ.
+func GithubToken(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldEQ(FieldGithubToken, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Workspace {
 	return predicate.Workspace(sql.FieldEQ(FieldCreatedAt, v))
@@ -214,6 +219,81 @@ func NameEqualFold(v string) predicate.Workspace {
 // NameContainsFold applies the ContainsFold predicate on the "name" field.
 func NameContainsFold(v string) predicate.Workspace {
 	return predicate.Workspace(sql.FieldContainsFold(FieldName, v))
+}
+
+// GithubTokenEQ applies the EQ predicate on the "github_token" field.
+func GithubTokenEQ(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldEQ(FieldGithubToken, v))
+}
+
+// GithubTokenNEQ applies the NEQ predicate on the "github_token" field.
+func GithubTokenNEQ(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldNEQ(FieldGithubToken, v))
+}
+
+// GithubTokenIn applies the In predicate on the "github_token" field.
+func GithubTokenIn(vs ...string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldIn(FieldGithubToken, vs...))
+}
+
+// GithubTokenNotIn applies the NotIn predicate on the "github_token" field.
+func GithubTokenNotIn(vs ...string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldNotIn(FieldGithubToken, vs...))
+}
+
+// GithubTokenGT applies the GT predicate on the "github_token" field.
+func GithubTokenGT(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldGT(FieldGithubToken, v))
+}
+
+// GithubTokenGTE applies the GTE predicate on the "github_token" field.
+func GithubTokenGTE(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldGTE(FieldGithubToken, v))
+}
+
+// GithubTokenLT applies the LT predicate on the "github_token" field.
+func GithubTokenLT(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldLT(FieldGithubToken, v))
+}
+
+// GithubTokenLTE applies the LTE predicate on the "github_token" field.
+func GithubTokenLTE(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldLTE(FieldGithubToken, v))
+}
+
+// GithubTokenContains applies the Contains predicate on the "github_token" field.
+func GithubTokenContains(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldContains(FieldGithubToken, v))
+}
+
+// GithubTokenHasPrefix applies the HasPrefix predicate on the "github_token" field.
+func GithubTokenHasPrefix(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldHasPrefix(FieldGithubToken, v))
+}
+
+// GithubTokenHasSuffix applies the HasSuffix predicate on the "github_token" field.
+func GithubTokenHasSuffix(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldHasSuffix(FieldGithubToken, v))
+}
+
+// GithubTokenIsNil applies the IsNil predicate on the "github_token" field.
+func GithubTokenIsNil() predicate.Workspace {
+	return predicate.Workspace(sql.FieldIsNull(FieldGithubToken))
+}
+
+// GithubTokenNotNil applies the NotNil predicate on the "github_token" field.
+func GithubTokenNotNil() predicate.Workspace {
+	return predicate.Workspace(sql.FieldNotNull(FieldGithubToken))
+}
+
+// GithubTokenEqualFold applies the EqualFold predicate on the "github_token" field.
+func GithubTokenEqualFold(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldEqualFold(FieldGithubToken, v))
+}
+
+// GithubTokenContainsFold applies the ContainsFold predicate on the "github_token" field.
+func GithubTokenContainsFold(v string) predicate.Workspace {
+	return predicate.Workspace(sql.FieldContainsFold(FieldGithubToken, v))
 }
 
 // HasMembers applies the HasEdge predicate on the "members" edge.

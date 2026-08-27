@@ -56,6 +56,26 @@ func (_u *WorkspaceUpdate) SetNillableName(v *string) *WorkspaceUpdate {
 	return _u
 }
 
+// SetGithubToken sets the "github_token" field.
+func (_u *WorkspaceUpdate) SetGithubToken(v string) *WorkspaceUpdate {
+	_u.mutation.SetGithubToken(v)
+	return _u
+}
+
+// SetNillableGithubToken sets the "github_token" field if the given value is not nil.
+func (_u *WorkspaceUpdate) SetNillableGithubToken(v *string) *WorkspaceUpdate {
+	if v != nil {
+		_u.SetGithubToken(*v)
+	}
+	return _u
+}
+
+// ClearGithubToken clears the value of the "github_token" field.
+func (_u *WorkspaceUpdate) ClearGithubToken() *WorkspaceUpdate {
+	_u.mutation.ClearGithubToken()
+	return _u
+}
+
 // AddMemberIDs adds the "members" edge to the WorkspaceMember entity by IDs.
 func (_u *WorkspaceUpdate) AddMemberIDs(ids ...uuid.UUID) *WorkspaceUpdate {
 	_u.mutation.AddMemberIDs(ids...)
@@ -376,6 +396,12 @@ func (_u *WorkspaceUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(workspace.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GithubToken(); ok {
+		_spec.SetField(workspace.FieldGithubToken, field.TypeString, value)
+	}
+	if _u.mutation.GithubTokenCleared() {
+		_spec.ClearField(workspace.FieldGithubToken, field.TypeString)
 	}
 	if _u.mutation.MembersCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -732,6 +758,26 @@ func (_u *WorkspaceUpdateOne) SetNillableName(v *string) *WorkspaceUpdateOne {
 	return _u
 }
 
+// SetGithubToken sets the "github_token" field.
+func (_u *WorkspaceUpdateOne) SetGithubToken(v string) *WorkspaceUpdateOne {
+	_u.mutation.SetGithubToken(v)
+	return _u
+}
+
+// SetNillableGithubToken sets the "github_token" field if the given value is not nil.
+func (_u *WorkspaceUpdateOne) SetNillableGithubToken(v *string) *WorkspaceUpdateOne {
+	if v != nil {
+		_u.SetGithubToken(*v)
+	}
+	return _u
+}
+
+// ClearGithubToken clears the value of the "github_token" field.
+func (_u *WorkspaceUpdateOne) ClearGithubToken() *WorkspaceUpdateOne {
+	_u.mutation.ClearGithubToken()
+	return _u
+}
+
 // AddMemberIDs adds the "members" edge to the WorkspaceMember entity by IDs.
 func (_u *WorkspaceUpdateOne) AddMemberIDs(ids ...uuid.UUID) *WorkspaceUpdateOne {
 	_u.mutation.AddMemberIDs(ids...)
@@ -1082,6 +1128,12 @@ func (_u *WorkspaceUpdateOne) sqlSave(ctx context.Context) (_node *Workspace, er
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(workspace.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GithubToken(); ok {
+		_spec.SetField(workspace.FieldGithubToken, field.TypeString, value)
+	}
+	if _u.mutation.GithubTokenCleared() {
+		_spec.ClearField(workspace.FieldGithubToken, field.TypeString)
 	}
 	if _u.mutation.MembersCleared() {
 		edge := &sqlgraph.EdgeSpec{

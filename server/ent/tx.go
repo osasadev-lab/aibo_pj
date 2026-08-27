@@ -42,6 +42,8 @@ type Tx struct {
 	ProjectStatusColumn *ProjectStatusColumnClient
 	// PushSubscription is the client for interacting with the PushSubscription builders.
 	PushSubscription *PushSubscriptionClient
+	// Reaction is the client for interacting with the Reaction builders.
+	Reaction *ReactionClient
 	// ReminderSend is the client for interacting with the ReminderSend builders.
 	ReminderSend *ReminderSendClient
 	// Section is the client for interacting with the Section builders.
@@ -220,6 +222,7 @@ func (tx *Tx) init() {
 	tx.ProjectMember = NewProjectMemberClient(tx.config)
 	tx.ProjectStatusColumn = NewProjectStatusColumnClient(tx.config)
 	tx.PushSubscription = NewPushSubscriptionClient(tx.config)
+	tx.Reaction = NewReactionClient(tx.config)
 	tx.ReminderSend = NewReminderSendClient(tx.config)
 	tx.Section = NewSectionClient(tx.config)
 	tx.Tag = NewTagClient(tx.config)

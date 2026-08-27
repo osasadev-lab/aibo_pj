@@ -55,6 +55,8 @@ type Task struct {
 	Position *int `json:"position,omitempty"`
 	// GithubIssueURL holds the value of the "github_issue_url" field.
 	GithubIssueURL *string `json:"github_issue_url,omitempty"`
+	// GithubIssueCommentID holds the value of the "github_issue_comment_id" field.
+	GithubIssueCommentID *int64 `json:"github_issue_comment_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TaskQuery when eager-loading is set.
 	Edges        TaskEdges `json:"edges"`
@@ -274,7 +276,7 @@ func (*Task) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case task.FieldProjectID, task.FieldSectionID, task.FieldStatusColumnID, task.FieldParentTaskID:
 			values[i] = &sql.NullScanner{S: new(uuid.UUID)}
-		case task.FieldPosition:
+		case task.FieldPosition, task.FieldGithubIssueCommentID:
 			values[i] = new(sql.NullInt64)
 		case task.FieldStatus, task.FieldTitle, task.FieldDescription, task.FieldPriority, task.FieldGithubIssueURL:
 			values[i] = new(sql.NullString)
@@ -408,6 +410,13 @@ func (_m *Task) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.GithubIssueURL = new(string)
 				*_m.GithubIssueURL = value.String
+			}
+		case task.FieldGithubIssueCommentID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field github_issue_comment_id", values[i])
+			} else if value.Valid {
+				_m.GithubIssueCommentID = new(int64)
+				*_m.GithubIssueCommentID = value.Int64
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -596,6 +605,11 @@ func (_m *Task) String() string {
 	if v := _m.GithubIssueURL; v != nil {
 		builder.WriteString("github_issue_url=")
 		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.GithubIssueCommentID; v != nil {
+		builder.WriteString("github_issue_comment_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteByte(')')
 	return builder.String()

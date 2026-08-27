@@ -19,6 +19,13 @@ func (Workspace) Mixin() []ent.Mixin {
 func (Workspace) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("name").NotEmpty(),
+		// GitHub Issue連携用のPersonal Access Token（ワークスペースOwnerが設定、
+		// 2026-08-27追加）。users.google_refresh_tokenと同じくAES-256-GCMで
+		// 暗号化して保存する（`TOKEN_ENCRYPTION_KEY`を再利用、生の値はDBに置かない）。
+		field.String("github_token").
+			Optional().
+			Nillable().
+			Sensitive(),
 	}
 }
 

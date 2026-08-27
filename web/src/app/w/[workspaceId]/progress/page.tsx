@@ -7,6 +7,8 @@ import { ArrowLeft } from "lucide-react";
 import { apiFetch } from "@/lib/apiClient";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import AssigneeTasksModal from "@/components/AssigneeTasksModal";
+import ProjectTasksModal from "@/components/ProjectTasksModal";
+import TaskDetailPanel from "@/components/TaskDetailPanel";
 import ProgressBar, { SingleBar, type ProgressSegment } from "@/components/ui/ProgressBar";
 import { Select } from "@/components/ui/fields";
 import Button from "@/components/ui/Button";
@@ -89,6 +91,7 @@ export default function ProgressPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const memberId = searchParams.get("member_id");
+  const openTaskId = searchParams.get("task");
   const { projects } = useProjects();
 
   const [projectFilter, setProjectFilter] = useState("");
@@ -98,6 +101,28 @@ export default function ProgressPage() {
   // 「担当者別」の行クリックで開くタスク一覧モーダル（プロジェクト名-タスク名-期限-
   // カンバンステータス）の対象。
   const [assigneeModal, setAssigneeModal] = useState<{ userId: string; name: string } | null>(null);
+  // 「プロジェクト別」の行クリックで開くタスク一覧モーダル（2026-08-28追加、
+  // 担当者別と同様の挙動にしてほしいとのユーザー要望）。
+  const [projectModal, setProjectModal] = useState<{ projectId: string; name: string } | null>(null);
+
+  // モーダル・ドリルダウンのタスク行クリックでタスク詳細を開く（2026-08-28追加）。
+  // my-tasksページと同じ「?taskクエリパラメータ＋TaskDetailPanel」方式。
+  // TaskDetailPanel（SidePanel、z-40）はAssignee/ProjectTasksModal（z-50）より
+  // 手前に来ないため、タスクを開くタイミングでモーダルは閉じる。
+  function openTask(id: string) {
+    setAssigneeModal(null);
+    setProjectModal(null);
+    const p = new URLSearchParams(searchParams);
+    p.set("task", id);
+    router.push(`${pathname}?${p.toString()}`);
+  }
+
+  function closeTaskPanel() {
+    const p = new URLSearchParams(searchParams);
+    p.delete("task");
+    const qs = p.toString();
+    router.push(qs ? `${pathname}?${qs}` : pathname);
+  }
 
   const loadProgress = useCallback(() => {
     if (!workspaceId) return;
@@ -186,12 +211,15 @@ export default function ProgressPage() {
 
             <ul className="flex flex-col gap-2">
               {drilldown.tasks.map((t) => (
-                <li
-                  key={t.id}
-                  className="flex items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 text-sm"
-                >
-                  <span className="text-foreground">{t.title}</span>
-                  <span className="text-xs text-muted-foreground">{STATUS_LABELS[t.status]}</span>
+                <li key={t.id}>
+                  <button
+                    type="button"
+                    onClick={() => openTask(t.id)}
+                    className="flex w-full items-center justify-between rounded-lg border border-border bg-surface px-4 py-3 text-left text-sm transition-colors hover:border-indigo-300 dark:hover:border-indigo-500/50"
+                  >
+                    <span className="text-foreground">{t.title}</span>
+                    <span className="text-xs text-muted-foreground">{STATUS_LABELS[t.status]}</span>
+                  </button>
                 </li>
               ))}
               {drilldown.tasks.length === 0 && (
@@ -199,6 +227,15 @@ export default function ProgressPage() {
               )}
             </ul>
           </>
+        )}
+        {openTaskId && (
+          <TaskDetailPanel
+            key={openTaskId}
+            taskId={openTaskId}
+            workspaceId={workspaceId}
+            onClose={closeTaskPanel}
+            onChanged={loadDrilldown}
+          />
         )}
       </div>
     );
@@ -226,13 +263,20 @@ export default function ProgressPage() {
           <p className="text-sm text-muted-foreground">プロジェクトに紐づくタスクがありません。</p>
         )}
         {data?.by_project.map((p) => (
-          <div key={p.project_id} className="rounded-xl border border-border bg-surface p-4">
+          <button
+            key={p.project_id}
+            type="button"
+            onClick={() => setProjectModal({ projectId: p.project_id, name: p.project_name })}
+            className="w-full rounded-xl border border-border bg-surface p-4 text-left transition-colors hover:border-indigo-300 dark:hover:border-indigo-500/50"
+          >
             <div className="mb-2 flex items-center justify-between text-sm font-medium text-foreground">
               <span>{p.project_name}</span>
-              <span className="text-xs font-normal text-muted-foreground">{totalOf(p.counts)}件</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                {p.counts.done}/{totalOf(p.counts)}件 完了
+              </span>
             </div>
             <ProgressBar segments={segmentsOf(p.counts)} total={totalOf(p.counts)} />
-          </div>
+          </button>
         ))}
       </section>
 
@@ -265,6 +309,27 @@ export default function ProgressPage() {
           userId={assigneeModal.userId}
           userName={assigneeModal.name}
           onClose={() => setAssigneeModal(null)}
+          onTaskClick={openTask}
+        />
+      )}
+
+      {projectModal && (
+        <ProjectTasksModal
+          workspaceId={workspaceId}
+          projectId={projectModal.projectId}
+          projectName={projectModal.name}
+          onClose={() => setProjectModal(null)}
+          onTaskClick={openTask}
+        />
+      )}
+
+      {openTaskId && (
+        <TaskDetailPanel
+          key={openTaskId}
+          taskId={openTaskId}
+          workspaceId={workspaceId}
+          onClose={closeTaskPanel}
+          onChanged={loadProgress}
         />
       )}
     </div>

@@ -499,6 +499,54 @@ var (
 			},
 		},
 	}
+	// ReactionsColumns holds the columns for the "reactions" table.
+	ReactionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUUID, Unique: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "target_type", Type: field.TypeEnum, Enums: []string{"task", "comment", "dm_message"}},
+		{Name: "target_id", Type: field.TypeUUID},
+		{Name: "task_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "dm_channel_id", Type: field.TypeUUID, Nullable: true},
+		{Name: "emoji", Type: field.TypeString},
+		{Name: "user_id", Type: field.TypeUUID},
+	}
+	// ReactionsTable holds the schema information for the "reactions" table.
+	ReactionsTable = &schema.Table{
+		Name:       "reactions",
+		Columns:    ReactionsColumns,
+		PrimaryKey: []*schema.Column{ReactionsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "reactions_users_user",
+				Columns:    []*schema.Column{ReactionsColumns[8]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "reaction_target_type_target_id_user_id",
+				Unique:  true,
+				Columns: []*schema.Column{ReactionsColumns[3], ReactionsColumns[4], ReactionsColumns[8]},
+			},
+			{
+				Name:    "reaction_target_type_target_id",
+				Unique:  false,
+				Columns: []*schema.Column{ReactionsColumns[3], ReactionsColumns[4]},
+			},
+			{
+				Name:    "reaction_task_id",
+				Unique:  false,
+				Columns: []*schema.Column{ReactionsColumns[5]},
+			},
+			{
+				Name:    "reaction_dm_channel_id",
+				Unique:  false,
+				Columns: []*schema.Column{ReactionsColumns[6]},
+			},
+		},
+	}
 	// ReminderSendsColumns holds the columns for the "reminder_sends" table.
 	ReminderSendsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUUID, Unique: true},
@@ -602,6 +650,7 @@ var (
 		{Name: "due_date", Type: field.TypeTime, Nullable: true},
 		{Name: "position", Type: field.TypeInt, Nullable: true},
 		{Name: "github_issue_url", Type: field.TypeString, Nullable: true},
+		{Name: "github_issue_comment_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "workspace_id", Type: field.TypeUUID},
 		{Name: "project_id", Type: field.TypeUUID, Nullable: true},
 		{Name: "section_id", Type: field.TypeUUID, Nullable: true},
@@ -617,37 +666,37 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "tasks_workspaces_workspace",
-				Columns:    []*schema.Column{TasksColumns[11]},
+				Columns:    []*schema.Column{TasksColumns[12]},
 				RefColumns: []*schema.Column{WorkspacesColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "tasks_projects_project",
-				Columns:    []*schema.Column{TasksColumns[12]},
+				Columns:    []*schema.Column{TasksColumns[13]},
 				RefColumns: []*schema.Column{ProjectsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_sections_section",
-				Columns:    []*schema.Column{TasksColumns[13]},
+				Columns:    []*schema.Column{TasksColumns[14]},
 				RefColumns: []*schema.Column{SectionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_project_status_columns_status_column",
-				Columns:    []*schema.Column{TasksColumns[14]},
+				Columns:    []*schema.Column{TasksColumns[15]},
 				RefColumns: []*schema.Column{ProjectStatusColumnsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "tasks_users_creator",
-				Columns:    []*schema.Column{TasksColumns[15]},
+				Columns:    []*schema.Column{TasksColumns[16]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "tasks_tasks_children",
-				Columns:    []*schema.Column{TasksColumns[16]},
+				Columns:    []*schema.Column{TasksColumns[17]},
 				RefColumns: []*schema.Column{TasksColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -656,17 +705,17 @@ var (
 			{
 				Name:    "task_project_id_status_column_id",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[12], TasksColumns[14]},
+				Columns: []*schema.Column{TasksColumns[13], TasksColumns[15]},
 			},
 			{
 				Name:    "task_project_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[12], TasksColumns[3]},
+				Columns: []*schema.Column{TasksColumns[13], TasksColumns[3]},
 			},
 			{
 				Name:    "task_parent_task_id",
 				Unique:  false,
-				Columns: []*schema.Column{TasksColumns[16]},
+				Columns: []*schema.Column{TasksColumns[17]},
 			},
 		},
 	}
@@ -980,6 +1029,7 @@ var (
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "name", Type: field.TypeString},
+		{Name: "github_token", Type: field.TypeString, Nullable: true},
 	}
 	// WorkspacesTable holds the schema information for the "workspaces" table.
 	WorkspacesTable = &schema.Table{
@@ -1077,6 +1127,7 @@ var (
 		ProjectMembersTable,
 		ProjectStatusColumnsTable,
 		PushSubscriptionsTable,
+		ReactionsTable,
 		ReminderSendsTable,
 		SectionsTable,
 		TagsTable,
@@ -1126,6 +1177,7 @@ func init() {
 	ProjectMembersTable.ForeignKeys[1].RefTable = UsersTable
 	ProjectStatusColumnsTable.ForeignKeys[0].RefTable = ProjectsTable
 	PushSubscriptionsTable.ForeignKeys[0].RefTable = UsersTable
+	ReactionsTable.ForeignKeys[0].RefTable = UsersTable
 	ReminderSendsTable.ForeignKeys[0].RefTable = UsersTable
 	SectionsTable.ForeignKeys[0].RefTable = ProjectsTable
 	TagsTable.ForeignKeys[0].RefTable = WorkspacesTable

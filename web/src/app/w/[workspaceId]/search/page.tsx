@@ -27,6 +27,22 @@ type Task = {
   matches?: TaskMatches;
 };
 
+// DMメッセージ検索結果（2026-08-28追加）。自分が参加しているチャンネルのみが
+// 対象（バックエンド側でDMChannelMemberに自分が含まれるチャンネルに限定済み）。
+type DMMatch = {
+  channel_id: string;
+  channel_name: string;
+  message_id: string;
+  sender_name: string;
+  excerpt: string;
+  created_at: string;
+};
+
+type SearchResult = {
+  tasks: Task[];
+  dm_messages: DMMatch[];
+};
+
 const STATUS_LABELS: Record<Task["status"], string> = {
   not_started: "未対応",
   in_progress: "対応中",
@@ -85,6 +101,27 @@ function TaskRow({
   );
 }
 
+// DMメッセージ1件分の行。クリックでそのDMチャンネルへ遷移する（メッセージ単体への
+// ジャンプ・ハイライトはDM側が未対応のため、チャンネルを開くところまで）。
+function DMRow({ workspaceId, m }: { workspaceId: string; m: DMMatch }) {
+  const router = useRouter();
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => router.push(`/w/${workspaceId}/dm?channel=${m.channel_id}`)}
+        className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm transition-colors hover:border-indigo-300 dark:hover:border-indigo-500/50"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-foreground">{m.channel_name}</span>
+          <span className="text-xs text-muted-foreground">{m.sender_name}</span>
+          <p className="mt-1 truncate text-xs text-muted-foreground/80">{m.excerpt}</p>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 // 「タスク/説明/コメント/添付ファイル」の1区分。見出しの下にヒットしたタスクを並べ、
 // 1件も無ければ「ヒットなし」を表示する（ユーザー指定のレイアウト要望）。
 function MatchSection({
@@ -114,12 +151,13 @@ function MatchSection({
   );
 }
 
-// プロジェクト横断の全文検索結果画面（タスク名・説明・コメント・添付ファイル名が
-// 対象、docs/aibo/m7-implementation-plan.md 設計判断6）。検索の実行は左サイドバーの
-// 入力欄（Enterキー）のみで行い、このページ自体には入力欄を置かない。
-// レイアウトは「タスク/説明/コメント/添付ファイル」の4区分を見出しとして表示し、
-// 各区分の下にその区分でヒットしたタスクを並べる（ユーザー指定のレイアウト要望。
-// 1タスクの中に4区分をまとめる案は不採用になった）。
+// プロジェクト横断の全文検索結果画面（タスク名・説明・コメント・添付ファイル名・
+// DMメッセージが対象、docs/aibo/m7-implementation-plan.md 設計判断6。DM検索は
+// 2026-08-28追加、自分が参加しているチャンネルのみが対象）。検索の実行は
+// 左サイドバーの入力欄（Enterキー）のみで行い、このページ自体には入力欄を置かない。
+// レイアウトは「タスク/説明/コメント/添付ファイル/DM」の5区分を見出しとして表示し、
+// 各区分の下にその区分でヒットした項目を並べる（ユーザー指定のレイアウト要望。
+// 1タスクの中に区分をまとめる案は不採用になった）。
 export default function SearchPage() {
   const params = useParams<{ workspaceId: string }>();
   const workspaceId = params.workspaceId;
@@ -127,14 +165,14 @@ export default function SearchPage() {
   const { projects } = useProjects();
 
   const q = searchParams.get("q") ?? "";
-  const [tasks, setTasks] = useState<Task[] | null>(null);
+  const [result, setResult] = useState<SearchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!workspaceId || !q) return;
-    apiFetch<Task[]>(`/workspaces/${workspaceId}/search?q=${encodeURIComponent(q)}`)
-      .then((result) => {
-        setTasks(result);
+    apiFetch<SearchResult>(`/workspaces/${workspaceId}/search?q=${encodeURIComponent(q)}`)
+      .then((res) => {
+        setResult(res);
         setError(null);
       })
       .catch(() => setError("検索に失敗しました"));
@@ -144,18 +182,21 @@ export default function SearchPage() {
     load();
   }, [load]);
 
-  const titleHits = (tasks ?? [])
-    .filter((t) => t.matches?.title)
-    .map((t) => ({ t, extraLines: [] as string[] }));
-  const descriptionHits = (tasks ?? [])
+  const tasks = result?.tasks ?? [];
+  const dmMatches = result?.dm_messages ?? [];
+
+  const titleHits = tasks.filter((t) => t.matches?.title).map((t) => ({ t, extraLines: [] as string[] }));
+  const descriptionHits = tasks
     .filter((t) => t.matches?.description)
     .map((t) => ({ t, extraLines: [t.matches!.description!] }));
-  const commentHits = (tasks ?? [])
+  const commentHits = tasks
     .filter((t) => (t.matches?.comments.length ?? 0) > 0)
     .map((t) => ({ t, extraLines: t.matches!.comments }));
-  const attachmentHits = (tasks ?? [])
+  const attachmentHits = tasks
     .filter((t) => (t.matches?.attachments.length ?? 0) > 0)
     .map((t) => ({ t, extraLines: t.matches!.attachments }));
+
+  const hasAnyResult = tasks.length > 0 || dmMatches.length > 0;
 
   return (
     <div className="flex max-w-3xl flex-col gap-6 px-6 py-8 lg:px-10">
@@ -167,12 +208,12 @@ export default function SearchPage() {
 
       {!q ? (
         <p className="text-sm text-muted-foreground">左サイドバーの検索欄にキーワードを入力してEnterを押してください。</p>
-      ) : tasks === null ? (
+      ) : result === null ? (
         <p className="text-sm text-muted-foreground">読み込み中...</p>
-      ) : tasks.length === 0 ? (
+      ) : !hasAnyResult ? (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border py-16 text-center">
           <SearchIcon className="h-6 w-6 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">「{q}」に一致するタスクは見つかりませんでした。</p>
+          <p className="text-sm text-muted-foreground">「{q}」に一致する結果は見つかりませんでした。</p>
         </div>
       ) : (
         <div className="flex flex-col gap-6">
@@ -180,6 +221,18 @@ export default function SearchPage() {
           <MatchSection label="説明" hits={descriptionHits} workspaceId={workspaceId} projects={projects} />
           <MatchSection label="コメント" hits={commentHits} workspaceId={workspaceId} projects={projects} />
           <MatchSection label="添付ファイル" hits={attachmentHits} workspaceId={workspaceId} projects={projects} />
+          <div className="flex flex-col gap-2">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">－DM－</h2>
+            {dmMatches.length === 0 ? (
+              <p className="text-sm text-muted-foreground/70">ヒットなし</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {dmMatches.map((m) => (
+                  <DMRow key={m.message_id} workspaceId={workspaceId} m={m} />
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </div>

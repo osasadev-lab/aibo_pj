@@ -12,7 +12,9 @@ import (
 
 	"github.com/osasadev-lab/aibo_pj/server/ent"
 	"github.com/osasadev-lab/aibo_pj/server/ent/comment"
+	"github.com/osasadev-lab/aibo_pj/server/ent/commentmention"
 	"github.com/osasadev-lab/aibo_pj/server/ent/predicate"
+	"github.com/osasadev-lab/aibo_pj/server/ent/reaction"
 	"github.com/osasadev-lab/aibo_pj/server/ent/user"
 	"github.com/osasadev-lab/aibo_pj/server/internal/activity"
 	"github.com/osasadev-lab/aibo_pj/server/internal/middleware"
@@ -68,6 +70,9 @@ func commentJSON(cm *ent.Comment) gin.H {
 		"user_id":    cm.UserID,
 		"body":       cm.Body,
 		"created_at": cm.CreatedAt,
+		// 編集済みかどうかはフロントでcreated_at!==updated_atで判定する
+		// （専用フラグを新設せず既存のBaseMixinのupdated_atを流用、2026-08-27追加）。
+		"updated_at": cm.UpdatedAt,
 	}
 	if cm.Edges.User != nil {
 		row["user_name"] = cm.Edges.User.Name
@@ -124,13 +129,24 @@ func (h *CommentHandler) ListComments(c *gin.Context) {
 			return
 		}
 
+		reactionsByComment, err := loadCommentReactionsByTask(ctx, h.client, t.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
+			return
+		}
 		out := make([]gin.H, 0, len(before)+1+len(after))
 		for _, cm := range before {
-			out = append(out, commentJSON(cm))
+			row := commentJSON(cm)
+			row["reactions"] = orEmptyReactions(reactionsByComment[cm.ID])
+			out = append(out, row)
 		}
-		out = append(out, commentJSON(target))
+		targetRow := commentJSON(target)
+		targetRow["reactions"] = orEmptyReactions(reactionsByComment[target.ID])
+		out = append(out, targetRow)
 		for _, cm := range after {
-			out = append(out, commentJSON(cm))
+			row := commentJSON(cm)
+			row["reactions"] = orEmptyReactions(reactionsByComment[cm.ID])
+			out = append(out, row)
 		}
 		c.JSON(http.StatusOK, gin.H{"items": out, "has_more_older": hasMoreOlder, "has_more_newer": hasMoreNewer})
 		return
@@ -157,9 +173,16 @@ func (h *CommentHandler) ListComments(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
 			return
 		}
+		reactionsByComment, err := loadCommentReactionsByTask(ctx, h.client, t.ID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
+			return
+		}
 		out := make([]gin.H, 0, len(rows))
 		for _, cm := range rows {
-			out = append(out, commentJSON(cm))
+			row := commentJSON(cm)
+			row["reactions"] = orEmptyReactions(reactionsByComment[cm.ID])
+			out = append(out, row)
 		}
 		c.JSON(http.StatusOK, gin.H{"items": out, "has_more_older": false, "has_more_newer": hasMoreNewer})
 		return
@@ -201,9 +224,16 @@ func (h *CommentHandler) ListComments(c *gin.Context) {
 	// DB取得は新しい順のため、表示用（古い順）に反転する。
 	sort.SliceStable(comments, func(i, j int) bool { return comments[i].CreatedAt.Before(comments[j].CreatedAt) })
 
+	reactionsByComment, err := loadCommentReactionsByTask(ctx, h.client, t.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list comments"})
+		return
+	}
 	out := make([]gin.H, 0, len(comments))
 	for _, cm := range comments {
-		out = append(out, commentJSON(cm))
+		row := commentJSON(cm)
+		row["reactions"] = orEmptyReactions(reactionsByComment[cm.ID])
+		out = append(out, row)
 	}
 	c.JSON(http.StatusOK, gin.H{"items": out, "has_more_older": hasMoreOlder, "has_more_newer": false})
 }
@@ -345,6 +375,95 @@ func (h *CommentHandler) CreateComment(c *gin.Context) {
 	pushdelivery.Async(h.client, h.pushCfg, pendingPush)
 
 	c.JSON(http.StatusCreated, commentJSON(created))
+}
+
+type updateCommentRequest struct {
+	Body string `json:"body" binding:"required"`
+}
+
+// UpdateComment は PATCH /tasks/:task_id/comments/:comment_id。
+// 投稿者本人のみ編集可（ユーザー要望、2026-08-27追加）。編集履歴・メンションの
+// 再計算は行わない（本文の置き換えのみ）。updated_atがBaseMixinの
+// UpdateDefaultで自動更新されるため、フロントはcreated_at!==updated_atで
+// 「編集済み」を判定できる。
+func (h *CommentHandler) UpdateComment(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	t := middleware.CurrentTask(c)
+
+	commentID, err := uuid.Parse(c.Param("comment_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
+		return
+	}
+
+	var req updateCommentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "body is required"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	existing, err := h.client.Comment.Query().
+		Where(comment.IDEQ(commentID), comment.TaskIDEQ(t.ID)).
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
+		return
+	}
+	if existing.UserID != u.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	updated, err := h.client.Comment.UpdateOneID(commentID).SetBody(req.Body).Save(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update comment"})
+		return
+	}
+	updated.Edges.User = u
+	c.JSON(http.StatusOK, commentJSON(updated))
+}
+
+// DeleteComment は DELETE /tasks/:task_id/comments/:comment_id。投稿者本人のみ削除可。
+func (h *CommentHandler) DeleteComment(c *gin.Context) {
+	u := middleware.CurrentUser(c)
+	t := middleware.CurrentTask(c)
+
+	commentID, err := uuid.Parse(c.Param("comment_id"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	existing, err := h.client.Comment.Query().
+		Where(comment.IDEQ(commentID), comment.TaskIDEQ(t.ID)).
+		Only(ctx)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "comment not found"})
+		return
+	}
+	if existing.UserID != u.ID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		return
+	}
+
+	err = withTx(ctx, h.client, func(tx *ent.Tx) error {
+		if _, err := tx.CommentMention.Delete().Where(commentmention.CommentIDEQ(commentID)).Exec(ctx); err != nil {
+			return err
+		}
+		if _, err := tx.Reaction.Delete().
+			Where(reaction.TargetTypeEQ(reaction.TargetTypeComment), reaction.TargetIDEQ(commentID)).
+			Exec(ctx); err != nil {
+			return err
+		}
+		return tx.Comment.DeleteOneID(commentID).Exec(ctx)
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete comment"})
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func excerpt(s string, maxLen int) string {

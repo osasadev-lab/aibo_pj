@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Check, LogOut, Paperclip, Pencil, Send, UserPlus, Users, X } from "lucide-react";
+import { ArrowLeft, Check, LogOut, Paperclip, Pencil, Send, Trash2, UserPlus, Users, X } from "lucide-react";
 import clsx from "clsx";
 
 import { apiFetch } from "@/lib/apiClient";
@@ -12,6 +12,7 @@ import Avatar from "@/components/ui/Avatar";
 import IconButton from "@/components/ui/IconButton";
 import MarkdownToolbar from "@/components/ui/MarkdownToolbar";
 import MemberPicker from "@/components/MemberPicker";
+import ReactionBar, { type Reaction } from "@/components/ui/ReactionBar";
 import { Input, Textarea } from "@/components/ui/fields";
 
 type DMAttachment = { id: string; file_name: string; size_bytes: number; content_type: string };
@@ -23,7 +24,9 @@ type DMMessage = {
   body: string | null;
   user_name?: string;
   created_at: string;
+  updated_at: string;
   attachments: DMAttachment[];
+  reactions: Reaction[];
 };
 
 type ChannelDetail = {
@@ -56,6 +59,7 @@ type Props = {
 // 初回一覧はREST、以降の新着はSupabase Realtime購読（commentsと同じ方式）。
 export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpdated, onBack }: Props) {
   const { user } = useAuth();
+  const storageEnabled = user?.storage_enabled ?? false;
   const [channel, setChannel] = useState<ChannelDetail | null>(null);
   const [messages, setMessages] = useState<DMMessage[]>([]);
   const [hasMoreOlder, setHasMoreOlder] = useState(false);
@@ -68,7 +72,10 @@ export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpda
   const [nameDraft, setNameDraft] = useState("");
   const [showAddMembers, setShowAddMembers] = useState(false);
   const [addMemberIds, setAddMemberIds] = useState<string[]>([]);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editMessageBody, setEditMessageBody] = useState("");
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const editComposerRef = useRef<HTMLTextAreaElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   function loadChannel() {
@@ -111,12 +118,36 @@ export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpda
         (payload) => {
           const row = payload.new as DMMessage;
           const author = channel?.members.find((m) => m.user_id === row.user_id);
-          const enriched = { ...row, user_name: author?.name, attachments: row.attachments ?? [] };
+          const enriched = {
+            ...row,
+            user_name: author?.name,
+            attachments: row.attachments ?? [],
+            reactions: row.reactions ?? [],
+          };
           setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, enriched]));
           requestAnimationFrame(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }));
           apiFetch(`/dm/channels/${channelId}/read`, { method: "PATCH" })
             .then(onChannelUpdated)
             .catch(() => {});
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "dm_messages", filter: `channel_id=eq.${channelId}` },
+        (payload) => {
+          const row = payload.new as DMMessage;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === row.id ? { ...m, body: row.body, updated_at: row.updated_at } : m)),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "dm_messages", filter: `channel_id=eq.${channelId}` },
+        (payload) => {
+          const row = payload.old as Partial<DMMessage>;
+          if (!row.id) return;
+          setMessages((prev) => prev.filter((m) => m.id !== row.id));
         },
       )
       .subscribe();
@@ -125,6 +156,66 @@ export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpda
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channelId, channel?.members]);
+
+  // リアクション用の別チャンネル（2026-08-28追加）。reactionsテーブルはdm_channel_idを
+  // 非正規化して持たせてあるので、チャンネル単位で一括購読する。
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    const channelSub = supabase
+      .channel(`reactions:dm:${channelId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "reactions", filter: `dm_channel_id=eq.${channelId}` },
+        (payload) => {
+          const row = payload.new as { id: string; target_type: string; target_id: string; user_id: string; emoji: string };
+          if (row.target_type !== "dm_message") return;
+          const author = channel?.members.find((m) => m.user_id === row.user_id);
+          const newReaction: Reaction = { id: row.id, emoji: row.emoji, user_id: row.user_id, user_name: author?.name };
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === row.target_id && !m.reactions.some((r) => r.id === newReaction.id)
+                ? { ...m, reactions: [...m.reactions, newReaction] }
+                : m,
+            ),
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "reactions", filter: `dm_channel_id=eq.${channelId}` },
+        (payload) => {
+          // DELETEイベントのpayload.oldはREPLICA IDENTITY FULLでも主キー（id）しか
+          // 含まれない。dm_channel_id列はdm_messageへのリアクションにしか設定され
+          // ないため、この購読フィルタ自体が対象を一意に絞り込んでおり、
+          // target_type等のチェックは不要（全メッセージのreactions配列を探して
+          // 該当idを取り除く）。
+          const row = payload.old as { id?: string };
+          if (!row.id) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.reactions.some((r) => r.id === row.id)
+                ? { ...m, reactions: m.reactions.filter((r) => r.id !== row.id) }
+                : m,
+            ),
+          );
+        },
+      )
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channelSub);
+    };
+  }, [channelId, channel?.members]);
+
+  async function handleToggleReaction(messageId: string, emoji: string) {
+    try {
+      await apiFetch(`/dm/channels/${channelId}/messages/${messageId}/reactions`, {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+      });
+    } catch {
+      // 失敗時は何もしない（Realtimeで反映されなければ再クリックで再試行できる）
+    }
+  }
 
   async function handleLoadOlder() {
     if (messages.length === 0 || loadingOlder) return;
@@ -232,6 +323,40 @@ export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpda
     }
   }
 
+  function startEditMessage(m: DMMessage) {
+    setEditingMessageId(m.id);
+    setEditMessageBody(m.body ?? "");
+  }
+
+  function cancelEditMessage() {
+    setEditingMessageId(null);
+    setEditMessageBody("");
+  }
+
+  async function handleUpdateMessage(messageId: string) {
+    if (!editMessageBody.trim()) return;
+    try {
+      const updated = await apiFetch<DMMessage>(`/dm/channels/${channelId}/messages/${messageId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ body: editMessageBody.trim() }),
+      });
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, ...updated } : m)));
+      cancelEditMessage();
+    } catch {
+      setError("メッセージの更新に失敗しました");
+    }
+  }
+
+  async function handleDeleteMessage(messageId: string) {
+    if (!window.confirm("このメッセージを削除しますか？")) return;
+    try {
+      await apiFetch(`/dm/channels/${channelId}/messages/${messageId}`, { method: "DELETE" });
+      setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    } catch {
+      setError("メッセージの削除に失敗しました");
+    }
+  }
+
   if (!channel) {
     return <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">読み込み中...</div>;
   }
@@ -323,19 +448,91 @@ export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpda
           return (
             <div key={m.id} className={clsx("flex items-end gap-2", isMine && "flex-row-reverse")}>
               {!isMine && <Avatar name={m.user_name ?? "?"} seed={m.user_id} size="sm" />}
-              <div className={clsx("flex max-w-[75%] flex-col gap-1", isMine ? "items-end" : "items-start")}>
+              <div
+                className={clsx(
+                  "flex min-w-0 flex-col gap-1",
+                  isMine ? "items-end" : "items-start",
+                  editingMessageId === m.id ? "w-full flex-1" : "max-w-[75%]",
+                )}
+              >
                 {!isMine && <span className="text-[11px] text-muted-foreground">{m.user_name ?? "?"}</span>}
-                {m.body && (
-                  <div
-                    className={clsx(
-                      "rounded-2xl px-3.5 py-2 text-sm",
-                      isMine
-                        ? "rounded-br-sm bg-indigo-600 text-white dark:bg-indigo-500"
-                        : "rounded-bl-sm bg-surface-muted text-foreground",
-                    )}
-                  >
-                    {renderMarkdown(m.body)}
+                {editingMessageId === m.id ? (
+                  <div className="flex w-full flex-col gap-1.5">
+                    <div>
+                      <MarkdownToolbar
+                        textareaRef={editComposerRef}
+                        value={editMessageBody}
+                        onChange={setEditMessageBody}
+                      />
+                      <Textarea
+                        ref={editComposerRef}
+                        value={editMessageBody}
+                        onChange={(e) => setEditMessageBody(e.target.value)}
+                        rows={3}
+                        className="text-sm"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 self-end">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateMessage(m.id)}
+                        className="rounded-lg bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-500 dark:bg-indigo-500"
+                      >
+                        保存
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelEditMessage}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <X className="h-3 w-3" />
+                        キャンセル
+                      </button>
+                    </div>
                   </div>
+                ) : (
+                  <div className={clsx("group flex items-center gap-1.5", isMine && "flex-row-reverse")}>
+                    {m.body && (
+                      <div
+                        className={clsx(
+                          "rounded-2xl px-3.5 py-2 text-sm",
+                          isMine
+                            ? "rounded-br-sm bg-indigo-600 text-white dark:bg-indigo-500"
+                            : "rounded-bl-sm bg-surface-muted text-foreground",
+                        )}
+                      >
+                        {renderMarkdown(m.body)}
+                      </div>
+                    )}
+                    {isMine && (
+                      <span className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          type="button"
+                          onClick={() => startEditMessage(m)}
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label="編集"
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteMessage(m.id)}
+                          className="text-muted-foreground hover:text-red-500"
+                          aria-label="削除"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                )}
+                {editingMessageId !== m.id && (
+                  <ReactionBar
+                    reactions={m.reactions}
+                    currentUserId={user?.id}
+                    onToggle={(emoji) => handleToggleReaction(m.id, emoji)}
+                  />
                 )}
                 {m.attachments.length > 0 && (
                   <div className="flex flex-col gap-1">
@@ -356,6 +553,7 @@ export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpda
                 )}
                 <span className="text-[10px] text-muted-foreground">
                   {new Date(m.created_at).toLocaleString()}
+                  {m.updated_at !== m.created_at && "（編集済み）"}
                 </span>
               </div>
             </div>
@@ -397,11 +595,17 @@ export default function DMThread({ workspaceId, channelId, onLeft, onChannelUpda
           />
         </div>
         <div className="flex items-center justify-between">
-          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground">
-            <Paperclip className="h-3.5 w-3.5" />
-            添付
-            <input type="file" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
-          </label>
+          {/* 添付ファイル機能はタスク詳細（AttachmentSection.tsx）と同じ条件で無効化する
+              （R2未設定時、GET /auth/meのstorage_enabledがfalse。M8.5後の追加対応）。 */}
+          {storageEnabled ? (
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground">
+              <Paperclip className="h-3.5 w-3.5" />
+              添付
+              <input type="file" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+            </label>
+          ) : (
+            <span />
+          )}
           <button
             type="submit"
             disabled={sending || (!body.trim() && pendingFiles.length === 0)}

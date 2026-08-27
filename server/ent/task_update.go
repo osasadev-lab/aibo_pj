@@ -312,6 +312,33 @@ func (_u *TaskUpdate) ClearGithubIssueURL() *TaskUpdate {
 	return _u
 }
 
+// SetGithubIssueCommentID sets the "github_issue_comment_id" field.
+func (_u *TaskUpdate) SetGithubIssueCommentID(v int64) *TaskUpdate {
+	_u.mutation.ResetGithubIssueCommentID()
+	_u.mutation.SetGithubIssueCommentID(v)
+	return _u
+}
+
+// SetNillableGithubIssueCommentID sets the "github_issue_comment_id" field if the given value is not nil.
+func (_u *TaskUpdate) SetNillableGithubIssueCommentID(v *int64) *TaskUpdate {
+	if v != nil {
+		_u.SetGithubIssueCommentID(*v)
+	}
+	return _u
+}
+
+// AddGithubIssueCommentID adds value to the "github_issue_comment_id" field.
+func (_u *TaskUpdate) AddGithubIssueCommentID(v int64) *TaskUpdate {
+	_u.mutation.AddGithubIssueCommentID(v)
+	return _u
+}
+
+// ClearGithubIssueCommentID clears the value of the "github_issue_comment_id" field.
+func (_u *TaskUpdate) ClearGithubIssueCommentID() *TaskUpdate {
+	_u.mutation.ClearGithubIssueCommentID()
+	return _u
+}
+
 // SetWorkspace sets the "workspace" edge to the Workspace entity.
 func (_u *TaskUpdate) SetWorkspace(v *Workspace) *TaskUpdate {
 	return _u.SetWorkspaceID(v.ID)
@@ -920,6 +947,15 @@ func (_u *TaskUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.GithubIssueURLCleared() {
 		_spec.ClearField(task.FieldGithubIssueURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.GithubIssueCommentID(); ok {
+		_spec.SetField(task.FieldGithubIssueCommentID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGithubIssueCommentID(); ok {
+		_spec.AddField(task.FieldGithubIssueCommentID, field.TypeInt64, value)
+	}
+	if _u.mutation.GithubIssueCommentIDCleared() {
+		_spec.ClearField(task.FieldGithubIssueCommentID, field.TypeInt64)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1879,6 +1915,33 @@ func (_u *TaskUpdateOne) ClearGithubIssueURL() *TaskUpdateOne {
 	return _u
 }
 
+// SetGithubIssueCommentID sets the "github_issue_comment_id" field.
+func (_u *TaskUpdateOne) SetGithubIssueCommentID(v int64) *TaskUpdateOne {
+	_u.mutation.ResetGithubIssueCommentID()
+	_u.mutation.SetGithubIssueCommentID(v)
+	return _u
+}
+
+// SetNillableGithubIssueCommentID sets the "github_issue_comment_id" field if the given value is not nil.
+func (_u *TaskUpdateOne) SetNillableGithubIssueCommentID(v *int64) *TaskUpdateOne {
+	if v != nil {
+		_u.SetGithubIssueCommentID(*v)
+	}
+	return _u
+}
+
+// AddGithubIssueCommentID adds value to the "github_issue_comment_id" field.
+func (_u *TaskUpdateOne) AddGithubIssueCommentID(v int64) *TaskUpdateOne {
+	_u.mutation.AddGithubIssueCommentID(v)
+	return _u
+}
+
+// ClearGithubIssueCommentID clears the value of the "github_issue_comment_id" field.
+func (_u *TaskUpdateOne) ClearGithubIssueCommentID() *TaskUpdateOne {
+	_u.mutation.ClearGithubIssueCommentID()
+	return _u
+}
+
 // SetWorkspace sets the "workspace" edge to the Workspace entity.
 func (_u *TaskUpdateOne) SetWorkspace(v *Workspace) *TaskUpdateOne {
 	return _u.SetWorkspaceID(v.ID)
@@ -2517,6 +2580,15 @@ func (_u *TaskUpdateOne) sqlSave(ctx context.Context) (_node *Task, err error) {
 	}
 	if _u.mutation.GithubIssueURLCleared() {
 		_spec.ClearField(task.FieldGithubIssueURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.GithubIssueCommentID(); ok {
+		_spec.SetField(task.FieldGithubIssueCommentID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGithubIssueCommentID(); ok {
+		_spec.AddField(task.FieldGithubIssueCommentID, field.TypeInt64, value)
+	}
+	if _u.mutation.GithubIssueCommentIDCleared() {
+		_spec.ClearField(task.FieldGithubIssueCommentID, field.TypeInt64)
 	}
 	if _u.mutation.WorkspaceCleared() {
 		edge := &sqlgraph.EdgeSpec{

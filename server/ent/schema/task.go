@@ -48,9 +48,13 @@ func (Task) Fields() []ent.Field {
 		// 昇順に表示する）。nilは「未設定」を表し、既存挙動どおりcreated_at順で末尾に扱う
 		// （マイグレーション時の一括バックフィルは行わない）。
 		field.Int("position").Optional().Nillable(),
-		// GitHub Issueへの手動リンク（M8.5後追加）。URLを保存するだけで、GitHub API連携
-		// （自動作成・ステータス双方向同期）は行わない（コスト最小化・スコープ限定の方針）。
+		// GitHub Issueへの手動リンク（M8.5後追加）。URLは保存するだけで、GitHub側の
+		// 状態変化（クローズ等）を取り込む同期は行わない（コスト最小化・スコープ限定の方針）。
 		field.String("github_issue_url").Optional().Nillable(),
+		// タスク詳細を要約してIssueに投稿したコメントのID（M8.5後の追加要望で追加）。
+		// 一度投稿すると、以降は新規コメントを都度作らずこのコメントを更新（PATCH）する。
+		// nilは未投稿を表す。
+		field.Int64("github_issue_comment_id").Optional().Nillable(),
 	}
 }
 

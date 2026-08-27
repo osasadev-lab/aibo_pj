@@ -48,6 +48,8 @@ const (
 	FieldPosition = "position"
 	// FieldGithubIssueURL holds the string denoting the github_issue_url field in the database.
 	FieldGithubIssueURL = "github_issue_url"
+	// FieldGithubIssueCommentID holds the string denoting the github_issue_comment_id field in the database.
+	FieldGithubIssueCommentID = "github_issue_comment_id"
 	// EdgeWorkspace holds the string denoting the workspace edge name in mutations.
 	EdgeWorkspace = "workspace"
 	// EdgeProject holds the string denoting the project edge name in mutations.
@@ -218,6 +220,7 @@ var Columns = []string{
 	FieldCreatedBy,
 	FieldPosition,
 	FieldGithubIssueURL,
+	FieldGithubIssueCommentID,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -381,6 +384,11 @@ func ByPosition(opts ...sql.OrderTermOption) OrderOption {
 // ByGithubIssueURL orders the results by the github_issue_url field.
 func ByGithubIssueURL(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGithubIssueURL, opts...).ToFunc()
+}
+
+// ByGithubIssueCommentID orders the results by the github_issue_comment_id field.
+func ByGithubIssueCommentID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGithubIssueCommentID, opts...).ToFunc()
 }
 
 // ByWorkspaceField orders the results by workspace field.

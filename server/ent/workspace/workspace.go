@@ -21,6 +21,8 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldGithubToken holds the string denoting the github_token field in the database.
+	FieldGithubToken = "github_token"
 	// EdgeMembers holds the string denoting the members edge name in mutations.
 	EdgeMembers = "members"
 	// EdgeProjects holds the string denoting the projects edge name in mutations.
@@ -94,6 +96,7 @@ var Columns = []string{
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldName,
+	FieldGithubToken,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -140,6 +143,11 @@ func ByUpdatedAt(opts ...sql.OrderTermOption) OrderOption {
 // ByName orders the results by the name field.
 func ByName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldName, opts...).ToFunc()
+}
+
+// ByGithubToken orders the results by the github_token field.
+func ByGithubToken(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGithubToken, opts...).ToFunc()
 }
 
 // ByMembersCount orders the results by members count.

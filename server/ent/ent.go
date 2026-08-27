@@ -27,6 +27,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
 	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/reaction"
 	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
@@ -118,6 +119,7 @@ func checkColumn(t, c string) error {
 			projectmember.Table:         projectmember.ValidColumn,
 			projectstatuscolumn.Table:   projectstatuscolumn.ValidColumn,
 			pushsubscription.Table:      pushsubscription.ValidColumn,
+			reaction.Table:              reaction.ValidColumn,
 			remindersend.Table:          remindersend.ValidColumn,
 			section.Table:               section.ValidColumn,
 			tag.Table:                   tag.ValidColumn,

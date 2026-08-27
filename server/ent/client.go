@@ -31,6 +31,7 @@ import (
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectmember"
 	"github.com/osasadev-lab/aibo_pj/server/ent/projectstatuscolumn"
 	"github.com/osasadev-lab/aibo_pj/server/ent/pushsubscription"
+	"github.com/osasadev-lab/aibo_pj/server/ent/reaction"
 	"github.com/osasadev-lab/aibo_pj/server/ent/remindersend"
 	"github.com/osasadev-lab/aibo_pj/server/ent/section"
 	"github.com/osasadev-lab/aibo_pj/server/ent/tag"
@@ -84,6 +85,8 @@ type Client struct {
 	ProjectStatusColumn *ProjectStatusColumnClient
 	// PushSubscription is the client for interacting with the PushSubscription builders.
 	PushSubscription *PushSubscriptionClient
+	// Reaction is the client for interacting with the Reaction builders.
+	Reaction *ReactionClient
 	// ReminderSend is the client for interacting with the ReminderSend builders.
 	ReminderSend *ReminderSendClient
 	// Section is the client for interacting with the Section builders.
@@ -142,6 +145,7 @@ func (c *Client) init() {
 	c.ProjectMember = NewProjectMemberClient(c.config)
 	c.ProjectStatusColumn = NewProjectStatusColumnClient(c.config)
 	c.PushSubscription = NewPushSubscriptionClient(c.config)
+	c.Reaction = NewReactionClient(c.config)
 	c.ReminderSend = NewReminderSendClient(c.config)
 	c.Section = NewSectionClient(c.config)
 	c.Tag = NewTagClient(c.config)
@@ -265,6 +269,7 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		ProjectMember:         NewProjectMemberClient(cfg),
 		ProjectStatusColumn:   NewProjectStatusColumnClient(cfg),
 		PushSubscription:      NewPushSubscriptionClient(cfg),
+		Reaction:              NewReactionClient(cfg),
 		ReminderSend:          NewReminderSendClient(cfg),
 		Section:               NewSectionClient(cfg),
 		Tag:                   NewTagClient(cfg),
@@ -315,6 +320,7 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		ProjectMember:         NewProjectMemberClient(cfg),
 		ProjectStatusColumn:   NewProjectStatusColumnClient(cfg),
 		PushSubscription:      NewPushSubscriptionClient(cfg),
+		Reaction:              NewReactionClient(cfg),
 		ReminderSend:          NewReminderSendClient(cfg),
 		Section:               NewSectionClient(cfg),
 		Tag:                   NewTagClient(cfg),
@@ -363,9 +369,9 @@ func (c *Client) Use(hooks ...Hook) {
 		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
 		c.CommentMention, c.DMAttachment, c.DMChannel, c.DMChannelMember, c.DMMessage,
 		c.Feedback, c.Notification, c.Project, c.ProjectMember, c.ProjectStatusColumn,
-		c.PushSubscription, c.ReminderSend, c.Section, c.Tag, c.Task, c.TaskAssignee,
-		c.TaskCalendarEvent, c.TaskDependency, c.TaskMemo, c.TaskMemoAttachment,
-		c.TaskMention, c.TaskPin, c.TaskTag, c.User, c.Workspace,
+		c.PushSubscription, c.Reaction, c.ReminderSend, c.Section, c.Tag, c.Task,
+		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMemo,
+		c.TaskMemoAttachment, c.TaskMention, c.TaskPin, c.TaskTag, c.User, c.Workspace,
 		c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Use(hooks...)
@@ -379,9 +385,9 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.ActivityLog, c.Attachment, c.CalendarWatchedMember, c.Comment,
 		c.CommentMention, c.DMAttachment, c.DMChannel, c.DMChannelMember, c.DMMessage,
 		c.Feedback, c.Notification, c.Project, c.ProjectMember, c.ProjectStatusColumn,
-		c.PushSubscription, c.ReminderSend, c.Section, c.Tag, c.Task, c.TaskAssignee,
-		c.TaskCalendarEvent, c.TaskDependency, c.TaskMemo, c.TaskMemoAttachment,
-		c.TaskMention, c.TaskPin, c.TaskTag, c.User, c.Workspace,
+		c.PushSubscription, c.Reaction, c.ReminderSend, c.Section, c.Tag, c.Task,
+		c.TaskAssignee, c.TaskCalendarEvent, c.TaskDependency, c.TaskMemo,
+		c.TaskMemoAttachment, c.TaskMention, c.TaskPin, c.TaskTag, c.User, c.Workspace,
 		c.WorkspaceInvitation, c.WorkspaceMember,
 	} {
 		n.Intercept(interceptors...)
@@ -421,6 +427,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.ProjectStatusColumn.mutate(ctx, m)
 	case *PushSubscriptionMutation:
 		return c.PushSubscription.mutate(ctx, m)
+	case *ReactionMutation:
+		return c.Reaction.mutate(ctx, m)
 	case *ReminderSendMutation:
 		return c.ReminderSend.mutate(ctx, m)
 	case *SectionMutation:
@@ -3074,6 +3082,155 @@ func (c *PushSubscriptionClient) mutate(ctx context.Context, m *PushSubscription
 		return (&PushSubscriptionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown PushSubscription mutation op: %q", m.Op())
+	}
+}
+
+// ReactionClient is a client for the Reaction schema.
+type ReactionClient struct {
+	config
+}
+
+// NewReactionClient returns a client for the Reaction from the given config.
+func NewReactionClient(c config) *ReactionClient {
+	return &ReactionClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `reaction.Hooks(f(g(h())))`.
+func (c *ReactionClient) Use(hooks ...Hook) {
+	c.hooks.Reaction = append(c.hooks.Reaction, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `reaction.Intercept(f(g(h())))`.
+func (c *ReactionClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Reaction = append(c.inters.Reaction, interceptors...)
+}
+
+// Create returns a builder for creating a Reaction entity.
+func (c *ReactionClient) Create() *ReactionCreate {
+	mutation := newReactionMutation(c.config, OpCreate)
+	return &ReactionCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Reaction entities.
+func (c *ReactionClient) CreateBulk(builders ...*ReactionCreate) *ReactionCreateBulk {
+	return &ReactionCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ReactionClient) MapCreateBulk(slice any, setFunc func(*ReactionCreate, int)) *ReactionCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ReactionCreateBulk{err: fmt.Errorf("calling to ReactionClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ReactionCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ReactionCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Reaction.
+func (c *ReactionClient) Update() *ReactionUpdate {
+	mutation := newReactionMutation(c.config, OpUpdate)
+	return &ReactionUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ReactionClient) UpdateOne(_m *Reaction) *ReactionUpdateOne {
+	mutation := newReactionMutation(c.config, OpUpdateOne, withReaction(_m))
+	return &ReactionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ReactionClient) UpdateOneID(id uuid.UUID) *ReactionUpdateOne {
+	mutation := newReactionMutation(c.config, OpUpdateOne, withReactionID(id))
+	return &ReactionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Reaction.
+func (c *ReactionClient) Delete() *ReactionDelete {
+	mutation := newReactionMutation(c.config, OpDelete)
+	return &ReactionDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ReactionClient) DeleteOne(_m *Reaction) *ReactionDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ReactionClient) DeleteOneID(id uuid.UUID) *ReactionDeleteOne {
+	builder := c.Delete().Where(reaction.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ReactionDeleteOne{builder}
+}
+
+// Query returns a query builder for Reaction.
+func (c *ReactionClient) Query() *ReactionQuery {
+	return &ReactionQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeReaction},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Reaction entity by its id.
+func (c *ReactionClient) Get(ctx context.Context, id uuid.UUID) (*Reaction, error) {
+	return c.Query().Where(reaction.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ReactionClient) GetX(ctx context.Context, id uuid.UUID) *Reaction {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// QueryUser queries the user edge of a Reaction.
+func (c *ReactionClient) QueryUser(_m *Reaction) *UserQuery {
+	query := (&UserClient{config: c.config}).Query()
+	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
+		id := _m.ID
+		step := sqlgraph.NewStep(
+			sqlgraph.From(reaction.Table, reaction.FieldID, id),
+			sqlgraph.To(user.Table, user.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, reaction.UserTable, reaction.UserColumn),
+		)
+		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
+		return fromV, nil
+	}
+	return query
+}
+
+// Hooks returns the client hooks.
+func (c *ReactionClient) Hooks() []Hook {
+	return c.hooks.Reaction
+}
+
+// Interceptors returns the client interceptors.
+func (c *ReactionClient) Interceptors() []Interceptor {
+	return c.inters.Reaction
+}
+
+func (c *ReactionClient) mutate(ctx context.Context, m *ReactionMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ReactionCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ReactionUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ReactionUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ReactionDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Reaction mutation op: %q", m.Op())
 	}
 }
 
@@ -6394,17 +6551,17 @@ type (
 	hooks struct {
 		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
 		DMAttachment, DMChannel, DMChannelMember, DMMessage, Feedback, Notification,
-		Project, ProjectMember, ProjectStatusColumn, PushSubscription, ReminderSend,
-		Section, Tag, Task, TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMemo,
-		TaskMemoAttachment, TaskMention, TaskPin, TaskTag, User, Workspace,
-		WorkspaceInvitation, WorkspaceMember []ent.Hook
+		Project, ProjectMember, ProjectStatusColumn, PushSubscription, Reaction,
+		ReminderSend, Section, Tag, Task, TaskAssignee, TaskCalendarEvent,
+		TaskDependency, TaskMemo, TaskMemoAttachment, TaskMention, TaskPin, TaskTag,
+		User, Workspace, WorkspaceInvitation, WorkspaceMember []ent.Hook
 	}
 	inters struct {
 		ActivityLog, Attachment, CalendarWatchedMember, Comment, CommentMention,
 		DMAttachment, DMChannel, DMChannelMember, DMMessage, Feedback, Notification,
-		Project, ProjectMember, ProjectStatusColumn, PushSubscription, ReminderSend,
-		Section, Tag, Task, TaskAssignee, TaskCalendarEvent, TaskDependency, TaskMemo,
-		TaskMemoAttachment, TaskMention, TaskPin, TaskTag, User, Workspace,
-		WorkspaceInvitation, WorkspaceMember []ent.Interceptor
+		Project, ProjectMember, ProjectStatusColumn, PushSubscription, Reaction,
+		ReminderSend, Section, Tag, Task, TaskAssignee, TaskCalendarEvent,
+		TaskDependency, TaskMemo, TaskMemoAttachment, TaskMention, TaskPin, TaskTag,
+		User, Workspace, WorkspaceInvitation, WorkspaceMember []ent.Interceptor
 	}
 )

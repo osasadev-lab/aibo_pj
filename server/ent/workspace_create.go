@@ -62,6 +62,20 @@ func (_c *WorkspaceCreate) SetName(v string) *WorkspaceCreate {
 	return _c
 }
 
+// SetGithubToken sets the "github_token" field.
+func (_c *WorkspaceCreate) SetGithubToken(v string) *WorkspaceCreate {
+	_c.mutation.SetGithubToken(v)
+	return _c
+}
+
+// SetNillableGithubToken sets the "github_token" field if the given value is not nil.
+func (_c *WorkspaceCreate) SetNillableGithubToken(v *string) *WorkspaceCreate {
+	if v != nil {
+		_c.SetGithubToken(*v)
+	}
+	return _c
+}
+
 // SetID sets the "id" field.
 func (_c *WorkspaceCreate) SetID(v uuid.UUID) *WorkspaceCreate {
 	_c.mutation.SetID(v)
@@ -292,6 +306,10 @@ func (_c *WorkspaceCreate) createSpec() (*Workspace, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(workspace.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.GithubToken(); ok {
+		_spec.SetField(workspace.FieldGithubToken, field.TypeString, value)
+		_node.GithubToken = &value
 	}
 	if nodes := _c.mutation.MembersIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
