@@ -82,7 +82,7 @@ func main() {
 		NotifyEmail: cfg.FeedbackNotifyEmail,
 	}
 
-	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure, r2Client, calendarOAuthConfig, encKey)
+	authHandler := handler.NewAuthHandler(client, cfg.GoogleOAuthClientID, cfg.GoogleOAuthClientSecret, cfg.GoogleOAuthRedirectURL, cfg.JWTSecret, cfg.SupabaseJWTSecret, cfg.FrontendURL, cookieSecure, r2Client, calendarOAuthConfig, encKey, cfg.AllowTestLogin)
 	calendarConnectHandler := handler.NewCalendarConnectHandler(client, calendarOAuthConfig, cfg.JWTSecret, encKey, cfg.FrontendURL)
 	workspaceHandler := handler.NewWorkspaceHandler(client, r2Client, calendarOAuthConfig, encKey)
 	memberHandler := handler.NewMemberHandler(client)
@@ -122,6 +122,7 @@ func main() {
 		{
 			authGroup.GET("/google/login", authHandler.GoogleLogin)
 			authGroup.GET("/google/callback", authHandler.GoogleCallback)
+			authGroup.POST("/test-login", authHandler.TestLogin)
 			authGroup.POST("/logout", requireAuth, authHandler.Logout)
 			authGroup.GET("/me", requireAuth, authHandler.Me)
 

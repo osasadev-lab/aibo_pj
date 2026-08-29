@@ -35,6 +35,8 @@ type AuthHandler struct {
 	// /me/calendar-settings・/me/calendar-syncで使う。
 	calendarOAuthConfig *oauth2.Config
 	tokenEncryptionKey  []byte
+	// allowTestLoginはM9（E2Eテスト）用。空ならTestLoginは常に404を返す。
+	allowTestLogin string
 }
 
 // NewAuthHandler はAuthHandlerを構築する。cookieSecureは本番(HTTPS)ではtrue、
@@ -43,7 +45,7 @@ type AuthHandler struct {
 // 出さないようにするための情報。ユーザー確認済みの方針）。calendarOAuthConfig/
 // tokenEncryptionKeyはM6用（internal/auth.NewGoogleCalendarOAuthConfig・
 // DecodeEncryptionKeyで作ったものを渡す）。
-func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, supabaseJWTSecret, frontendURL string, cookieSecure bool, r2 *storage.R2Client, calendarOAuthConfig *oauth2.Config, tokenEncryptionKey []byte) *AuthHandler {
+func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwtSecret, supabaseJWTSecret, frontendURL string, cookieSecure bool, r2 *storage.R2Client, calendarOAuthConfig *oauth2.Config, tokenEncryptionKey []byte, allowTestLogin string) *AuthHandler {
 	return &AuthHandler{
 		client:              client,
 		oauthConfig:         internalauth.NewGoogleOAuthConfig(clientID, clientSecret, redirectURL),
@@ -54,6 +56,7 @@ func NewAuthHandler(client *ent.Client, clientID, clientSecret, redirectURL, jwt
 		r2:                  r2,
 		calendarOAuthConfig: calendarOAuthConfig,
 		tokenEncryptionKey:  tokenEncryptionKey,
+		allowTestLogin:      allowTestLogin,
 	}
 }
 
@@ -116,6 +119,55 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 	}
 
 	c.Redirect(http.StatusTemporaryRedirect, h.frontendURL+"/auth/callback?token="+jwtStr)
+}
+
+type testLoginRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Name  string `json:"name"`
+}
+
+// TestLogin は POST /auth/test-login（M9追加）。Google OAuthの同意画面を介さずに
+// JWTを発行するE2Eテスト専用のバックドア。allowTestLogin（環境変数ALLOW_TEST_LOGIN）が
+// 空の場合は常に404を返し、設定されている場合もその値と一致する
+// `X-Test-Login-Secret`ヘッダーが無ければ404にする（環境変数の設定ミスだけで
+// 即悪用されないための二重防御）。本番環境のSecretsには絶対に設定しないこと。
+func (h *AuthHandler) TestLogin(c *gin.Context) {
+	if h.allowTestLogin == "" || c.GetHeader("X-Test-Login-Secret") != h.allowTestLogin {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	var req testLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "email is required"})
+		return
+	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		name = req.Email
+	}
+
+	ctx := c.Request.Context()
+	u, err := h.client.User.Query().Where(user.EmailEQ(req.Email)).Only(ctx)
+	switch {
+	case ent.IsNotFound(err):
+		info := &internalauth.GoogleUserInfo{Sub: "test-login:" + req.Email, Email: req.Email, Name: name}
+		u, err = h.createUserAndConsumeInvitations(ctx, info)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create user"})
+			return
+		}
+	case err != nil:
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to look up user"})
+		return
+	}
+
+	jwtStr, err := internalauth.IssueToken(h.jwtSecret, u.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to issue token"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"token": jwtStr})
 }
 
 // createUserAndConsumeInvitations は新規ユーザーを作成し、そのメールアドレス宛の

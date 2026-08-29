@@ -4,16 +4,22 @@
 # JSONキー発行が禁止されているため、鍵レスのOIDC認証に切り替えている
 # （Pool/Provider/IAMバインディングの作成手順はdeploy/gcp-setup.sh参照）。
 #
-# 実行前に以下のリポジトリSecretsを設定しておくこと:
+# 実行前に以下のリポジトリSecretsを設定しておくこと（一覧はdeploy/secrets-checklist.md参照）:
 #   GCP_PROJECT_ID   - デプロイ先のGCPプロジェクト
 #   GCP_REGION       - 例: asia-northeast1
 #   CLOUD_RUN_SERVICE - Cloud Runのサービス名（例: aibo-server）
-#   DATABASE_URL     - SupabaseのPostgres接続文字列（server/.env.example参照）
+#   DATABASE_URL / JWT_SECRET / GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET /
+#   GOOGLE_OAUTH_REDIRECT_URL / FRONTEND_URL / SUPABASE_JWT_SECRET /
+#   GOOGLE_CALENDAR_REDIRECT_URL / TOKEN_ENCRYPTION_KEY / VAPID_PUBLIC_KEY /
+#   VAPID_PRIVATE_KEY / VAPID_SUBJECT / INTERNAL_CRON_SECRET
+#   （server/internal/config/config.goのmustEnv対象。未設定だと起動時に落ちる）
+#   R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY / R2_BUCKET_NAME
+#   （添付ファイル機能用。任意項目だが、未設定だと本番でアップロードUIが表示されない）
 #
 # 事前にArtifact Registryのリポジトリ(aibo)を作成しておくこと:
 #   gcloud artifacts repositories create aibo --repository-format=docker --location=<GCP_REGION>
 #
-# DATABASE_URLは簡易的にGitHub Secrets→Cloud Runの環境変数として渡している。
+# 環境変数は簡易的にGitHub Secrets→Cloud Runの環境変数として渡している。
 # より強固にしたい場合はGoogle Secret Managerに移行し、
 # deploy-cloudrun@v2の`secrets:`入力で参照する方式に切り替えること。
 name: Deploy server to Cloud Run
@@ -53,5 +59,22 @@ jobs:
           service: ${{ secrets.CLOUD_RUN_SERVICE }}
           region: ${{ secrets.GCP_REGION }}
           image: ${{ env.IMAGE }}
+          flags: --no-cpu-throttling
           env_vars: |
             DATABASE_URL=${{ secrets.DATABASE_URL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            GOOGLE_OAUTH_CLIENT_ID=${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+            GOOGLE_OAUTH_CLIENT_SECRET=${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+            GOOGLE_OAUTH_REDIRECT_URL=${{ secrets.GOOGLE_OAUTH_REDIRECT_URL }}
+            FRONTEND_URL=${{ secrets.FRONTEND_URL }}
+            SUPABASE_JWT_SECRET=${{ secrets.SUPABASE_JWT_SECRET }}
+            GOOGLE_CALENDAR_REDIRECT_URL=${{ secrets.GOOGLE_CALENDAR_REDIRECT_URL }}
+            TOKEN_ENCRYPTION_KEY=${{ secrets.TOKEN_ENCRYPTION_KEY }}
+            VAPID_PUBLIC_KEY=${{ secrets.VAPID_PUBLIC_KEY }}
+            VAPID_PRIVATE_KEY=${{ secrets.VAPID_PRIVATE_KEY }}
+            VAPID_SUBJECT=${{ secrets.VAPID_SUBJECT }}
+            INTERNAL_CRON_SECRET=${{ secrets.INTERNAL_CRON_SECRET }}
+            R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID }}
+            R2_ACCESS_KEY_ID=${{ secrets.R2_ACCESS_KEY_ID }}
+            R2_SECRET_ACCESS_KEY=${{ secrets.R2_SECRET_ACCESS_KEY }}
+            R2_BUCKET_NAME=${{ secrets.R2_BUCKET_NAME }}

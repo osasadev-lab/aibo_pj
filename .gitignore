@@ -17,6 +17,10 @@ web/out/
 web/.turbo/
 web/next-env.d.ts
 web/*.tsbuildinfo
+web/test-results/
+web/playwright-report/
+web/blob-report/
+web/playwright/.cache/
 
 # OS / editor
 .DS_Store

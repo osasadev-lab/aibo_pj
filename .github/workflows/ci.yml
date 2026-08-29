@@ -46,3 +46,100 @@ jobs:
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+
+  # M9で追加。execution-plan.mdが指定するE2Eの主要シナリオ（招待→プロジェクト作成→
+  # タスク管理→カレンダー連携設定画面）をPlaywrightで検証する。使い捨てのPostgres
+  # （実DBとは無関係）とダミーの認証情報で起動したserver/webに対して実行し、
+  # POST /auth/test-login（ALLOW_TEST_LOGIN設定時のみ有効なE2E専用バイパス）で
+  # Google OAuthの同意画面を介さずログインする。本番環境やSupabase実プロジェクトには
+  # 一切触れない。詳細はdocs/aibo/m9-implementation-plan.md参照。
+  e2e:
+    name: web (E2E)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: e2epass
+          POSTGRES_DB: aibo_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:e2epass@localhost:5432/aibo_e2e
+      JWT_SECRET: ci-jwt-secret
+      GOOGLE_OAUTH_CLIENT_ID: dummy-client-id
+      GOOGLE_OAUTH_CLIENT_SECRET: dummy-client-secret
+      GOOGLE_OAUTH_REDIRECT_URL: http://localhost:8080/api/v1/auth/google/callback
+      FRONTEND_URL: http://localhost:3000
+      SUPABASE_JWT_SECRET: ci-dummy-supabase-jwt-secret
+      GOOGLE_CALENDAR_REDIRECT_URL: http://localhost:8080/api/v1/auth/google/calendar/callback
+      TOKEN_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      VAPID_PUBLIC_KEY: dummy-public
+      VAPID_PRIVATE_KEY: dummy-private
+      VAPID_SUBJECT: "mailto:ci@example.com"
+      INTERNAL_CRON_SECRET: ci-cron-secret
+      ALLOW_TEST_LOGIN: ci-test-login-secret
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080/api/v1
+      # createClient()がURL形式を検証するため、実プロジェクトは使わないがダミーでも
+      # 有効なURL形式にしておく（未使用時は接続自体は発生しない）。
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-dummy.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
+      PLAYWRIGHT_API_BASE_URL: http://localhost:8080/api/v1
+      E2E_TEST_LOGIN_SECRET: ci-test-login-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Run ent migrations
+        working-directory: server
+        run: go run ./cmd/migrate
+
+      - name: Start Go server
+        working-directory: server
+        run: nohup go run ./cmd/server > server.log 2>&1 &
+
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and start Next.js
+        working-directory: web
+        run: |
+          npm run build
+          nohup npm run start > web.log 2>&1 &
+
+      - name: Wait for server and web to be ready
+        run: |
+          for i in $(seq 1 30); do curl -sf http://localhost:8080/health && break; sleep 1; done
+          for i in $(seq 1 30); do curl -sf http://localhost:3000/login && break; sleep 1; done
+
+      - name: Run Playwright E2E tests
+        working-directory: web
+        run: npx playwright test
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: |
+            server/server.log
+            web/web.log
+            web/playwright-report/
+            web/test-results/

@@ -51,6 +51,12 @@ type Config struct {
 	SMTPUsername        string
 	SMTPPassword        string
 	FeedbackNotifyEmail string
+
+	// AllowTestLoginはM9（E2Eテスト）用。空でなければPOST /auth/test-loginが
+	// 有効になり、この値と一致する`X-Test-Login-Secret`ヘッダー付きリクエストで
+	// Google OAuthを介さずJWTを発行できる（Playwright等のE2Eテスト専用）。
+	// 本番環境のSecretsには絶対に設定しないこと（未設定ならエンドポイントは404）。
+	AllowTestLogin string
 }
 
 // Load は環境変数からConfigを組み立てる。必須項目が欠けていればプロセスを終了する。
@@ -79,6 +85,7 @@ func Load() Config {
 		SMTPUsername:              getEnv("SMTP_USERNAME", ""),
 		SMTPPassword:              getEnv("SMTP_PASSWORD", ""),
 		FeedbackNotifyEmail:       getEnv("FEEDBACK_NOTIFY_EMAIL", ""),
+		AllowTestLogin:            getEnv("ALLOW_TEST_LOGIN", ""),
 	}
 	return cfg
 }
